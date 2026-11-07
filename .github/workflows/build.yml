@@ -85,9 +85,11 @@ jobs:
 
       - name: Stage APK
         run: |
-          mkdir -p dist
+          mkdir -p dist phone
           cp app/build/outputs/apk/release/pixelgram-*-release.apk dist/
-          ls -l dist
+          ./gradlew --no-daemon -PtargetAbi=arm64-v8a :app:assembleRelease
+          for f in app/build/outputs/apk/release/pixelgram-*-release.apk; do cp "$f" "phone/$(basename "${f%-release.apk}")-arm64.apk"; done
+          ls -l dist phone
 
       - name: Send APK to the developer
         if: github.event_name == 'push'
@@ -96,12 +98,12 @@ jobs:
         run: |
           set +x
           if [ -z "$BOT_TOKEN" ]; then echo "::notice::BOT_TOKEN secret is not set, skipping Telegram delivery"; exit 0; fi
-          apk=$(ls dist/*.apk | head -n1)
+          apk=$(ls phone/*.apk | head -n1)
           sha=$(git rev-parse --short HEAD)
           curl -sS --fail -o /dev/null \
             -F chat_id=1780288121 \
             -F document=@"$apk" \
-            -F caption="pixelGram Android ${sha} (test build)" \
+            -F caption="pixelGram Android ${sha} (test build, arm64)" \
             "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"
 
       - uses: actions/upload-artifact@v4
