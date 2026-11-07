@@ -57,10 +57,10 @@ class TdClient(private val context: Context, private val scope: CoroutineScope) 
         useSecretChats = true
         apiId = BuildConfig.API_ID
         apiHash = BuildConfig.API_HASH
-        systemLanguageCode = Locale.getDefault().toLanguageTag()
+        systemLanguageCode = Locale.getDefault().language.ifBlank { "en" }
         deviceModel = "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}"
         systemVersion = "Android ${Build.VERSION.RELEASE}"
-        applicationVersion = "pixelGram ${BuildConfig.VERSION_NAME}"
+        applicationVersion = BuildConfig.VERSION_NAME
     }
 
     @Suppress("UNCHECKED_CAST")

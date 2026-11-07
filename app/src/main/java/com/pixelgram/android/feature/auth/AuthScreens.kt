@@ -322,6 +322,10 @@ private fun CodeScreen(step: AuthStep.Code, ui: AuthUi, controller: AuthControll
         Spacer(Modifier.height(32.dp))
         ShapeCodeField(code, length, error = ui.error != null)
         ErrorText(ui.error)
+        if (step.details.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(step.details, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        }
         Spacer(Modifier.height(12.dp))
         if (step.nextType != null) {
             TextButton(onClick = controller::resendCode, enabled = left == 0 && !ui.busy, shapes = ButtonDefaults.shapes()) {

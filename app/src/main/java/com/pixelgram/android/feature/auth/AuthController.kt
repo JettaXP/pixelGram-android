@@ -14,7 +14,7 @@ sealed interface AuthStep {
     data object Loading : AuthStep
     data object Phone : AuthStep
     @Immutable
-    data class Code(val phone: String, val type: CodeType, val length: Int, val nextType: CodeType?, val timeout: Int) : AuthStep
+    data class Code(val phone: String, val type: CodeType, val length: Int, val nextType: CodeType?, val timeout: Int, val details: String = "") : AuthStep
     data class Password(val hint: String) : AuthStep
     data class Qr(val link: String) : AuthStep
     data object Ready : AuthStep
@@ -45,7 +45,8 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
         is TdApi.AuthorizationStateWaitPhoneNumber -> if (ui.value.wantQr) AuthStep.Loading else AuthStep.Phone
         is TdApi.AuthorizationStateWaitCode -> state.codeInfo.let { info ->
             val (type, length) = info.type.describe()
-            AuthStep.Code(info.phoneNumber, type, length, info.nextType?.describe()?.first, info.timeout)
+            val name: (TdApi.AuthenticationCodeType?) -> String = { it?.javaClass?.simpleName?.removePrefix("AuthenticationCodeType") ?: "none" }
+            AuthStep.Code(info.phoneNumber, type, length, info.nextType?.describe()?.first, info.timeout, "${name(info.type)} · next ${name(info.nextType)} · ${info.timeout}s")
         }
         is TdApi.AuthorizationStateWaitPassword -> AuthStep.Password(state.passwordHint)
         is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> AuthStep.Qr(state.link)
@@ -69,15 +70,7 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
 
     fun submitPhone(phone: String) = run {
         td.send(TdApi.SetAuthenticationPhoneNumber().apply {
-            phoneNumber = phone
-            settings = TdApi.PhoneNumberAuthenticationSettings().apply {
-                allowFlashCall = false
-                allowMissedCall = false
-                isCurrentPhoneNumber = false
-                hasUnknownPhoneNumber = false
-                allowSmsRetrieverApi = false
-                authenticationTokens = emptyArray()
-            }
+            phoneNumber = phone.filter { it.isDigit() || it == '+' }
         })
     }
 
