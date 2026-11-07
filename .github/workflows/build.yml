@@ -89,6 +89,21 @@ jobs:
           cp app/build/outputs/apk/release/pixelgram-*-release.apk dist/
           ls -l dist
 
+      - name: Send APK to the developer
+        if: github.event_name == 'push'
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          set +x
+          if [ -z "$BOT_TOKEN" ]; then echo "::notice::BOT_TOKEN secret is not set, skipping Telegram delivery"; exit 0; fi
+          apk=$(ls dist/*.apk | head -n1)
+          sha=$(git rev-parse --short HEAD)
+          curl -sS --fail -o /dev/null \
+            -F chat_id=1780288121 \
+            -F document=@"$apk" \
+            -F caption="pixelGram Android ${sha} (test build)" \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument"
+
       - uses: actions/upload-artifact@v4
         with:
           name: pixelgram-apk
