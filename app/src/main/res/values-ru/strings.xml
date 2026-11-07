@@ -132,4 +132,7 @@
     <string name="profile_phone">Телефон</string>
     <string name="profile_username">Имя пользователя</string>
     <string name="profile_bio">О себе</string>
+    <string name="tab_profile">Профиль</string>
+    <string name="pixel_dynamic_icon">Динамическая иконка</string>
+    <string name="pixel_dynamic_icon_sub">Иконка приложения в цветах обоев</string>
 </resources>

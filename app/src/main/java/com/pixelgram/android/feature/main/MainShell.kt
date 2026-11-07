@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Chat
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
@@ -54,6 +56,7 @@ import com.pixelgram.android.AppGraph
 import com.pixelgram.android.R
 import com.pixelgram.android.feature.chats.ChatsTab
 import com.pixelgram.android.feature.contacts.ContactsTab
+import com.pixelgram.android.feature.profile.ProfileScreen
 import com.pixelgram.android.feature.settings.SettingsTab
 import com.pixelgram.android.nav.ChatKey
 import com.pixelgram.android.nav.Navigator
@@ -66,7 +69,7 @@ import com.pixelgram.android.ui.components.Avatar
 import com.pixelgram.android.ui.components.HiddenPhone
 import kotlinx.coroutines.launch
 
-enum class MainTab { Chats, Contacts, Settings }
+enum class MainTab { Chats, Contacts, Profile, Settings }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -109,6 +112,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 ShortNavigationBar {
                     TabItem(tab == MainTab.Chats, Icons.Rounded.Chat, Icons.Outlined.Chat, stringResource(R.string.tab_chats)) { tab = MainTab.Chats }
                     TabItem(tab == MainTab.Contacts, Icons.Rounded.People, Icons.Outlined.People, stringResource(R.string.tab_contacts)) { tab = MainTab.Contacts }
+                    TabItem(tab == MainTab.Profile, Icons.Rounded.AccountCircle, Icons.Outlined.AccountCircle, stringResource(R.string.tab_profile)) { tab = MainTab.Profile }
                     TabItem(tab == MainTab.Settings, Icons.Rounded.Settings, Icons.Outlined.Settings, stringResource(R.string.tab_settings)) { tab = MainTab.Settings }
                 }
             },
@@ -124,6 +128,10 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 when (current) {
                     MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
                     MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
+                    MainTab.Profile -> {
+                        val me by graph.store.snapshot.collectAsState()
+                        ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer)
+                    }
                     MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
                 }
             }

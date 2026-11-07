@@ -135,6 +135,10 @@ fun PixelSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: B
         checked = checked,
         onCheckedChange = onCheckedChange,
         enabled = enabled,
+        colors = SwitchDefaults.colors(
+            checkedIconColor = MaterialTheme.colorScheme.primary,
+            uncheckedIconColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ),
         thumbContent = {
             Icon(
                 if (checked) Icons.Rounded.Check else Icons.Rounded.Close,

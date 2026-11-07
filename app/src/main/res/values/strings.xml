@@ -133,4 +133,7 @@
     <string name="profile_phone">Phone</string>
     <string name="profile_username">Username</string>
     <string name="profile_bio">Bio</string>
+    <string name="tab_profile">Profile</string>
+    <string name="pixel_dynamic_icon">Dynamic app icon</string>
+    <string name="pixel_dynamic_icon_sub">Launcher icon follows your wallpaper colors</string>
 </resources>

@@ -202,9 +202,18 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
             stringResource(R.string.pixel_monochrome),
             settings.monochrome,
             { value -> update { it.copy(monochrome = value, dynamicColor = if (value) false else it.dynamicColor) } },
-            SegmentPosition.Bottom,
+            SegmentPosition.Middle,
             stringResource(R.string.pixel_monochrome_sub),
             Icons.Rounded.Contrast,
+        )
+        SettingsSwitch(
+            stringResource(R.string.pixel_dynamic_icon),
+            settings.dynamicIcon,
+            { value -> update { it.copy(dynamicIcon = value) } },
+            SegmentPosition.Bottom,
+            stringResource(R.string.pixel_dynamic_icon_sub),
+            Icons.Rounded.Palette,
+            enabled = android.os.Build.VERSION.SDK_INT >= 31,
         )
     }
     SettingsGroup(stringResource(R.string.pixel_avatars)) {
