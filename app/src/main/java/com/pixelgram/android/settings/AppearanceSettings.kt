@@ -14,6 +14,7 @@ import com.pixelgram.android.ui.theme.AvatarShape
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -59,6 +60,23 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val CapsuleSpacing = intPreferencesKey("capsule_spacing")
         val CapsuleHeight = intPreferencesKey("capsule_height")
         val NavTabs = stringPreferencesKey("nav_tabs")
+        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails)
+        val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight)
+        val strings = listOf(Theme, Shape, NavBar, FolderTitleMode, NavTabs)
+    }
+
+    suspend fun exportValues(): Map<String, String> =
+        context.store.data.first().asMap().mapKeys { it.key.name }.mapValues { it.value.toString() }
+
+    suspend fun importValues(values: Map<String, String>): Boolean {
+        var applied = 0
+        context.store.edit { p ->
+            for (key in Keys.booleans) values[key.name]?.toBooleanStrictOrNull()?.let { p[key] = it; applied++ }
+            for (key in Keys.ints) values[key.name]?.toIntOrNull()?.let { p[key] = it; applied++ }
+            for (key in Keys.strings) values[key.name]?.let { p[key] = it; applied++ }
+        }
+        applyLauncherIcon(read(context.store.data.first()).dynamicIcon)
+        return applied > 0
     }
 
     val state: StateFlow<AppearanceSettings> = context.store.data

@@ -198,4 +198,20 @@
     <string name="pixel_nav_tabs">Navigation bar tabs</string>
     <string name="pixel_nav_drag">Drag to reorder</string>
     <string name="chat_attach_photo">Attach photo</string>
+    <string name="backup">Backup</string>
+    <string name="backup_sub">Save pixelGram Settings to a .backup file and send it to any chat, or load them from one. Accounts are not included.</string>
+    <string name="backup_export">Export settings</string>
+    <string name="backup_export_sub">Choose a chat to send the backup to</string>
+    <string name="backup_import">Import</string>
+    <string name="backup_import_item">Import settings</string>
+    <string name="backup_import_sub">Pick a .backup file</string>
+    <string name="backup_import_title">Import settings?</string>
+    <string name="backup_import_text">pixelGram Settings from %1$s will replace your current ones. Accounts stay as they are.</string>
+    <string name="backup_imported">Settings imported</string>
+    <string name="backup_failed">Couldn\'t read %1$s</string>
+    <string name="backup_desktop">This backup was made in pixelGram Desktop. Desktop and Android settings are different, so it can\'t be applied here.</string>
+    <string name="backup_invalid">This file isn\'t a pixelGram Android backup.</string>
+    <string name="backup_not_backup">That\'s not a pixelGram backup</string>
+    <string name="backup_sent">Sent %1$s</string>
+    <string name="backup_pick_chat">Send backup to</string>
 </resources>

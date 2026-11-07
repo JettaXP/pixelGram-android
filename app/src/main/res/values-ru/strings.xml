@@ -197,4 +197,20 @@
     <string name="pixel_nav_tabs">Вкладки нижней панели</string>
     <string name="pixel_nav_drag">Перетащите, чтобы изменить порядок</string>
     <string name="chat_attach_photo">Прикрепить фото</string>
+    <string name="backup">Резервная копия</string>
+    <string name="backup_sub">Сохраните настройки pixelGram в файл .backup и отправьте в любой чат или загрузите их из файла. Аккаунты не сохраняются.</string>
+    <string name="backup_export">Экспорт настроек</string>
+    <string name="backup_export_sub">Выберите чат, куда отправить копию</string>
+    <string name="backup_import">Импорт</string>
+    <string name="backup_import_item">Импорт настроек</string>
+    <string name="backup_import_sub">Выберите файл .backup</string>
+    <string name="backup_import_title">Импортировать настройки?</string>
+    <string name="backup_import_text">Настройки pixelGram из %1$s заменят текущие. Аккаунты останутся как есть.</string>
+    <string name="backup_imported">Настройки импортированы</string>
+    <string name="backup_failed">Не удалось прочитать %1$s</string>
+    <string name="backup_desktop">Эта копия сделана в pixelGram Desktop. Настройки десктопа и Android разные, поэтому применить её здесь нельзя.</string>
+    <string name="backup_invalid">Этот файл не резервная копия pixelGram для Android.</string>
+    <string name="backup_not_backup">Это не резервная копия pixelGram</string>
+    <string name="backup_sent">Отправлено: %1$s</string>
+    <string name="backup_pick_chat">Отправить копию в</string>
 </resources>

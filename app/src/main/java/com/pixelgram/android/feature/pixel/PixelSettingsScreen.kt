@@ -30,6 +30,9 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material.icons.rounded.Download
+import kotlinx.coroutines.launch
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -112,7 +115,10 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
                 "appearance" -> AppearancePage(appearance) { change -> graph.appearance.update(change) }
                 "general" -> GeneralPage(appearance) { change -> graph.appearance.update(change) }
                 "chats" -> ChatsPage(appearance) { change -> graph.appearance.update(change) }
-                "about" -> AboutPage()
+                "about" -> {
+                    AboutPage()
+                    BackupSection()
+                }
                 else -> HomePage { navigator.open(PixelSettingsKey(it)) }
             }
             Spacer(Modifier.height(24.dp))
@@ -369,6 +375,85 @@ internal fun AboutPage() {
     SettingsGroup(stringResource(R.string.pixel_info)) {
         SettingsItem(stringResource(R.string.pixel_version), SegmentPosition.Top, BuildConfig.VERSION_NAME, Icons.Rounded.Info)
         SettingsItem(stringResource(R.string.pixel_credits), SegmentPosition.Bottom, stringResource(R.string.pixel_credits_sub), Icons.Rounded.Palette)
+    }
+}
+
+@Composable
+private fun BackupSection() {
+    val graph = com.pixelgram.android.LocalGraph.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var exporting by remember { mutableStateOf<java.io.File?>(null) }
+    var importing by remember { mutableStateOf<java.io.File?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val failed = stringResource(R.string.backup_failed, "backup")
+    val notBackup = stringResource(R.string.backup_not_backup)
+    val sentFormat = stringResource(R.string.backup_sent, "%s")
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) c.getString(0) else null
+                    } ?: "import.backup"
+                    val target = java.io.File(context.cacheDir, name.substringAfterLast('/'))
+                    context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                    target
+                }.getOrNull()
+            }
+            when {
+                file == null -> status = failed
+                !com.pixelgram.android.settings.Backup.isBackup(file.name) -> status = notBackup
+                else -> importing = file
+            }
+        }
+    }
+    SettingsGroup(stringResource(R.string.backup)) {
+        SettingsItem(
+            stringResource(R.string.backup_export),
+            SegmentPosition.Top,
+            stringResource(R.string.backup_export_sub),
+            Icons.Rounded.Upload,
+            onClick = {
+                scope.launch {
+                    exporting = com.pixelgram.android.settings.Backup.export(context, graph.appearance)
+                    if (exporting == null) status = failed
+                }
+            },
+        )
+        SettingsItem(
+            stringResource(R.string.backup_import_item),
+            SegmentPosition.Bottom,
+            stringResource(R.string.backup_import_sub),
+            Icons.Rounded.Download,
+            onClick = { picker.launch(arrayOf("*/*")) },
+        )
+    }
+    Text(
+        status ?: stringResource(R.string.backup_sub),
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (status != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
+    )
+    exporting?.let { file ->
+        com.pixelgram.android.ui.components.ChatPickerSheet(
+            onPick = { chatId ->
+                exporting = null
+                scope.launch {
+                    runCatching { com.pixelgram.android.ui.components.sendDocument(graph, chatId, file) }
+                        .onSuccess { status = sentFormat.replace("%s", file.name) }
+                        .onFailure { status = failed }
+                }
+            },
+            onDismiss = { exporting = null },
+        )
+    }
+    importing?.let { file ->
+        com.pixelgram.android.ui.components.BackupImportDialog(file) { result ->
+            importing = null
+            if (result != null) status = result
+        }
     }
 }
 

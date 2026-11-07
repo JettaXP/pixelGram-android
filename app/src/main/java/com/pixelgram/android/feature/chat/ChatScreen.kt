@@ -1,6 +1,9 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import org.drinkless.tdlib.TdApi
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
+import androidx.compose.material.icons.rounded.Settings
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
@@ -310,6 +313,7 @@ private fun MessageBubble(
                             .clip(RoundedCornerShape(16.dp)),
                     )
                 }
+                (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 Row(
                     Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.Bottom,
@@ -337,6 +341,54 @@ private fun MessageBubble(
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun DocumentRow(document: TdApi.Document, tint: Color) {
+    val graph = com.pixelgram.android.LocalGraph.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val backup = com.pixelgram.android.settings.Backup.isBackup(document.fileName)
+    var busy by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf<File?>(null) }
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(enabled = !busy) {
+                scope.launch {
+                    busy = true
+                    val path = runCatching { graph.td.send(TdApi.DownloadFile(document.document.id, 32, 0, 0, true)).local.path }.getOrNull()
+                    busy = false
+                    if (backup && !path.isNullOrEmpty()) importing = File(path)
+                }
+            }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (busy) LoadingIndicator(Modifier.size(32.dp), color = MaterialTheme.colorScheme.onPrimary)
+            else Icon(if (backup) Icons.Rounded.Settings else Icons.AutoMirrored.Rounded.InsertDriveFile, null, tint = MaterialTheme.colorScheme.onPrimary)
+        }
+        Column(Modifier.widthIn(max = 220.dp)) {
+            Text(document.fileName.ifBlank { "File" }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                android.text.format.Formatter.formatShortFileSize(context, maxOf(document.document.size, document.document.expectedSize)),
+                style = MaterialTheme.typography.labelMedium,
+                color = tint.copy(alpha = 0.7f),
+            )
+        }
+    }
+    importing?.let { file ->
+        com.pixelgram.android.ui.components.BackupImportDialog(file) { result ->
+            importing = null
+            if (result != null) android.widget.Toast.makeText(context, result, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 }
