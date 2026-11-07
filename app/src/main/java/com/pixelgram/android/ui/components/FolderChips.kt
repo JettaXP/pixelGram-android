@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -104,10 +109,20 @@ fun FolderChips(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val state = rememberLazyListState()
+    val index = tabs.indexOfFirst { it.id == selected }
+    LaunchedEffect(index) {
+        if (index < 0) return@LaunchedEffect
+        val visible = state.layoutInfo.visibleItemsInfo
+        val item = visible.firstOrNull { it.index == index }
+        val viewport = state.layoutInfo.viewportEndOffset
+        if (item == null || item.offset < 0 || item.offset + item.size > viewport) state.animateScrollToItem((index - 1).coerceAtLeast(0))
+    }
     LazyRow(
+        state = state,
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
     ) {
         items(tabs, key = { it.id }) { tab ->
             FolderChip(tab, tab.id == selected, mode) { onSelect(tab.id) }
@@ -118,11 +133,19 @@ fun FolderChips(
 @Composable
 private fun FolderChip(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val spatial = MaterialTheme.motionScheme.fastSpatialSpec<androidx.compose.ui.unit.Dp>()
-    val effects = MaterialTheme.motionScheme.fastEffectsSpec<androidx.compose.ui.graphics.Color>()
-    val corner by animateDpAsState(if (selected) ChipHeight / 2 else 16.dp, spatial, label = "folder-corner")
+    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.Dp>()
+    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<androidx.compose.ui.graphics.Color>()
+    val corner by animateDpAsState(if (selected) ChipHeight / 2 else ChipCorner, spatial, label = "folder-corner")
     val container by animateColorAsState(if (selected) scheme.primaryContainer else scheme.surfaceContainerHigh, effects, label = "folder-container")
     val content by animateColorAsState(if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant, effects, label = "folder-content")
+    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+    val bounce = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+    LaunchedEffect(selected) {
+        if (selected) {
+            pop.snapTo(0.9f)
+            pop.animateTo(1f, bounce)
+        }
+    }
     val showIcon = mode != FolderTitle.Names
     val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && selected)
     Surface(
@@ -130,19 +153,26 @@ private fun FolderChip(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
         shape = RoundedCornerShape(corner),
         color = container,
         contentColor = content,
-        modifier = Modifier.height(ChipHeight),
+        modifier = Modifier
+            .height(ChipHeight)
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            },
     ) {
         Row(
-            Modifier.padding(horizontal = if (showName) 18.dp else 14.dp),
+            Modifier
+                .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec())
+                .padding(horizontal = if (showName) 14.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (showIcon) Icon(folderIcon(tab.icon, selected), contentDescription = tab.title, modifier = Modifier.size(22.dp))
+            if (showIcon) Icon(folderIcon(tab.icon, selected), contentDescription = tab.title, modifier = Modifier.size(20.dp))
             if (showName) {
                 Text(
                     tab.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                 )
             }
@@ -159,14 +189,14 @@ private fun FolderChip(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
                         tab.unreadUnmuted > 0 -> scheme.onPrimary
                         else -> scheme.surface
                     },
-                    modifier = Modifier.defaultMinSize(minWidth = 22.dp, minHeight = 22.dp),
+                    modifier = Modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp),
                 ) {
                     Text(
                         if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                     )
                 }
             }
@@ -174,7 +204,9 @@ private fun FolderChip(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     }
 }
 
-private val ChipHeight = 48.dp
+private val ChipHeight = 40.dp
+private val ChipCorner = 10.dp
+private val ChipSpacing = 6.dp
 
 fun folderIcon(name: String, filled: Boolean): ImageVector {
     val pair = FolderIcons[name] ?: FolderIcons.getValue("Custom")

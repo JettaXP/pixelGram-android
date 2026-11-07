@@ -38,6 +38,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationItemIconPosition
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
@@ -147,11 +148,11 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     }
 }
 
-private data class MainTabItem(val tab: MainTab, val selectedIcon: ImageVector, val icon: ImageVector, val label: String, val badge: Int = 0)
+internal data class MainTabItem(val tab: MainTab, val selectedIcon: ImageVector, val icon: ImageVector, val label: String, val badge: Int = 0)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: MainTab, onSelect: (MainTab) -> Unit) {
+internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: MainTab, onSelect: (MainTab) -> Unit) {
     val icon: @Composable (MainTabItem) -> Unit = { item ->
         BadgedBox(badge = { if (item.badge > 0) Badge { Text(if (item.badge > 999) "999+" else item.badge.toString()) } }) {
             Icon(if (item.tab == selected) item.selectedIcon else item.icon, contentDescription = null)
@@ -163,8 +164,20 @@ private fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: Ma
                 ShortNavigationBarItem(
                     selected = item.tab == selected,
                     onClick = { onSelect(item.tab) },
-                    icon = { icon(item) },
-                    label = { Text(item.label) },
+                    icon = {
+                        if (item.tab == selected) Icon(item.selectedIcon, contentDescription = null) else icon(item)
+                    },
+                    label = if (item.tab == selected) {
+                        {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(item.label, maxLines = 1)
+                                if (item.badge > 0) Badge { Text(if (item.badge > 999) "999+" else item.badge.toString()) }
+                            }
+                        }
+                    } else {
+                        null
+                    },
+                    iconPosition = NavigationItemIconPosition.Start,
                 )
             }
         }

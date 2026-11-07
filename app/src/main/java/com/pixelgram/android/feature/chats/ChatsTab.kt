@@ -16,6 +16,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bookmark
@@ -27,8 +30,6 @@ import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -36,7 +37,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,7 +48,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,25 +81,92 @@ fun ChatsTab(
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
-    var folder by rememberSaveable { mutableStateOf(0) }
-    val listKey = when {
-        baseList == LIST_ARCHIVE -> LIST_ARCHIVE
-        folder != 0 -> folderKey(folder)
-        else -> LIST_MAIN
+    val archive = baseList == LIST_ARCHIVE
+    val allTitle = stringResource(R.string.folder_all)
+    val tabs = remember(snapshot.folders, snapshot.unread, allTitle, archive) {
+        if (archive) {
+            emptyList()
+        } else {
+            val main = snapshot.unread[LIST_MAIN]
+            listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + snapshot.folders.map { f ->
+                val u = snapshot.unread[folderKey(f.id)]
+                FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
+            }
+        }
     }
-    val rows = snapshot.lists[listKey].orEmpty()
+    var folder by rememberSaveable { mutableStateOf(0) }
+    val pageCount = tabs.size.coerceAtLeast(1)
+    val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.id == folder }.coerceAtLeast(0)) { pageCount }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(pager.currentPage, tabs) { tabs.getOrNull(pager.currentPage)?.let { folder = it.id } }
+    Scaffold(
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when {
+                                archive -> stringResource(R.string.drawer_archive)
+                                appearance.folderTitle == FolderTitle.Icons && folder != 0 -> tabs.firstOrNull { it.id == folder }?.title ?: stringResource(R.string.app_name)
+                                else -> stringResource(R.string.app_name)
+                            },
+                            style = MaterialTheme.typography.titleLargeEmphasized,
+                        )
+                    },
+                    navigationIcon = {
+                        if (archive) {
+                            IconButton(onClick = onCloseArchive) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
+                        } else {
+                            IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                        }
+                    },
+                )
+                if (tabs.size > 1) {
+                    FolderChips(
+                        tabs,
+                        folder,
+                        appearance.folderTitle,
+                        onSelect = { id ->
+                            val index = tabs.indexOfFirst { it.id == id }
+                            if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
+                        },
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        HorizontalPager(
+            state = pager,
+            key = { tabs.getOrNull(it)?.id ?: -1 },
+            beyondViewportPageCount = 0,
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+        ) { page ->
+            val id = tabs.getOrNull(page)?.id ?: 0
+            val key = when {
+                archive -> LIST_ARCHIVE
+                id != 0 -> folderKey(id)
+                else -> LIST_MAIN
+            }
+            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty())
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>) {
     val listState = rememberLazyListState()
     var loading by remember(listKey) { mutableStateOf(true) }
-    val tdList: TdApi.ChatList = when {
-        listKey == LIST_ARCHIVE -> TdApi.ChatListArchive()
-        folder != 0 -> TdApi.ChatListFolder(folder)
-        else -> TdApi.ChatListMain()
-    }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val loadMore: () -> Unit = {
-        scope.launch {
-            loading = runCatching { graph.td.send(TdApi.LoadChats(tdList, 50)) }.isSuccess
+    val tdList: TdApi.ChatList = remember(listKey) {
+        when {
+            listKey == LIST_ARCHIVE -> TdApi.ChatListArchive()
+            listKey.startsWith("folder:") -> TdApi.ChatListFolder(listKey.removePrefix("folder:").toInt())
+            else -> TdApi.ChatListMain()
         }
+    }
+    val scope = rememberCoroutineScope()
+    val loadMore: () -> Unit = {
+        scope.launch { loading = runCatching { graph.td.send(TdApi.LoadChats(tdList, 50)) }.isSuccess }
     }
     LaunchedEffect(listKey) { loadMore() }
     val nearEnd by remember(listKey) {
@@ -110,65 +176,24 @@ fun ChatsTab(
         }
     }
     LaunchedEffect(nearEnd, loading) { if (nearEnd && loading) loadMore() }
-
-    val behavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    Scaffold(
-        modifier = Modifier.nestedScroll(behavior.nestedScrollConnection),
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Text(
-                            when {
-                                baseList == LIST_ARCHIVE -> stringResource(R.string.drawer_archive)
-                                appearance.folderTitle == FolderTitle.Icons && folder != 0 -> snapshot.folders.firstOrNull { it.id == folder }?.title ?: stringResource(R.string.app_name)
-                                else -> stringResource(R.string.app_name)
-                            },
-                            style = MaterialTheme.typography.titleLargeEmphasized,
-                        )
-                    },
-                    navigationIcon = {
-                        if (baseList == LIST_ARCHIVE) {
-                            IconButton(onClick = onCloseArchive) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
-                        } else {
-                            IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
-                        }
-                    },
-                    scrollBehavior = behavior,
+    if (rows.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (loading) LoadingIndicator(Modifier.size(56.dp))
+            else Text(stringResource(R.string.chats_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(bottom = 8.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(rows, key = { it.id }, contentType = { "chat" }) { row ->
+                ChatListItem(
+                    row = row,
+                    onClick = { navigator.open(ChatKey(row.id)) },
+                    onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
+                    modifier = Modifier.animateItem(),
                 )
-                if (baseList != LIST_ARCHIVE && snapshot.folders.isNotEmpty()) {
-                    val allTitle = stringResource(R.string.folder_all)
-                    val tabs = remember(snapshot.folders, snapshot.unread, allTitle) {
-                        val main = snapshot.unread[LIST_MAIN]
-                        listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + snapshot.folders.map { f ->
-                            val u = snapshot.unread[folderKey(f.id)]
-                            FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
-                        }
-                    }
-                    FolderChips(tabs, folder, appearance.folderTitle, onSelect = { folder = it })
-                }
-            }
-        },
-    ) { padding ->
-        if (rows.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                if (loading) LoadingIndicator(Modifier.size(56.dp))
-                else Text(stringResource(R.string.chats_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 8.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(rows, key = { it.id }, contentType = { "chat" }) { row ->
-                    ChatListItem(
-                        row = row,
-                        onClick = { navigator.open(ChatKey(row.id)) },
-                        onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
-                        modifier = Modifier.animateItem(),
-                    )
-                }
             }
         }
     }
