@@ -38,9 +38,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationItemIconPosition
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -71,6 +68,8 @@ import com.pixelgram.android.settings.ThemeMode
 import com.pixelgram.android.td.LIST_ARCHIVE
 import com.pixelgram.android.td.LIST_MAIN
 import com.pixelgram.android.ui.components.Avatar
+import com.pixelgram.android.ui.components.CapsuleBar
+import com.pixelgram.android.ui.components.CapsuleItem
 import com.pixelgram.android.ui.components.HiddenPhone
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -159,28 +158,11 @@ internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: M
         }
     }
     when (style) {
-        NavBarStyle.Expressive -> ShortNavigationBar {
-            tabs.forEach { item ->
-                ShortNavigationBarItem(
-                    selected = item.tab == selected,
-                    onClick = { onSelect(item.tab) },
-                    icon = {
-                        if (item.tab == selected) Icon(item.selectedIcon, contentDescription = null) else icon(item)
-                    },
-                    label = if (item.tab == selected) {
-                        {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(item.label, maxLines = 1)
-                                if (item.badge > 0) Badge { Text(if (item.badge > 999) "999+" else item.badge.toString()) }
-                            }
-                        }
-                    } else {
-                        null
-                    },
-                    iconPosition = NavigationItemIconPosition.Start,
-                )
-            }
-        }
+        NavBarStyle.Expressive -> CapsuleBar(
+            items = tabs.map { CapsuleItem(it.tab, it.selectedIcon, it.icon, it.label, it.badge) },
+            selected = selected,
+            onSelect = onSelect,
+        )
         NavBarStyle.Classic -> NavigationBar {
             tabs.forEach { item ->
                 NavigationBarItem(
