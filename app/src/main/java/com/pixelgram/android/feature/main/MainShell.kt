@@ -19,7 +19,6 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
@@ -61,7 +60,6 @@ import com.pixelgram.android.feature.settings.SettingsTab
 import com.pixelgram.android.nav.ChatKey
 import com.pixelgram.android.nav.Navigator
 import com.pixelgram.android.nav.PixelSettingsKey
-import com.pixelgram.android.nav.SessionsKey
 import com.pixelgram.android.settings.ThemeMode
 import com.pixelgram.android.td.LIST_ARCHIVE
 import com.pixelgram.android.td.LIST_MAIN
@@ -96,7 +94,6 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                             list = LIST_ARCHIVE
                         }
                         DrawerItem.Contacts -> tab = MainTab.Contacts
-                        DrawerItem.Devices -> navigator.open(SessionsKey)
                         DrawerItem.Pixel -> navigator.open(PixelSettingsKey())
                         DrawerItem.Settings -> tab = MainTab.Settings
                         DrawerItem.Theme -> graph.appearance.update {
@@ -156,7 +153,7 @@ private fun TabItem(
     )
 }
 
-private enum class DrawerItem { Saved, Archive, Contacts, Devices, Pixel, Settings, Theme }
+private enum class DrawerItem { Saved, Archive, Contacts, Pixel, Settings, Theme }
 
 @Composable
 private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
@@ -181,7 +178,6 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
         DrawerRow(Icons.Outlined.BookmarkBorder, stringResource(R.string.drawer_saved)) { onItem(DrawerItem.Saved) }
         DrawerRow(Icons.Outlined.Archive, stringResource(R.string.drawer_archive)) { onItem(DrawerItem.Archive) }
         DrawerRow(Icons.Outlined.People, stringResource(R.string.tab_contacts)) { onItem(DrawerItem.Contacts) }
-        DrawerRow(Icons.Outlined.Devices, stringResource(R.string.settings_devices)) { onItem(DrawerItem.Devices) }
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.pixel_settings)) },
             icon = { Icon(painterResource(R.drawable.ic_pixelgram), null) },

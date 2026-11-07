@@ -93,7 +93,8 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             when (page) {
                 "appearance" -> AppearancePage(appearance) { change -> graph.appearance.update(change) }
-                "general", "chats" -> EmptyPage(page)
+                "general" -> GeneralPage(appearance) { change -> graph.appearance.update(change) }
+                "chats" -> EmptyPage(page)
                 "about" -> AboutPage()
                 else -> HomePage { navigator.open(PixelSettingsKey(it)) }
             }
@@ -131,6 +132,20 @@ internal fun HomePage(open: (String) -> Unit) {
         SettingsItem(stringResource(R.string.pixel_appearance), SegmentPosition.Middle, stringResource(R.string.pixel_appearance_sub), Icons.Rounded.Palette, onClick = { open("appearance") })
         SettingsItem(stringResource(R.string.pixel_chats), SegmentPosition.Middle, stringResource(R.string.pixel_chats_sub), Icons.Rounded.Chat, onClick = { open("chats") })
         SettingsItem(stringResource(R.string.pixel_about), SegmentPosition.Bottom, stringResource(R.string.pixel_about_sub), Icons.Rounded.Info, onClick = { open("about") })
+    }
+}
+
+@Composable
+internal fun GeneralPage(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    SettingsGroup(stringResource(R.string.pixel_phones)) {
+        SettingsSwitch(
+            stringResource(R.string.pixel_phone_details),
+            settings.phoneDetails,
+            { value -> update { it.copy(phoneDetails = value) } },
+            SegmentPosition.Single,
+            stringResource(R.string.pixel_phone_details_sub),
+            Icons.Rounded.Phone,
+        )
     }
 }
 

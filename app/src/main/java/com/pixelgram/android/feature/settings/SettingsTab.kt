@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
-import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material3.AlertDialog
@@ -42,12 +41,13 @@ import com.pixelgram.android.R
 import com.pixelgram.android.nav.Navigator
 import com.pixelgram.android.nav.PixelSettingsKey
 import com.pixelgram.android.nav.ProfileKey
-import com.pixelgram.android.nav.SessionsKey
+import com.pixelgram.android.nav.SettingsSectionKey
 import com.pixelgram.android.ui.components.Avatar
 import com.pixelgram.android.ui.components.HiddenPhone
 import com.pixelgram.android.ui.components.SegmentPosition
 import com.pixelgram.android.ui.components.SettingsGroup
 import com.pixelgram.android.ui.components.SettingsItem
+import com.pixelgram.android.ui.components.segmentPosition
 import com.pixelgram.android.util.formatPhone
 import org.drinkless.tdlib.TdApi
 
@@ -92,20 +92,27 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
                     onClick = { navigator.open(PixelSettingsKey()) },
                 )
             }
-            SettingsGroup(stringResource(R.string.settings_account)) {
-                SettingsItem(
-                    title = stringResource(R.string.settings_devices),
-                    subtitle = stringResource(R.string.settings_devices_sub),
-                    icon = Icons.Rounded.Devices,
-                    position = SegmentPosition.Top,
-                    onClick = { navigator.open(SessionsKey) },
-                )
+            SettingsGroup {
+                val sections = SettingsSection.entries
+                sections.forEachIndexed { index, section ->
+                    SettingsItem(
+                        title = stringResource(section.title),
+                        subtitle = stringResource(section.subtitle),
+                        icon = section.icon,
+                        iconBackground = section.tone.container(MaterialTheme.colorScheme),
+                        iconTint = section.tone.content(MaterialTheme.colorScheme),
+                        position = segmentPosition(index, sections.size),
+                        onClick = { navigator.open(SettingsSectionKey(section.name)) },
+                    )
+                }
+            }
+            SettingsGroup {
                 SettingsItem(
                     title = stringResource(R.string.settings_logout),
                     icon = Icons.AutoMirrored.Rounded.Logout,
                     iconBackground = MaterialTheme.colorScheme.errorContainer,
                     iconTint = MaterialTheme.colorScheme.onErrorContainer,
-                    position = SegmentPosition.Bottom,
+                    position = SegmentPosition.Single,
                     onClick = { confirmLogout = true },
                 )
             }

@@ -49,6 +49,7 @@ fun initials(title: String): String {
 
 fun formatPhone(digits: String): String {
     if (digits.isEmpty()) return ""
+    runCatching { Phones.formatInternational(digits) }.getOrNull()?.let { return it }
     val groups = listOf(1, 3, 3, 2, 2, 4)
     val out = StringBuilder()
     var index = 0

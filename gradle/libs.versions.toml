@@ -13,6 +13,8 @@ serialization = "1.11.0"
 datastore = "1.3.0"
 coil = "2.7.0"
 qrcodegen = "1.8.0"
+libphonenumber = "9.0.42"
+phonecarrier = "2.42"
 annotation = "1.9.1"
 junit = "4.13.2"
 
@@ -38,6 +40,8 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 qrcodegen = { module = "io.nayuki:qrcodegen", version.ref = "qrcodegen" }
+libphonenumber = { module = "com.googlecode.libphonenumber:libphonenumber", version.ref = "libphonenumber" }
+phonecarrier = { module = "com.googlecode.libphonenumber:carrier", version.ref = "phonecarrier" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

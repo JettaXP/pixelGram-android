@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -58,11 +59,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pixelgram.android.R
-import com.pixelgram.android.util.formatPhone
+import com.pixelgram.android.util.Phones
 import com.pixelgram.android.ui.components.ExpressiveQrCode
 import com.pixelgram.android.ui.components.Numpad
 import com.pixelgram.android.ui.components.ShapeCodeField
-import com.pixelgram.android.ui.components.ShapePasswordField
+import com.pixelgram.android.ui.components.ShapePasswordBar
 import kotlinx.coroutines.delay
 
 @Composable
@@ -81,7 +82,7 @@ fun AuthFlow(controller: AuthController) {
     ) { _ ->
         when (val step = ui.step) {
             AuthStep.Loading, AuthStep.Ready -> LoadingScreen()
-            AuthStep.Phone -> PhoneScreen(ui, controller)
+            AuthStep.Phone -> PhoneScreen(ui, controller::submitPhone, controller::requestQr, controller::clearError)
             is AuthStep.Code -> CodeScreen(step, ui, controller)
             is AuthStep.Password -> PasswordScreen(step, ui, controller)
             is AuthStep.Qr -> QrScreen(step, controller)
@@ -147,38 +148,120 @@ private fun AuthScaffold(
     }
 }
 
+internal enum class PhoneField { Code, Number }
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PhoneScreen(ui: AuthUi, controller: AuthController) {
-    var digits by rememberSaveable { mutableStateOf("") }
+internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Unit, onClearError: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val initialCode = remember {
+        val telephony = context.getSystemService(android.telephony.TelephonyManager::class.java)
+        val region = listOfNotNull(telephony?.networkCountryIso, telephony?.simCountryIso, java.util.Locale.getDefault().country)
+            .firstOrNull { it.length == 2 }
+        region?.let { runCatching { Phones.codeForRegion(it) }.getOrNull() }.orEmpty()
+    }
+    var code by rememberSaveable { mutableStateOf(initialCode) }
+    var number by rememberSaveable { mutableStateOf("") }
+    var field by rememberSaveable { mutableStateOf(if (initialCode.isNotEmpty()) PhoneField.Number else PhoneField.Code) }
+    var manual by rememberSaveable { mutableStateOf(false) }
+    val validCode = remember(code) { Phones.isCallingCode(code) }
+    val country = remember(code, number) { Phones.country(code, number) }
+    val formatted = remember(code, number) { Phones.formatNational(code, number) }
+    val placeholder = remember(code) { Phones.placeholder(code) }
     AuthScaffold(
         onBack = null,
         bottom = {
             Numpad(
-                onDigit = { if (digits.length < 15) digits += it; controller.clearError() },
-                onBackspace = { digits = digits.dropLast(1) },
-                onSubmit = { controller.submitPhone("+$digits") },
-                submitEnabled = digits.length >= 7,
+                onDigit = { digit ->
+                    onClearError()
+                    when (field) {
+                        PhoneField.Code -> if (code.length < 4 && Phones.isCodePrefix(code + digit)) {
+                            code += digit
+                            if (!manual && Phones.completesCode(code)) field = PhoneField.Number
+                        }
+                        PhoneField.Number -> if (code.length + number.length < 15) number += digit
+                    }
+                },
+                onBackspace = {
+                    when (field) {
+                        PhoneField.Number -> if (number.isEmpty()) {
+                            field = PhoneField.Code
+                            manual = false
+                        } else {
+                            number = number.dropLast(1)
+                        }
+                        PhoneField.Code -> code = code.dropLast(1)
+                    }
+                },
+                onSubmit = { onSubmit("+$code$number") },
+                submitEnabled = validCode && number.length >= 4,
                 busy = ui.busy,
             )
         },
     ) {
         Spacer(Modifier.height(16.dp))
         AuthHeader(stringResource(R.string.auth_phone_title), stringResource(R.string.auth_phone_subtitle), MaterialShapes.Cookie12Sided.toShape())
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            PhonePart(
+                active = field == PhoneField.Code,
+                onClick = {
+                    field = PhoneField.Code
+                    manual = true
+                },
+            ) {
+                Text(
+                    "+$code",
+                    style = MaterialTheme.typography.headlineMediumEmphasized,
+                    color = if (code.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
+            PhonePart(
+                active = field == PhoneField.Number,
+                onClick = { if (validCode) field = PhoneField.Number },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    if (number.isEmpty()) placeholder ?: stringResource(R.string.auth_phone_number) else formatted,
+                    style = MaterialTheme.typography.headlineMediumEmphasized,
+                    color = if (number.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Text(
-            text = "+" + formatPhone(digits),
-            style = MaterialTheme.typography.displaySmallEmphasized,
-            color = if (digits.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
+            when {
+                country != null -> "${country.first}  ${country.second}"
+                code.isEmpty() -> stringResource(R.string.auth_country_hint)
+                else -> stringResource(R.string.auth_country_invalid)
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (country == null && code.isNotEmpty() && !Phones.isCodePrefix(code)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ErrorText(ui.error)
-        Spacer(Modifier.height(16.dp))
-        TextButton(onClick = controller::requestQr, shapes = ButtonDefaults.shapes()) {
+        Spacer(Modifier.height(12.dp))
+        TextButton(onClick = onQr, shapes = ButtonDefaults.shapes()) {
             Icon(Icons.Rounded.QrCode2, null, Modifier.size(20.dp))
             Text(stringResource(R.string.auth_qr_button), Modifier.padding(start = 8.dp))
         }
+    }
+}
+
+@Composable
+private fun PhonePart(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val border by androidx.compose.animation.animateColorAsState(if (active) scheme.primary else scheme.outlineVariant, label = "phone-border")
+    androidx.compose.material3.Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        color = if (active) scheme.surfaceContainerHigh else scheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(if (active) 2.dp else 1.dp, border),
+        modifier = modifier.height(64.dp),
+    ) {
+        Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { content() }
     }
 }
 
@@ -274,10 +357,6 @@ private fun codeTypeName(type: CodeType): String = when (type) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PasswordScreen(step: AuthStep.Password, ui: AuthUi, controller: AuthController) {
-    var password by rememberSaveable { mutableStateOf("") }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(ui.error) { if (ui.error != null) password = "" }
     AuthScaffold(onBack = controller::backToPhone) {
         AuthHeader(
             stringResource(R.string.auth_password_title),
@@ -285,28 +364,13 @@ private fun PasswordScreen(step: AuthStep.Password, ui: AuthUi, controller: Auth
             MaterialShapes.Clover4Leaf.toShape(),
         )
         Spacer(Modifier.height(32.dp))
-        ShapePasswordField(
-            value = password,
-            onValueChange = {
-                password = it
-                controller.clearError()
-            },
-            error = ui.error != null,
-            onDone = { if (password.isNotEmpty()) controller.submitPassword(password) },
-            focus = focus,
-            modifier = Modifier.widthIn(max = 480.dp),
+        ShapePasswordBar(
+            busy = ui.busy,
+            error = ui.error,
+            onSubmit = controller::submitPassword,
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().imePadding(),
         )
-        ErrorText(ui.error)
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = { controller.submitPassword(password) },
-            enabled = password.isNotEmpty() && !ui.busy,
-            shapes = ButtonDefaults.shapes(),
-            modifier = Modifier.imePadding(),
-        ) {
-            if (ui.busy) LoadingIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-            else Text(stringResource(R.string.action_next))
-        }
+        if (ui.error != null && ui.error != "PASSWORD_HASH_INVALID") ErrorText(ui.error)
     }
 }
 

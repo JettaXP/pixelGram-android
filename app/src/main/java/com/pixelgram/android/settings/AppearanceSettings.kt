@@ -28,6 +28,7 @@ data class AppearanceSettings(
     val avatarShape: AvatarShape = AvatarShape.Circle,
     val avatarCorner: Int = 50,
     val hidePhone: Boolean = true,
+    val phoneDetails: Boolean = true,
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -41,6 +42,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val Shape = stringPreferencesKey("avatar_shape")
         val Corner = intPreferencesKey("avatar_corner")
         val HidePhone = booleanPreferencesKey("hide_phone")
+        val PhoneDetails = booleanPreferencesKey("phone_details")
     }
 
     val state: StateFlow<AppearanceSettings> = context.store.data
@@ -55,6 +57,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         avatarShape = AvatarShape.entries.firstOrNull { it.name == p[Keys.Shape] } ?: AvatarShape.Circle,
         avatarCorner = p[Keys.Corner] ?: 50,
         hidePhone = p[Keys.HidePhone] ?: true,
+        phoneDetails = p[Keys.PhoneDetails] ?: true,
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -68,6 +71,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.Shape] = next.avatarShape.name
                 p[Keys.Corner] = next.avatarCorner
                 p[Keys.HidePhone] = next.hidePhone
+                p[Keys.PhoneDetails] = next.phoneDetails
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

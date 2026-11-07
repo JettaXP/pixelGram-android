@@ -56,7 +56,11 @@ import com.pixelgram.android.ui.components.HiddenPhone
 import com.pixelgram.android.ui.components.SegmentPosition
 import com.pixelgram.android.ui.components.SettingsGroup
 import com.pixelgram.android.ui.components.SettingsItem
+import com.pixelgram.android.util.Phones
 import com.pixelgram.android.util.formatPhone
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 
@@ -122,6 +126,15 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     Text(stringResource(R.string.profile_message), Modifier.padding(start = 8.dp))
                 }
             }
+            val phone = user?.phone.orEmpty()
+            val showDetails = appearance.phoneDetails && userId != snapshot.meId && phone.isNotBlank()
+            val phoneDetails by produceState<String?>(null, phone, showDetails) {
+                value = if (!showDetails) null else withContext(Dispatchers.Default) {
+                    runCatching { Phones.details(phone) }.getOrNull()?.let { d ->
+                        listOfNotNull("${d.flag} ${d.country}", d.carrier).joinToString(" · ")
+                    }
+                }
+            }
             SettingsGroup {
                 val rows = buildList {
                     if (user != null && user.phone.isNotBlank()) add("phone")
@@ -131,7 +144,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 rows.forEachIndexed { index, row ->
                     val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
                     when (row) {
-                        "phone" -> SettingsItem(stringResource(R.string.profile_phone), position, icon = Icons.Rounded.Phone) {
+                        "phone" -> SettingsItem(stringResource(R.string.profile_phone), position, subtitle = phoneDetails, icon = Icons.Rounded.Phone) {
                             HiddenPhone("+" + formatPhone(user!!.phone), hidden = appearance.hidePhone && userId == snapshot.meId)
                         }
                         "username" -> SettingsItem("@$username", position, stringResource(R.string.profile_username), Icons.Rounded.AlternateEmail)

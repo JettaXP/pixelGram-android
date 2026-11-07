@@ -107,6 +107,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.qrcodegen)
+    implementation(libs.libphonenumber)
+    implementation(libs.phonecarrier)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }
