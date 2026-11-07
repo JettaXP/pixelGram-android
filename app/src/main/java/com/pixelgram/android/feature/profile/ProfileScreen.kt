@@ -78,7 +78,6 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import com.pixelgram.android.nav.ProfilePhotosKey
 import com.pixelgram.android.nav.SettingsSectionKey
-import com.pixelgram.android.ui.components.MiniPlayer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -99,7 +98,6 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val title = user?.name ?: chat?.title.orEmpty()
     val username = user?.username
     Scaffold(
-        bottomBar = { if (onOpenDrawer == null) MiniPlayer(Modifier.navigationBarsPadding()) },
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -186,7 +184,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current))
         }
     }
     if (showQr && username != null) {

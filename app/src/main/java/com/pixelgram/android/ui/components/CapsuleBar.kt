@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
+val LocalBottomBarPadding = androidx.compose.runtime.compositionLocalOf { 0.dp }
+
 data class CapsuleItem<K>(val key: K, val selectedIcon: ImageVector, val icon: ImageVector, val label: String, val badge: Int = 0)
 
 @Composable
@@ -100,7 +102,10 @@ fun <K> CapsuleBar(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .onPlaced { bounds[item.key] = it.positionInParent().x to it.size.width.toFloat() }
+                                .onPlaced {
+                                    val value = it.positionInParent().x to it.size.width.toFloat()
+                                    if (bounds[item.key] != value) bounds[item.key] = value
+                                }
                                 .height(itemHeight)
                                 .clip(CircleShape)
                                 .selectable(selected = active, role = Role.Tab) { onSelect(item.key) }

@@ -38,6 +38,7 @@ data class AppearanceSettings(
     val capsuleInset: Int = 12,
     val capsuleSpacing: Int = 4,
     val capsuleHeight: Int = 64,
+    val navTabs: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -57,6 +58,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val CapsuleInset = intPreferencesKey("capsule_inset")
         val CapsuleSpacing = intPreferencesKey("capsule_spacing")
         val CapsuleHeight = intPreferencesKey("capsule_height")
+        val NavTabs = stringPreferencesKey("nav_tabs")
     }
 
     val state: StateFlow<AppearanceSettings> = context.store.data
@@ -77,6 +79,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         capsuleInset = p[Keys.CapsuleInset] ?: 12,
         capsuleSpacing = p[Keys.CapsuleSpacing] ?: 4,
         capsuleHeight = p[Keys.CapsuleHeight] ?: 64,
+        navTabs = p[Keys.NavTabs]?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
+            ?.let { if (com.pixelgram.android.feature.main.MainTab.Chats in it) it else listOf(com.pixelgram.android.feature.main.MainTab.Chats) + it }
+            ?: com.pixelgram.android.feature.main.MainTab.entries,
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -96,6 +101,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.CapsuleInset] = next.capsuleInset
                 p[Keys.CapsuleSpacing] = next.capsuleSpacing
                 p[Keys.CapsuleHeight] = next.capsuleHeight
+                p[Keys.NavTabs] = next.navTabs.joinToString(",") { it.name }
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

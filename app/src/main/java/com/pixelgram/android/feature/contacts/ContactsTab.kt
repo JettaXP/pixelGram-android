@@ -60,7 +60,7 @@ fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
             return@Scaffold
         }
         val users = list.mapNotNull { snapshot.users[it] }.sortedWith(compareByDescending<com.pixelgram.android.td.UserInfo> { it.online }.thenBy { it.name.lowercase() })
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = padding.calculateTopPadding())) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = com.pixelgram.android.ui.components.LocalBottomBarPadding.current)) {
             items(users, key = { it.id }) { user ->
                 Row(
                     Modifier.fillMaxWidth().clickable { navigator.open(ProfileKey(user.id)) }.padding(horizontal = 16.dp, vertical = 8.dp),

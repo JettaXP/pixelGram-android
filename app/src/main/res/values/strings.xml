@@ -195,4 +195,7 @@
     <string name="pixel_capsule_inset">Edge padding</string>
     <string name="pixel_capsule_spacing">Spacing</string>
     <string name="pixel_capsule_height">Height</string>
+    <string name="pixel_nav_tabs">Navigation bar tabs</string>
+    <string name="pixel_nav_drag">Drag to reorder</string>
+    <string name="chat_attach_photo">Attach photo</string>
 </resources>

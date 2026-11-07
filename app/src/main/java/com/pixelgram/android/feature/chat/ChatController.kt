@@ -123,6 +123,41 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
         ui.value = ui.value.copy(replyTo = message)
     }
 
+    fun sendPhotos(paths: List<String>, caption: String) {
+        if (paths.isEmpty()) return
+        val reply = ui.value.replyTo
+        ui.value = ui.value.copy(replyTo = null)
+        val contents = paths.mapIndexed { index, path ->
+            TdApi.InputMessagePhoto().apply {
+                photo = TdApi.InputPhoto().apply {
+                    photo = TdApi.InputFileLocal(path)
+                    addedStickerFileIds = IntArray(0)
+                }
+                this.caption = TdApi.FormattedText(if (index == 0) caption.trim() else "", emptyArray())
+            }
+        }
+        scope.launch {
+            runCatching {
+                val replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
+                if (contents.size == 1) {
+                    graph.td.send(TdApi.SendMessage().apply {
+                        chatId = this@ChatController.chatId
+                        this.replyTo = replyTo
+                        inputMessageContent = contents.first()
+                    })
+                } else {
+                    for (chunk in contents.chunked(10)) {
+                        graph.td.send(TdApi.SendMessageAlbum().apply {
+                            chatId = this@ChatController.chatId
+                            this.replyTo = replyTo
+                            inputMessageContents = chunk.toTypedArray()
+                        })
+                    }
+                }
+            }
+        }
+    }
+
     fun send(text: String) {
         val body = text.trim()
         if (body.isEmpty()) return

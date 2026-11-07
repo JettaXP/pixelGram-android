@@ -68,6 +68,15 @@ import com.pixelgram.android.nav.PixelSettingsKey
 import com.pixelgram.android.settings.AppearanceSettings
 import com.pixelgram.android.settings.ThemeMode
 import com.pixelgram.android.settings.NavBarStyle
+import com.pixelgram.android.feature.main.MainTab
+import com.pixelgram.android.ui.components.PixelSwitch
+import com.pixelgram.android.ui.components.segmentPosition
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.runtime.LaunchedEffect
 import com.pixelgram.android.settings.FolderTitle
 import com.pixelgram.android.ui.components.FolderChips
 import com.pixelgram.android.ui.components.FolderTab
@@ -276,6 +285,9 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
             }
         }
     }
+    SettingsGroup(stringResource(R.string.pixel_nav_tabs)) {
+        NavTabsEditor(settings.navTabs) { tabs -> update { it.copy(navTabs = tabs) } }
+    }
     androidx.compose.animation.AnimatedVisibility(settings.navBarStyle == NavBarStyle.Expressive) {
         SettingsGroup(stringResource(R.string.pixel_capsule)) {
             CapsuleSlider(stringResource(R.string.pixel_capsule_inset), settings.capsuleInset, 4..20, SegmentPosition.Top) { v -> update { it.copy(capsuleInset = v) } }
@@ -377,3 +389,90 @@ private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: 
         }
     }
 }
+
+@Composable
+private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> Unit) {
+    val order = remember { androidx.compose.runtime.mutableStateListOf<MainTab>() }
+    LaunchedEffect(enabled) {
+        val full = enabled + MainTab.entries.filterNot { it in enabled }
+        if (order.toList() != full && order.filter { it in enabled } != enabled || order.isEmpty()) {
+            order.clear()
+            order.addAll(full)
+        }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val rowHeight = with(density) { 72.dp.toPx() }
+    var dragging by remember { mutableStateOf<MainTab?>(null) }
+    var offset by remember { mutableStateOf(0f) }
+    val commit = { onChange(order.filter { it in enabled || it == MainTab.Chats }) }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        order.forEachIndexed { index, item ->
+            val isDragged = dragging == item
+            val on = item in enabled
+            androidx.compose.material3.Surface(
+                shape = segmentShape(segmentPosition(index, order.size)),
+                color = if (isDragged) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer,
+                shadowElevation = if (isDragged) 6.dp else 0.dp,
+                modifier = Modifier
+                    .zIndex(if (isDragged) 1f else 0f)
+                    .graphicsLayer { translationY = if (isDragged) offset else 0f },
+            ) {
+                Row(Modifier.fillMaxWidth().height(70.dp).padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.DragHandle,
+                        stringResource(R.string.pixel_nav_drag),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(12.dp)
+                            .pointerInput(item) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        dragging = item
+                                        offset = 0f
+                                    },
+                                    onDragEnd = {
+                                        dragging = null
+                                        offset = 0f
+                                        commit()
+                                    },
+                                    onDragCancel = {
+                                        dragging = null
+                                        offset = 0f
+                                    },
+                                ) { change, amount ->
+                                    change.consume()
+                                    offset += amount.y
+                                    val from = order.indexOf(item)
+                                    if (offset > rowHeight / 2 && from < order.lastIndex) {
+                                        order.add(from + 1, order.removeAt(from))
+                                        offset -= rowHeight
+                                    } else if (offset < -rowHeight / 2 && from > 0) {
+                                        order.add(from - 1, order.removeAt(from))
+                                        offset += rowHeight
+                                    }
+                                }
+                            },
+                    )
+                    Text(stringResource(item.label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(start = 4.dp))
+                    PixelSwitch(
+                        checked = on,
+                        enabled = item != MainTab.Chats,
+                        onCheckedChange = { value ->
+                            val next = if (value) enabled + item else enabled - item
+                            onChange(order.filter { it in next })
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val MainTab.label: Int
+    get() = when (this) {
+        MainTab.Chats -> R.string.tab_chats
+        MainTab.Contacts -> R.string.tab_contacts
+        MainTab.Profile -> R.string.tab_profile
+        MainTab.Settings -> R.string.tab_settings
+    }

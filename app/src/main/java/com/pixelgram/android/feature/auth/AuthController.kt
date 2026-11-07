@@ -49,7 +49,7 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
             AuthStep.Code(info.phoneNumber, type, length, info.nextType?.describe()?.first, info.timeout, "${name(info.type)} · next ${name(info.nextType)} · ${info.timeout}s")
         }
         is TdApi.AuthorizationStateWaitPassword -> AuthStep.Password(state.passwordHint)
-        is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> AuthStep.Qr(state.link)
+        is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> if (ui.value.wantQr) AuthStep.Qr(state.link) else AuthStep.Phone
         is TdApi.AuthorizationStateReady -> AuthStep.Ready
         is TdApi.AuthorizationStateWaitEmailAddress, is TdApi.AuthorizationStateWaitEmailCode ->
             AuthStep.Unsupported("email")
@@ -82,6 +82,11 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
 
     fun requestQr() {
         ui.value = ui.value.copy(wantQr = true)
+        val current = td.authorizationState.value
+        if (current is TdApi.AuthorizationStateWaitOtherDeviceConfirmation) {
+            ui.value = ui.value.copy(step = AuthStep.Qr(current.link), error = null)
+            return
+        }
         run { td.send(TdApi.RequestQrCodeAuthentication(LongArray(0))) }
     }
 

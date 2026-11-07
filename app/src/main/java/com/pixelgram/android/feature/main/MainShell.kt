@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,7 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
@@ -41,6 +41,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -70,7 +75,7 @@ import com.pixelgram.android.td.LIST_MAIN
 import com.pixelgram.android.ui.components.Avatar
 import com.pixelgram.android.ui.components.CapsuleBar
 import com.pixelgram.android.ui.components.CapsuleItem
-import com.pixelgram.android.ui.components.MiniPlayer
+import com.pixelgram.android.ui.components.LocalBottomBarPadding
 import com.pixelgram.android.ui.components.HiddenPhone
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -113,38 +118,54 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
             )
         },
     ) {
-        Scaffold(
-            bottomBar = {
-                val appearance by graph.appearance.state.collectAsState()
-                val unread by remember { graph.store.snapshot.map { it.unread[LIST_MAIN]?.chats ?: 0 }.distinctUntilChanged() }.collectAsState(0)
-                val tabs = listOf(
-                    MainTabItem(MainTab.Chats, Icons.Rounded.Chat, Icons.Outlined.Chat, stringResource(R.string.tab_chats), unread),
-                    MainTabItem(MainTab.Contacts, Icons.Rounded.People, Icons.Outlined.People, stringResource(R.string.tab_contacts)),
-                    MainTabItem(MainTab.Profile, Icons.Rounded.AccountCircle, Icons.Outlined.AccountCircle, stringResource(R.string.tab_profile)),
-                    MainTabItem(MainTab.Settings, Icons.Rounded.Settings, Icons.Outlined.Settings, stringResource(R.string.tab_settings)),
-                )
-                Column {
-                    MiniPlayer()
-                    MainNavBar(appearance.navBarStyle, tabs, tab, { tab = it }, appearance.capsuleInset, appearance.capsuleSpacing, appearance.capsuleHeight)
-                }
-            },
-        ) { padding ->
-            val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
-                label = "main-tab",
-                modifier = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()),
-            ) { current ->
-                val openDrawer: () -> Unit = { scope.launch { drawer.open() } }
-                when (current) {
-                    MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
-                    MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
-                    MainTab.Profile -> {
-                        val me by graph.store.snapshot.collectAsState()
-                        ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { tab = MainTab.Settings })
+        val appearance by graph.appearance.state.collectAsState()
+        val unread by remember { graph.store.snapshot.map { it.unread[LIST_MAIN]?.chats ?: 0 }.distinctUntilChanged() }.collectAsState(0)
+        val labels = mapOf(
+            MainTab.Chats to stringResource(R.string.tab_chats),
+            MainTab.Contacts to stringResource(R.string.tab_contacts),
+            MainTab.Profile to stringResource(R.string.tab_profile),
+            MainTab.Settings to stringResource(R.string.tab_settings),
+        )
+        val tabs = appearance.navTabs.map { item ->
+            when (item) {
+                MainTab.Chats -> MainTabItem(item, Icons.Rounded.Chat, Icons.Outlined.Chat, labels.getValue(item), unread)
+                MainTab.Contacts -> MainTabItem(item, Icons.Rounded.People, Icons.Outlined.People, labels.getValue(item))
+                MainTab.Profile -> MainTabItem(item, Icons.Rounded.AccountCircle, Icons.Outlined.AccountCircle, labels.getValue(item))
+                MainTab.Settings -> MainTabItem(item, Icons.Rounded.Settings, Icons.Outlined.Settings, labels.getValue(item))
+            }
+        }
+        LaunchedEffect(appearance.navTabs) { if (tab !in appearance.navTabs) tab = MainTab.Chats }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        var barHeight by remember { mutableStateOf(0.dp) }
+        val floating = appearance.navBarStyle == NavBarStyle.Expressive
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+            CompositionLocalProvider(LocalBottomBarPadding provides if (floating) barHeight else 0.dp) {
+                val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
+                    label = "main-tab",
+                    modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
+                ) { current ->
+                    val openDrawer: () -> Unit = { scope.launch { drawer.open() } }
+                    when (current) {
+                        MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
+                        MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
+                        MainTab.Profile -> {
+                            val me by graph.store.snapshot.collectAsState()
+                            ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { tab = MainTab.Settings })
+                        }
+                        MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
                     }
-                    MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
+                }
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { with(density) { barHeight = it.height.toDp() } },
+            ) {
+                if (tabs.size > 1) {
+                    MainNavBar(appearance.navBarStyle, tabs, tab, { tab = it }, appearance.capsuleInset, appearance.capsuleSpacing, appearance.capsuleHeight)
                 }
             }
         }

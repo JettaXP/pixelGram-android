@@ -1,23 +1,18 @@
 package com.pixelgram.android.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.animation.animateContentSize
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
@@ -83,24 +78,32 @@ import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.dp
 import com.pixelgram.android.settings.FolderTitle
 
 @Immutable
 data class FolderTab(val id: Int, val title: String, val icon: String, val unreadChats: Int = 0, val unreadUnmuted: Int = 0)
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FolderChips(
     tabs: List<FolderTab>,
@@ -109,104 +112,81 @@ fun FolderChips(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val state = rememberLazyListState()
-    val index = tabs.indexOfFirst { it.id == selected }
-    LaunchedEffect(index) {
-        if (index < 0) return@LaunchedEffect
-        val visible = state.layoutInfo.visibleItemsInfo
-        val item = visible.firstOrNull { it.index == index }
-        val viewport = state.layoutInfo.viewportEndOffset
-        if (item == null || item.offset < 0 || item.offset + item.size > viewport) state.animateScrollToItem((index - 1).coerceAtLeast(0))
+    if (tabs.size < 2) return
+    val colors = MaterialTheme.colorScheme
+    val chipColors = ToggleButtonDefaults.colors(
+        containerColor = colors.secondaryContainer.copy(alpha = ChipIdleAlpha),
+        contentColor = colors.onSecondaryContainer,
+    )
+    val scroll = rememberScrollState()
+    val bounds = remember { mutableStateMapOf<Int, Pair<Int, Int>>() }
+    val spec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    LaunchedEffect(selected, bounds[selected], scroll.viewportSize) {
+        val (left, width) = bounds[selected] ?: return@LaunchedEffect
+        if (scroll.maxValue == 0) return@LaunchedEffect
+        val target = (left + width / 2 - scroll.viewportSize / 2).coerceIn(0, scroll.maxValue)
+        scroll.animateScrollTo(target, spec)
     }
-    LazyRow(
-        state = state,
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scroll)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        items(tabs, key = { it.id }) { tab ->
-            FolderChip(tab, tab.id == selected, mode) { onSelect(tab.id) }
-        }
-    }
-}
-
-@Composable
-private fun FolderChip(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.Dp>()
-    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<androidx.compose.ui.graphics.Color>()
-    val corner by animateDpAsState(if (selected) ChipHeight / 2 else ChipCorner, spatial, label = "folder-corner")
-    val container by animateColorAsState(if (selected) scheme.primaryContainer else scheme.surfaceContainerHigh, effects, label = "folder-container")
-    val content by animateColorAsState(if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant, effects, label = "folder-content")
-    val pop = remember { androidx.compose.animation.core.Animatable(1f) }
-    val bounce = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
-    LaunchedEffect(selected) {
-        if (selected) {
-            pop.snapTo(0.9f)
-            pop.animateTo(1f, bounce)
-        }
-    }
-    val showIcon = mode != FolderTitle.Names
-    val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && selected)
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(corner),
-        color = container,
-        contentColor = content,
-        modifier = Modifier
-            .height(ChipHeight)
-            .graphicsLayer {
-                scaleX = pop.value
-                scaleY = pop.value
-            },
-    ) {
-        Row(
-            Modifier
-                .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec())
-                .padding(horizontal = if (showName) 14.dp else 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (showIcon) Icon(folderIcon(tab.icon, selected), contentDescription = tab.title, modifier = Modifier.size(20.dp))
-            if (showName) {
-                Text(
-                    tab.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-            if (tab.unreadChats > 0) {
-                Surface(
-                    shape = CircleShape,
-                    color = when {
-                        selected -> scheme.onPrimaryContainer
-                        tab.unreadUnmuted > 0 -> scheme.primary
-                        else -> scheme.outline
+        tabs.forEachIndexed { position, tab ->
+            val isSelected = tab.id == selected
+            val showIcon = mode != FolderTitle.Names
+            val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && isSelected)
+            ToggleButton(
+                checked = isSelected,
+                onCheckedChange = { onSelect(tab.id) },
+                shapes = when (position) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    tabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                colors = chipColors,
+                modifier = Modifier
+                    .height(PillHeight)
+                    .onPlaced {
+                        val value = it.positionInParent().x.toInt() to it.size.width
+                        if (bounds[tab.id] != value) bounds[tab.id] = value
                     },
-                    contentColor = when {
-                        selected -> scheme.primaryContainer
-                        tab.unreadUnmuted > 0 -> scheme.onPrimary
-                        else -> scheme.surface
-                    },
-                    modifier = Modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp),
-                ) {
-                    Text(
-                        if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                    )
+            ) {
+                if (showIcon) Icon(folderIcon(tab.icon, isSelected), contentDescription = tab.title, modifier = Modifier.size(ButtonDefaults.IconSize))
+                if (showIcon && showName) Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                if (showName) Text(tab.title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                if (tab.unreadChats > 0) {
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Surface(
+                        shape = CircleShape,
+                        color = when {
+                            isSelected -> colors.onPrimary
+                            tab.unreadUnmuted > 0 -> colors.primary
+                            else -> colors.outline
+                        },
+                        contentColor = when {
+                            isSelected -> colors.primary
+                            tab.unreadUnmuted > 0 -> colors.onPrimary
+                            else -> colors.surface
+                        },
+                        modifier = Modifier.defaultMinSize(minWidth = ChipBadgeHeight, minHeight = ChipBadgeHeight),
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
+                            Text(if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-private val ChipHeight = 40.dp
-private val ChipCorner = 10.dp
-private val ChipSpacing = 6.dp
+private val PillHeight = 40.dp
+private const val ChipIdleAlpha = 0.55f
+private val ChipBadgeHeight = 20.dp
 
 fun folderIcon(name: String, filled: Boolean): ImageVector {
     val pair = FolderIcons[name] ?: FolderIcons.getValue("Custom")

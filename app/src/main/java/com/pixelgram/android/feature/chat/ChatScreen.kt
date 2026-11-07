@@ -1,6 +1,10 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -354,6 +358,27 @@ private fun ReplyQuote(reply: UiMessage) {
 @Composable
 private fun Composer(replyTo: UiMessage?, controller: ChatController) {
     var text by rememberSaveable { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(10),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        val caption = text
+        text = ""
+        scope.launch {
+            val paths = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                uris.mapIndexedNotNull { index, uri ->
+                    runCatching {
+                        val target = java.io.File(context.cacheDir, "send-${System.currentTimeMillis()}-$index.jpg")
+                        context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                        target.absolutePath
+                    }.getOrNull()
+                }
+            }
+            controller.sendPhotos(paths, caption)
+        }
+    }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars).imePadding()) {
             AnimatedVisibility(replyTo != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -369,6 +394,17 @@ private fun Composer(replyTo: UiMessage?, controller: ChatController) {
                 }
             }
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalIconButton(
+                    onClick = {
+                        picker.launch(
+                            androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                    shapes = IconButtonDefaults.shapes(),
+                    modifier = Modifier.size(56.dp),
+                ) {
+                    Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.chat_attach_photo))
+                }
                 TextField(
                     value = text,
                     onValueChange = { text = it },

@@ -133,6 +133,7 @@ fun ChatsTab(
                         },
                     )
                 }
+                com.pixelgram.android.ui.components.MiniPlayer()
             }
         },
     ) { padding ->
@@ -185,7 +186,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     } else {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = 8.dp),
+            contentPadding = PaddingValues(bottom = 8.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
             modifier = Modifier.fillMaxSize(),
         ) {
             items(rows, key = { it.id }, contentType = { "chat" }) { row ->

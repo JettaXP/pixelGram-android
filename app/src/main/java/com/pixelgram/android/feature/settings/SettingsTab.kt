@@ -118,7 +118,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
                     onClick = { confirmLogout = true },
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current))
         }
     }
     if (confirmLogout) {

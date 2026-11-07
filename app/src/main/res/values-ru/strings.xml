@@ -194,4 +194,7 @@
     <string name="pixel_capsule_inset">Отступ от края</string>
     <string name="pixel_capsule_spacing">Расстояние между вкладками</string>
     <string name="pixel_capsule_height">Высота</string>
+    <string name="pixel_nav_tabs">Вкладки нижней панели</string>
+    <string name="pixel_nav_drag">Перетащите, чтобы изменить порядок</string>
+    <string name="chat_attach_photo">Прикрепить фото</string>
 </resources>
