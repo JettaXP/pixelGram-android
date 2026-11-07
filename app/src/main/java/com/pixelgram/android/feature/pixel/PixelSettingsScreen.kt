@@ -46,6 +46,9 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +67,11 @@ import com.pixelgram.android.nav.Navigator
 import com.pixelgram.android.nav.PixelSettingsKey
 import com.pixelgram.android.settings.AppearanceSettings
 import com.pixelgram.android.settings.ThemeMode
+import com.pixelgram.android.settings.NavBarStyle
+import com.pixelgram.android.settings.FolderTitle
+import com.pixelgram.android.ui.components.FolderChips
+import com.pixelgram.android.ui.components.FolderTab
+import com.pixelgram.android.ui.components.segmentShape
 import com.pixelgram.android.ui.components.SegmentPosition
 import com.pixelgram.android.ui.components.SettingsGroup
 import com.pixelgram.android.ui.components.SettingsItem
@@ -94,7 +102,7 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
             when (page) {
                 "appearance" -> AppearancePage(appearance) { change -> graph.appearance.update(change) }
                 "general" -> GeneralPage(appearance) { change -> graph.appearance.update(change) }
-                "chats" -> EmptyPage(page)
+                "chats" -> ChatsPage(appearance) { change -> graph.appearance.update(change) }
                 "about" -> AboutPage()
                 else -> HomePage { navigator.open(PixelSettingsKey(it)) }
             }
@@ -150,23 +158,42 @@ internal fun GeneralPage(settings: AppearanceSettings, update: ((AppearanceSetti
 }
 
 @Composable
-internal fun EmptyPage(page: String) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        PixelLogo(88.dp)
+internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    var preview by remember { mutableStateOf(0) }
+    val sample = listOf(
+        FolderTab(0, stringResource(R.string.folder_all), "All", 15, 3),
+        FolderTab(1, stringResource(R.string.pixel_folder_sample_private), "Private", 2, 0),
+        FolderTab(2, stringResource(R.string.pixel_folder_sample_work), "Work"),
+        FolderTab(3, stringResource(R.string.pixel_folder_sample_channels), "Channels", 1, 1),
+    )
+    SettingsGroup(stringResource(R.string.pixel_folder_title)) {
+        androidx.compose.material3.Surface(shape = segmentShape(SegmentPosition.Top), color = MaterialTheme.colorScheme.surfaceContainer) {
+            FolderChips(sample, preview, settings.folderTitle, onSelect = { preview = it }, modifier = Modifier.padding(vertical = 10.dp))
+        }
+        val modes = FolderTitle.entries
+        modes.forEachIndexed { index, mode ->
+            SettingsItem(
+                title = stringResource(
+                    when (mode) {
+                        FolderTitle.NamesAndIcons -> R.string.folder_title_names_icons
+                        FolderTitle.Names -> R.string.folder_title_names
+                        FolderTitle.Icons -> R.string.folder_title_icons
+                        FolderTitle.ActiveName -> R.string.folder_title_active
+                    },
+                ),
+                position = if (index == modes.lastIndex) SegmentPosition.Bottom else SegmentPosition.Middle,
+                onClick = { update { it.copy(folderTitle = mode) } },
+            ) {
+                androidx.compose.material3.RadioButton(selected = settings.folderTitle == mode, onClick = { update { it.copy(folderTitle = mode) } })
+            }
+        }
+    }
+    androidx.compose.animation.AnimatedVisibility(settings.folderTitle == FolderTitle.Icons) {
         Text(
-            stringResource(if (page == "general") R.string.pixel_empty_general_title else R.string.pixel_empty_chats_title),
-            style = MaterialTheme.typography.titleLargeEmphasized,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            stringResource(R.string.pixel_empty_body),
-            style = MaterialTheme.typography.bodyLarge,
+            stringResource(R.string.folder_title_icons_hint),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
         )
     }
 }
@@ -230,6 +257,24 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
             Icons.Rounded.Palette,
             enabled = android.os.Build.VERSION.SDK_INT >= 31,
         )
+    }
+    SettingsGroup(stringResource(R.string.pixel_nav_bar)) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        ) {
+            val styles = NavBarStyle.entries
+            styles.forEachIndexed { index, style ->
+                ToggleButton(
+                    checked = settings.navBarStyle == style,
+                    onCheckedChange = { update { it.copy(navBarStyle = style) } },
+                    shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(if (style == NavBarStyle.Expressive) R.string.nav_bar_expressive else R.string.nav_bar_classic))
+                }
+            }
+        }
     }
     SettingsGroup(stringResource(R.string.pixel_avatars)) {
         AvatarShapePicker(settings.avatarShape) { shape -> update { it.copy(avatarShape = shape) } }

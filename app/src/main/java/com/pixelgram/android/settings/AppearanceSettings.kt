@@ -20,6 +20,10 @@ import kotlinx.coroutines.launch
 
 enum class ThemeMode { System, Light, Dark }
 
+enum class NavBarStyle { Expressive, Classic }
+
+enum class FolderTitle { NamesAndIcons, Names, Icons, ActiveName }
+
 data class AppearanceSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = Build.VERSION.SDK_INT >= 31,
@@ -29,6 +33,8 @@ data class AppearanceSettings(
     val avatarCorner: Int = 50,
     val hidePhone: Boolean = true,
     val phoneDetails: Boolean = true,
+    val navBarStyle: NavBarStyle = NavBarStyle.Expressive,
+    val folderTitle: FolderTitle = FolderTitle.NamesAndIcons,
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -43,6 +49,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val Corner = intPreferencesKey("avatar_corner")
         val HidePhone = booleanPreferencesKey("hide_phone")
         val PhoneDetails = booleanPreferencesKey("phone_details")
+        val NavBar = stringPreferencesKey("nav_bar")
+        val FolderTitleMode = stringPreferencesKey("folder_title")
     }
 
     val state: StateFlow<AppearanceSettings> = context.store.data
@@ -58,6 +66,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         avatarCorner = p[Keys.Corner] ?: 50,
         hidePhone = p[Keys.HidePhone] ?: true,
         phoneDetails = p[Keys.PhoneDetails] ?: true,
+        navBarStyle = NavBarStyle.entries.firstOrNull { it.name == p[Keys.NavBar] } ?: NavBarStyle.Expressive,
+        folderTitle = FolderTitle.entries.firstOrNull { it.name == p[Keys.FolderTitleMode] } ?: FolderTitle.NamesAndIcons,
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -72,6 +82,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.Corner] = next.avatarCorner
                 p[Keys.HidePhone] = next.hidePhone
                 p[Keys.PhoneDetails] = next.phoneDetails
+                p[Keys.NavBar] = next.navBarStyle.name
+                p[Keys.FolderTitleMode] = next.folderTitle.name
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

@@ -64,6 +64,9 @@ import com.pixelgram.android.td.LIST_MAIN
 import com.pixelgram.android.td.PreviewKind
 import com.pixelgram.android.td.folderKey
 import com.pixelgram.android.ui.components.Avatar
+import com.pixelgram.android.ui.components.FolderChips
+import com.pixelgram.android.ui.components.FolderTab
+import com.pixelgram.android.settings.FolderTitle
 import com.pixelgram.android.util.chatListTime
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
@@ -78,6 +81,7 @@ fun ChatsTab(
     onCloseArchive: () -> Unit,
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
+    val appearance by graph.appearance.state.collectAsState()
     var folder by rememberSaveable { mutableStateOf(0) }
     val listKey = when {
         baseList == LIST_ARCHIVE -> LIST_ARCHIVE
@@ -115,7 +119,11 @@ fun ChatsTab(
                 TopAppBar(
                     title = {
                         Text(
-                            stringResource(if (baseList == LIST_ARCHIVE) R.string.drawer_archive else R.string.app_name),
+                            when {
+                                baseList == LIST_ARCHIVE -> stringResource(R.string.drawer_archive)
+                                appearance.folderTitle == FolderTitle.Icons && folder != 0 -> snapshot.folders.firstOrNull { it.id == folder }?.title ?: stringResource(R.string.app_name)
+                                else -> stringResource(R.string.app_name)
+                            },
                             style = MaterialTheme.typography.titleLargeEmphasized,
                         )
                     },
@@ -129,7 +137,15 @@ fun ChatsTab(
                     scrollBehavior = behavior,
                 )
                 if (baseList != LIST_ARCHIVE && snapshot.folders.isNotEmpty()) {
-                    FolderChips(snapshot.folders, folder) { folder = it }
+                    val allTitle = stringResource(R.string.folder_all)
+                    val tabs = remember(snapshot.folders, snapshot.unread, allTitle) {
+                        val main = snapshot.unread[LIST_MAIN]
+                        listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + snapshot.folders.map { f ->
+                            val u = snapshot.unread[folderKey(f.id)]
+                            FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
+                        }
+                    }
+                    FolderChips(tabs, folder, appearance.folderTitle, onSelect = { folder = it })
                 }
             }
         },
@@ -156,36 +172,6 @@ fun ChatsTab(
             }
         }
     }
-}
-
-@Composable
-private fun FolderChips(folders: List<com.pixelgram.android.td.FolderInfo>, selected: Int, onSelect: (Int) -> Unit) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item(key = 0) {
-            FolderChip(stringResource(R.string.folder_all), selected == 0) { onSelect(0) }
-        }
-        items(folders, key = { it.id }) { folder ->
-            FolderChip(folder.title, selected == folder.id) { onSelect(folder.id) }
-        }
-    }
-}
-
-@Composable
-private fun FolderChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, maxLines = 1) },
-        leadingIcon = if (selected) {
-            { Icon(Icons.Rounded.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
-        } else {
-            null
-        },
-        shape = MaterialTheme.shapes.large,
-    )
 }
 
 @Composable

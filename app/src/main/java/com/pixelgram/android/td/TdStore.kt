@@ -39,6 +39,9 @@ data class ChatRow(
 data class FolderInfo(val id: Int, val title: String, val icon: String?)
 
 @Immutable
+data class UnreadInfo(val chats: Int, val unmuted: Int)
+
+@Immutable
 data class UserInfo(
     val id: Long,
     val firstName: String,
@@ -62,6 +65,7 @@ data class StoreSnapshot(
     val users: Map<Long, UserInfo> = emptyMap(),
     val files: Map<Int, String> = emptyMap(),
     val meId: Long = 0,
+    val unread: Map<String, UnreadInfo> = emptyMap(),
 )
 
 const val LIST_MAIN = "main"
@@ -84,6 +88,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     private var folders: List<FolderInfo> = emptyList()
     private val requested = HashSet<Int>()
     private var meId = 0L
+    private val unread = HashMap<String, UnreadInfo>()
 
     private val dirty = MutableStateFlow(0L)
     private val snapshotFlow = MutableStateFlow(StoreSnapshot())
@@ -124,6 +129,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
             is TdApi.UpdateChatFolders -> folders = update.chatFolders.map {
                 FolderInfo(it.id, it.name.text.text, it.icon?.name)
             }
+            is TdApi.UpdateUnreadChatCount -> unread[update.chatList.key()] = UnreadInfo(update.unreadCount, update.unreadUnmutedCount)
             is TdApi.UpdateOption -> if (update.name == "my_id") {
                 meId = (update.value as? TdApi.OptionValueInteger)?.value ?: 0
             }
@@ -148,7 +154,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
         }
         val sorted = lists.mapValues { (_, rows) -> rows.sortedByDescending { it.order } }
         val userInfo = users.mapValues { (_, user) -> user.info() }
-        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId)
+        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread))
         val wanted = sorted[LIST_MAIN].orEmpty().take(60).mapNotNull { it.photoFileId.takeIf { id -> id != 0 } }
         for (id in wanted) requestFile(id)
     }

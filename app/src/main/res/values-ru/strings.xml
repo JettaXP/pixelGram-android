@@ -68,8 +68,6 @@
     <string name="pixel_about">О приложении</string>
     <string name="pixel_about_sub">Версия, ссылки и благодарности</string>
     <string name="pixel_categories">Разделы</string>
-    <string name="pixel_empty_general_title">Основные настройки уже в пути</string>
-    <string name="pixel_empty_chats_title">Настройки чатов уже в пути</string>
     <string name="pixel_empty_body">Этот раздел сейчас создаётся. Новые параметры появятся здесь в ближайших обновлениях.</string>
     <string name="pixel_theme">Тема</string>
     <string name="theme_system">Системная</string>
@@ -162,4 +160,16 @@
     <string name="pixel_phones">Номера телефонов</string>
     <string name="pixel_phone_details">Страна и оператор</string>
     <string name="pixel_phone_details_sub">Показывать страну и мобильного оператора под номерами других людей</string>
+    <string name="pixel_nav_bar">Нижняя панель</string>
+    <string name="nav_bar_expressive">Expressive</string>
+    <string name="nav_bar_classic">Material You</string>
+    <string name="pixel_folder_title">Названия папок</string>
+    <string name="folder_title_names_icons">Названия с иконками</string>
+    <string name="folder_title_names">Только названия</string>
+    <string name="folder_title_icons">Только иконки</string>
+    <string name="folder_title_active">Название у активной</string>
+    <string name="folder_title_icons_hint">Заголовок над списком чатов показывает название открытой папки.</string>
+    <string name="pixel_folder_sample_private">Личные</string>
+    <string name="pixel_folder_sample_work">Работа</string>
+    <string name="pixel_folder_sample_channels">Каналы</string>
 </resources>

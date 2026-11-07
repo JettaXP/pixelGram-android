@@ -69,8 +69,6 @@
     <string name="pixel_about">About</string>
     <string name="pixel_about_sub">Version, links and credits</string>
     <string name="pixel_categories">Categories</string>
-    <string name="pixel_empty_general_title">General settings are on the way</string>
-    <string name="pixel_empty_chats_title">Chat settings are on the way</string>
     <string name="pixel_empty_body">This section is being crafted. New options will appear here in upcoming updates.</string>
     <string name="pixel_theme">Theme</string>
     <string name="theme_system">System</string>
@@ -163,4 +161,16 @@
     <string name="pixel_phones">Phone numbers</string>
     <string name="pixel_phone_details">Country and carrier</string>
     <string name="pixel_phone_details_sub">Show the country and mobile carrier under other people\'s numbers</string>
+    <string name="pixel_nav_bar">Navigation bar</string>
+    <string name="nav_bar_expressive">Expressive</string>
+    <string name="nav_bar_classic">Material You</string>
+    <string name="pixel_folder_title">Folder title</string>
+    <string name="folder_title_names_icons">Names with icons</string>
+    <string name="folder_title_names">Names only</string>
+    <string name="folder_title_icons">Icons only</string>
+    <string name="folder_title_active">Name on active</string>
+    <string name="folder_title_icons_hint">The title above the chat list shows the name of the open folder.</string>
+    <string name="pixel_folder_sample_private">DM</string>
+    <string name="pixel_folder_sample_work">Work</string>
+    <string name="pixel_folder_sample_channels">Channels</string>
 </resources>
