@@ -33,6 +33,9 @@ data class UiMessage(
     val mediaThumb: ByteArray?,
     val mediaWidth: Int,
     val mediaHeight: Int,
+    val albumId: Long = 0,
+    val localPath: String? = null,
+    val parts: List<UiMessage> = emptyList(),
 )
 
 @Immutable
@@ -43,6 +46,7 @@ data class ChatUi(
     val loading: Boolean = true,
     val reachedEnd: Boolean = false,
     val replyTo: UiMessage? = null,
+    val replies: Map<Long, UiMessage> = emptyMap(),
     val canSend: Boolean = true,
 )
 
@@ -51,6 +55,8 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
     private val scope = CoroutineScope(graph.scope.coroutineContext + Job())
     private val worker = Dispatchers.Default.limitedParallelism(1)
     private val messages = LinkedHashMap<Long, TdApi.Message>()
+    private val replies = HashMap<Long, TdApi.Message>()
+    private val loadingReplies = HashSet<Long>()
     private var readOutbox = 0L
     private val ui = MutableStateFlow(ChatUi())
     val state: StateFlow<ChatUi> = ui.asStateFlow()
@@ -97,7 +103,37 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
 
     private fun publish() {
         val sorted = messages.values.sortedByDescending { it.id }.map { it.toUi(readOutbox) }
-        ui.value = ui.value.copy(messages = sorted)
+        val grouped = ArrayList<UiMessage>(sorted.size)
+        var index = 0
+        while (index < sorted.size) {
+            val message = sorted[index]
+            if (message.albumId == 0L) {
+                grouped += message
+                index++
+                continue
+            }
+            var end = index
+            while (end + 1 < sorted.size && sorted[end + 1].albumId == message.albumId) end++
+            val parts = sorted.subList(index, end + 1).reversed()
+            val captioned = parts.firstOrNull { it.text.isNotBlank() } ?: parts.first()
+            grouped += captioned.copy(id = parts.last().id, parts = parts, replyToId = parts.first().replyToId)
+            index = end + 1
+        }
+        val wanted = sorted.map { it.replyToId }.filter { it != 0L && it !in messages && it !in replies }
+        ui.value = ui.value.copy(messages = grouped, replies = replies.mapValues { it.value.toUi(readOutbox) })
+        for (id in wanted) loadReply(id)
+    }
+
+    private fun loadReply(id: Long) {
+        if (!loadingReplies.add(id)) return
+        val source = messages.values.firstOrNull { (it.replyTo as? TdApi.MessageReplyToMessage)?.messageId == id } ?: return
+        scope.launch(worker) {
+            val found = runCatching { graph.td.send(TdApi.GetRepliedMessage(chatId, source.id)) }.getOrNull()
+            if (found != null) {
+                replies[id] = found
+                publish()
+            }
+        }
     }
 
     fun loadMore() {
@@ -220,6 +256,8 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         mediaThumb = photo?.minithumbnail?.data,
         mediaWidth = size?.width ?: sticker?.width ?: 0,
         mediaHeight = size?.height ?: sticker?.height ?: 0,
+        albumId = if (photo != null) mediaAlbumId else 0L,
+        localPath = size?.photo?.local?.takeIf { it.isDownloadingCompleted }?.path,
     )
 }
 

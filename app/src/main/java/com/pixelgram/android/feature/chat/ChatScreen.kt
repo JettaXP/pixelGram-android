@@ -1,6 +1,14 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material.icons.rounded.Bookmark
 import org.drinkless.tdlib.TdApi
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.Settings
@@ -115,6 +123,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
     val snapshot by graph.store.snapshot.collectAsState()
     val chat = remember(chatId, snapshot) { graph.store.chat(chatId) }
     val privateUserId = (chat?.type as? org.drinkless.tdlib.TdApi.ChatTypePrivate)?.userId ?: 0L
+    val saved = privateUserId != 0L && privateUserId == snapshot.meId
+    var viewer by remember { mutableStateOf<Pair<List<UiMessage>, Int>?>(null) }
     val listState = rememberLazyListState()
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
@@ -127,20 +137,21 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { navigator.open(ProfileKey(privateUserId, chatId)) },
+                        modifier = if (saved) Modifier else Modifier.clickable { navigator.open(ProfileKey(privateUserId, chatId)) },
                     ) {
                         Avatar(
                             title = ui.title,
                             seed = chatId,
-                            path = chat?.photo?.small?.id?.let { snapshot.files[it] },
-                            minithumb = chat?.photo?.minithumbnail?.data,
+                            path = if (saved) null else chat?.photo?.small?.id?.let { snapshot.files[it] },
+                            minithumb = if (saved) null else chat?.photo?.minithumbnail?.data,
                             size = 40.dp,
-                            onNeedFile = { chat?.photo?.small?.id?.let(graph.store::requestFileAsync) },
+                            icon = if (saved) Icons.Rounded.Bookmark else null,
+                            onNeedFile = if (saved) null else ({ chat?.photo?.small?.id?.let(graph.store::requestFileAsync) }),
                         )
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(ui.title, style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            subtitle(snapshot, privateUserId)?.let {
+                            Text(if (saved) stringResource(R.string.drawer_saved) else ui.title, style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (!saved) subtitle(snapshot, privateUserId)?.let {
                                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -171,13 +182,18 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                             ServiceMessage(message)
                         } else {
                             SwipeToReply(onReply = { controller.reply(message) }) {
+                                val reply = message.replyToId.takeIf { it != 0L }?.let { id ->
+                                    ui.messages.firstOrNull { it.id == id || it.parts.any { p -> p.id == id } } ?: ui.replies[id]
+                                }
                                 MessageBubble(
                                     message = message,
                                     joinsAbove = joinsAbove,
                                     joinsBelow = joinsBelow,
-                                    filePath = snapshot.files[message.mediaFileId],
-                                    onNeedFile = { graph.store.requestFileAsync(message.mediaFileId) },
-                                    reply = message.replyToId.takeIf { it != 0L }?.let { id -> ui.messages.firstOrNull { it.id == id } },
+                                    files = snapshot.files,
+                                    onNeedFile = graph.store::requestFileAsync,
+                                    onOpenPhoto = { list, index -> viewer = list to index },
+                                    reply = reply,
+                                    replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
                                 )
                             }
                         }
@@ -191,7 +207,13 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
             }
         }
     }
+    viewer?.let { (list, index) ->
+        PhotoViewer(list, index, snapshot.files, graph.store::requestFileAsync) { viewer = null }
+    }
 }
+
+private fun senderName(snapshot: StoreSnapshot, senderId: Long, chat: TdApi.Chat?): String =
+    snapshot.users[senderId]?.name ?: chat?.title.orEmpty()
 
 @Composable
 private fun subtitle(snapshot: StoreSnapshot, userId: Long): String? {
@@ -274,13 +296,15 @@ private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(
+internal fun MessageBubble(
     message: UiMessage,
     joinsAbove: Boolean,
     joinsBelow: Boolean,
-    filePath: String?,
-    onNeedFile: () -> Unit,
+    files: Map<Int, String>,
+    onNeedFile: (Int) -> Unit,
+    onOpenPhoto: (List<UiMessage>, Int) -> Unit,
     reply: UiMessage?,
+    replySender: String?,
 ) {
     val big = 20.dp
     val small = 6.dp
@@ -297,22 +321,9 @@ private fun MessageBubble(
     ) {
         Surface(shape = shape, color = container, contentColor = onContainer, modifier = Modifier.widthIn(max = 320.dp)) {
             Column(Modifier.padding(4.dp)) {
-                if (reply != null) ReplyQuote(reply)
-                if (message.mediaFileId != 0 && message.mediaWidth > 0) {
-                    if (filePath == null) LaunchedEffect(message.mediaFileId) { onNeedFile() }
-                    val ratio = (message.mediaWidth.toFloat() / message.mediaHeight.coerceAtLeast(1)).coerceIn(0.5f, 2f)
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(filePath?.let(::File) ?: message.mediaThumb).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .widthIn(max = 312.dp)
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp)
-                            .then(Modifier.height((312 / ratio).dp))
-                            .clip(RoundedCornerShape(16.dp)),
-                    )
-                }
+                if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files)
+                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
+                if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 Row(
                     Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -394,15 +405,134 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
 }
 
 @Composable
-private fun ReplyQuote(reply: UiMessage) {
+private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>) {
+    val scheme = MaterialTheme.colorScheme
+    val thumb = reply.parts.firstOrNull() ?: reply.takeIf { it.mediaFileId != 0 }
     Row(
         Modifier
             .padding(4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .clip(RoundedCornerShape(14.dp))
+            .background(scheme.primary.copy(alpha = 0.12f))
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(reply.text.ifBlank { "…" }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+        Box(Modifier.width(4.dp).fillMaxHeight().background(scheme.primary))
+        if (thumb != null) {
+            AsyncImage(
+                model = thumb.localPath?.let(::File) ?: files[thumb.mediaFileId]?.let(::File) ?: thumb.mediaThumb,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(start = 8.dp).size(36.dp).clip(RoundedCornerShape(8.dp)),
+            )
+        }
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            if (sender.isNotBlank()) Text(sender, style = MaterialTheme.typography.labelLarge, color = scheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                reply.text.ifBlank { if (thumb != null) stringResource(R.string.preview_photo) else stringResource(R.string.preview_service) },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onOpen: (List<UiMessage>, Int) -> Unit) {
+    val rows = when (photos.size) {
+        1 -> listOf(photos)
+        2 -> listOf(photos)
+        3 -> listOf(photos.take(1), photos.drop(1))
+        4 -> photos.chunked(2)
+        else -> listOf(photos.take(2)) + photos.drop(2).chunked(3)
+    }
+    Column(Modifier.widthIn(max = 312.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        var offset = 0
+        rows.forEachIndexed { rowIndex, row ->
+            val start = offset
+            offset += row.size
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                row.forEachIndexed { i, photo ->
+                    val path = photo.localPath ?: files[photo.mediaFileId]
+                    if (path == null) LaunchedEffect(photo.mediaFileId) { onNeedFile(photo.mediaFileId) }
+                    val single = photos.size == 1
+                    val ratio = if (single) (photo.mediaWidth.toFloat() / photo.mediaHeight.coerceAtLeast(1)).coerceIn(0.8f, 1.8f) else 1f
+                    val top = rowIndex == 0
+                    val bottom = rowIndex == rows.lastIndex
+                    val left = i == 0
+                    val right = i == row.lastIndex
+                    val big = 16.dp
+                    val small = 4.dp
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(path?.let(::File) ?: photo.mediaThumb).crossfade(true).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(if (single) ratio else if (row.size == 1) 1.6f else 1f)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = if (top && left) big else small,
+                                    topEnd = if (top && right) big else small,
+                                    bottomStart = if (bottom && left) big else small,
+                                    bottomEnd = if (bottom && right) big else small,
+                                ),
+                            )
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .clickable { onOpen(photos, start + i) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = start) { photos.size }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
+                val photo = photos[page]
+                val path = photo.localPath ?: files[photo.mediaFileId]
+                if (path == null) LaunchedEffect(photo.mediaFileId) { onNeedFile(photo.mediaFileId) }
+                var scale by remember { mutableStateOf(1f) }
+                var pan by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                AsyncImage(
+                    model = path?.let(::File) ?: photo.mediaThumb,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(page) {
+                            detectTransformGestures { _, move, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                pan = if (scale > 1f) pan + move else androidx.compose.ui.geometry.Offset.Zero
+                            }
+                        }
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = pan.x
+                            translationY = pan.y
+                        },
+                )
+            }
+            IconButton(onClick = onClose, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(8.dp)) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.action_close), tint = Color.White)
+            }
+            if (photos.size > 1) {
+                Text(
+                    "${pager.currentPage + 1} / ${photos.size}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars).padding(top = 20.dp),
+                )
+            }
+        }
     }
 }
 
