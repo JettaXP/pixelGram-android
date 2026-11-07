@@ -40,6 +40,15 @@ data class AppearanceSettings(
     val capsuleSpacing: Int = 4,
     val capsuleHeight: Int = 64,
     val navTabs: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
+    val messageSeconds: Boolean = false,
+    val exactNumbers: Boolean = false,
+    val zalgoFilter: Boolean = false,
+    val autoCapitalize: Boolean = true,
+    val hideAllChats: Boolean = false,
+    val bubbleRadius: Int = 18,
+    val bubbleTailRadius: Int = 4,
+    val messageFontSize: Int = 16,
+    val doubleTapEmoji: String = "❤",
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -60,9 +69,18 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val CapsuleSpacing = intPreferencesKey("capsule_spacing")
         val CapsuleHeight = intPreferencesKey("capsule_height")
         val NavTabs = stringPreferencesKey("nav_tabs")
-        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails)
-        val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight)
-        val strings = listOf(Theme, Shape, NavBar, FolderTitleMode, NavTabs)
+        val K_messageSeconds = booleanPreferencesKey("message_seconds")
+        val K_exactNumbers = booleanPreferencesKey("exact_numbers")
+        val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
+        val K_autoCapitalize = booleanPreferencesKey("auto_capitalize")
+        val K_hideAllChats = booleanPreferencesKey("hide_all_chats")
+        val K_bubbleRadius = intPreferencesKey("bubble_radius")
+        val K_bubbleTailRadius = intPreferencesKey("bubble_tail")
+        val K_messageFontSize = intPreferencesKey("message_font_size")
+        val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
+        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_autoCapitalize, K_hideAllChats)
+        val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
+        val strings = listOf(Theme, Shape, NavBar, FolderTitleMode, NavTabs, K_doubleTapEmoji)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -100,6 +118,15 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         navTabs = p[Keys.NavTabs]?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
             ?.let { if (com.pixelgram.android.feature.main.MainTab.Chats in it) it else listOf(com.pixelgram.android.feature.main.MainTab.Chats) + it }
             ?: com.pixelgram.android.feature.main.MainTab.entries,
+        messageSeconds = p[Keys.K_messageSeconds] ?: false,
+        exactNumbers = p[Keys.K_exactNumbers] ?: false,
+        zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
+        autoCapitalize = p[Keys.K_autoCapitalize] ?: true,
+        hideAllChats = p[Keys.K_hideAllChats] ?: false,
+        bubbleRadius = p[Keys.K_bubbleRadius] ?: 18,
+        bubbleTailRadius = p[Keys.K_bubbleTailRadius] ?: 4,
+        messageFontSize = p[Keys.K_messageFontSize] ?: 16,
+        doubleTapEmoji = p[Keys.K_doubleTapEmoji] ?: "❤",
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -120,6 +147,15 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.CapsuleSpacing] = next.capsuleSpacing
                 p[Keys.CapsuleHeight] = next.capsuleHeight
                 p[Keys.NavTabs] = next.navTabs.joinToString(",") { it.name }
+                p[Keys.K_messageSeconds] = next.messageSeconds
+                p[Keys.K_exactNumbers] = next.exactNumbers
+                p[Keys.K_zalgoFilter] = next.zalgoFilter
+                p[Keys.K_autoCapitalize] = next.autoCapitalize
+                p[Keys.K_hideAllChats] = next.hideAllChats
+                p[Keys.K_bubbleRadius] = next.bubbleRadius
+                p[Keys.K_bubbleTailRadius] = next.bubbleTailRadius
+                p[Keys.K_messageFontSize] = next.messageFontSize
+                p[Keys.K_doubleTapEmoji] = next.doubleTapEmoji
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

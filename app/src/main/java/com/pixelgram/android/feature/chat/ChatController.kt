@@ -224,6 +224,21 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
         }
     }
 
+    fun react(message: UiMessage, emoji: String) {
+        if (emoji.isBlank()) return
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.AddMessageReaction().apply {
+                    chatId = this@ChatController.chatId
+                    messageId = message.id
+                    reactionType = TdApi.ReactionTypeEmoji(emoji)
+                    isBig = false
+                    updateRecentReactions = true
+                })
+            }
+        }
+    }
+
     fun pin(message: UiMessage) {
         scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, true, false)) } }
     }

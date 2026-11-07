@@ -64,6 +64,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import com.pixelgram.android.AppGraph
 import com.pixelgram.android.BuildConfig
 import com.pixelgram.android.R
@@ -187,6 +189,29 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
         FolderTab(2, stringResource(R.string.pixel_folder_sample_work), "Work"),
         FolderTab(3, stringResource(R.string.pixel_folder_sample_channels), "Channels", 1, 1),
     )
+    SettingsGroup(stringResource(R.string.pixel_bubbles)) {
+        BubblePreview(settings)
+        CapsuleSlider(stringResource(R.string.pixel_bubble_radius), settings.bubbleRadius, 4..28, SegmentPosition.Middle) { v -> update { it.copy(bubbleRadius = v) } }
+        CapsuleSlider(stringResource(R.string.pixel_bubble_tail), settings.bubbleTailRadius, 0..18, SegmentPosition.Middle) { v -> update { it.copy(bubbleTailRadius = v) } }
+        CapsuleSlider(stringResource(R.string.pixel_font_size), settings.messageFontSize, 12..24, SegmentPosition.Bottom, "sp") { v -> update { it.copy(messageFontSize = v) } }
+    }
+    SettingsGroup(stringResource(R.string.pixel_messages)) {
+        SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
+        SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
+        SettingsSwitch(stringResource(R.string.pixel_capitalize), settings.autoCapitalize, { v -> update { it.copy(autoCapitalize = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_capitalize_sub))
+        SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub)) {
+            androidx.compose.material3.OutlinedTextField(
+                value = settings.doubleTapEmoji,
+                onValueChange = { v -> update { it.copy(doubleTapEmoji = v.take(8)) } },
+                singleLine = true,
+                modifier = Modifier.width(72.dp),
+            )
+        }
+    }
+    SettingsGroup(stringResource(R.string.pixel_chat_list)) {
+        SettingsSwitch(stringResource(R.string.pixel_exact_numbers), settings.exactNumbers, { v -> update { it.copy(exactNumbers = v) } }, SegmentPosition.Top, "999+ → 1234")
+        SettingsSwitch(stringResource(R.string.pixel_hide_all), settings.hideAllChats, { v -> update { it.copy(hideAllChats = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_hide_all_sub))
+    }
     SettingsGroup(stringResource(R.string.pixel_folder_title)) {
         androidx.compose.material3.Card(
             shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(0, 3).shape,
@@ -463,12 +488,12 @@ private fun BackupSection() {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, onChange: (Int) -> Unit) {
+private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, unit: String = "dp", onChange: (Int) -> Unit) {
     val (index, count) = position.index()
     androidx.compose.material3.SegmentedListItem(
         shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
         colors = com.pixelgram.android.ui.components.segmentedColors(),
-        trailingContent = { Text("$value dp", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+        trailingContent = { Text("$value $unit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
         supportingContent = {
             Slider(
                 value = value.toFloat(),
@@ -570,3 +595,39 @@ private val MainTab.label: Int
         MainTab.Profile -> R.string.tab_profile
         MainTab.Settings -> R.string.tab_settings
     }
+
+@Composable
+private fun BubblePreview(settings: AppearanceSettings) {
+    val big = settings.bubbleRadius.dp
+    val small = settings.bubbleTailRadius.dp
+    androidx.compose.material3.Card(
+        shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(0, 3).shape,
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            val style = MaterialTheme.typography.bodyLarge.copy(fontSize = settings.messageFontSize.sp)
+            androidx.compose.material3.Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(big, big, big, small),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) { Text(stringResource(R.string.pixel_preview_in), style = style, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                androidx.compose.material3.Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(big, small, big, big),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) { Text(stringResource(R.string.pixel_preview_out), style = style, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                androidx.compose.material3.Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(big, small, big, big),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Text(
+                        com.pixelgram.android.util.messageTime((System.currentTimeMillis() / 1000).toInt(), settings.messageSeconds),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+}

@@ -92,18 +92,21 @@ fun ChatsTab(
     val appearance by graph.appearance.state.collectAsState()
     val archive = baseList == LIST_ARCHIVE
     val allTitle = stringResource(R.string.folder_all)
-    val tabs = remember(snapshot.folders, snapshot.unread, allTitle, archive) {
+    val tabs = remember(snapshot.folders, snapshot.unread, allTitle, archive, appearance.hideAllChats) {
         if (archive) {
             emptyList()
         } else {
             val main = snapshot.unread[LIST_MAIN]
-            listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + snapshot.folders.map { f ->
+            val folders = snapshot.folders.map { f ->
                 val u = snapshot.unread[folderKey(f.id)]
                 FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
             }
+            if (appearance.hideAllChats && folders.isNotEmpty()) folders
+            else listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + folders
         }
     }
     var folder by rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(tabs) { if (tabs.isNotEmpty() && tabs.none { it.id == folder }) folder = tabs.first().id }
     val pageCount = tabs.size.coerceAtLeast(1)
     val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.id == folder }.coerceAtLeast(0)) { pageCount }
     val scope = rememberCoroutineScope()
@@ -255,7 +258,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                         containerColor = if (row.muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
                         contentColor = if (row.muted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.widthIn(min = 22.dp),
-                    ) { Text(if (row.unread > 999) "999+" else row.unread.toString()) }
+                    ) { Text(com.pixelgram.android.ui.theme.countLabel(row.unread, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers)) }
                     row.pinned -> Icon(Icons.Rounded.PushPin, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
                 }
             }

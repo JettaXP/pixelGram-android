@@ -219,7 +219,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
                     label = "pill-badge-content",
                 )
                 Badge(containerColor = badgeColor, contentColor = badgeContent) {
-                    Text(if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(), fontWeight = FontWeight.Bold)
+                    Text(com.pixelgram.android.ui.theme.countLabel(tab.unreadChats, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers), fontWeight = FontWeight.Bold)
                 }
             }
         }

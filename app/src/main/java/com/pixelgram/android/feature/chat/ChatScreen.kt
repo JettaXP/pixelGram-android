@@ -1,6 +1,7 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.automirrored.rounded.Forward
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Delete
@@ -141,6 +142,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
     var menuFor by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
     var deleting by remember { mutableStateOf<UiMessage?>(null) }
+    val appearance by graph.appearance.state.collectAsState()
     val listState = rememberLazyListState()
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
@@ -222,6 +224,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                     reply = reply,
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
                                     onLongPress = { menuFor = message },
+                                    onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
                                 )
                             }
                         }
@@ -358,9 +361,11 @@ internal fun MessageBubble(
     reply: UiMessage?,
     replySender: String?,
     onLongPress: () -> Unit = {},
+    onDoubleTap: () -> Unit = {},
 ) {
-    val big = 20.dp
-    val small = 6.dp
+    val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
+    val big = prefs.bubbleRadius.dp
+    val small = prefs.bubbleTailRadius.dp
     val shape = if (message.outgoing) {
         RoundedCornerShape(big, if (joinsAbove) small else big, if (joinsBelow) small else big, big)
     } else {
@@ -376,7 +381,7 @@ internal fun MessageBubble(
             shape = shape,
             color = container,
             contentColor = onContainer,
-            modifier = Modifier.widthIn(max = 320.dp).clip(shape).combinedClickable(onClick = {}, onLongClick = onLongPress),
+            modifier = Modifier.widthIn(max = 320.dp).clip(shape).combinedClickable(onClick = {}, onLongClick = onLongPress, onDoubleClick = onDoubleTap),
         ) {
             Column(Modifier.padding(4.dp)) {
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files)
@@ -390,14 +395,14 @@ internal fun MessageBubble(
                 ) {
                     if (message.text.isNotBlank()) {
                         Text(
-                            formatted(message.text, message.entities, MaterialTheme.colorScheme.primary, onContainer),
-                            style = MaterialTheme.typography.bodyLarge,
+                            formatted(if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text, if (prefs.zalgoFilter) emptyList() else message.entities, MaterialTheme.colorScheme.primary, onContainer),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
                             modifier = Modifier.weight(1f, fill = false),
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
-                        Text(messageTime(message.date), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
+                        Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
                         if (message.outgoing) {
                             Icon(
                                 when {
@@ -662,6 +667,9 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     ),
                     maxLines = 6,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = if (com.pixelgram.android.ui.theme.LocalAppearance.current.autoCapitalize) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                    ),
                     modifier = Modifier.weight(1f),
                 )
                 FilledIconButton(

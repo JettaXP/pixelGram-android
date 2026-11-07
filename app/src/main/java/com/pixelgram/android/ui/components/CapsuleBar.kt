@@ -74,7 +74,7 @@ fun <K> CapsuleBar(
                     modifier = Modifier.height(itemHeight),
                 ) {
                     BadgedBox(badge = {
-                        if (item.badge > 0) Badge { Text(if (item.badge > 999) "999+" else item.badge.toString()) }
+                        if (item.badge > 0) Badge { Text(com.pixelgram.android.ui.theme.countLabel(item.badge, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers)) }
                     }) {
                         Icon(if (active) item.selectedIcon else item.icon, contentDescription = item.label)
                     }

@@ -24,10 +24,14 @@ fun chatListTime(epochSeconds: Int, locale: Locale = Locale.getDefault()): Strin
     }
 }
 
-fun messageTime(epochSeconds: Int): String {
+fun messageTime(epochSeconds: Int, seconds: Boolean = false): String {
     val time = Instant.ofEpochSecond(epochSeconds.toLong()).atZone(zone)
-    return DateTimeFormatter.ofPattern("HH:mm").format(time)
+    return DateTimeFormatter.ofPattern(if (seconds) "HH:mm:ss" else "HH:mm").format(time)
 }
+
+private val zalgo = Regex("\\p{M}{3,}")
+
+fun stripZalgo(text: String): String = text.replace(zalgo, "")
 
 fun dayHeader(epochSeconds: Int, locale: Locale = Locale.getDefault()): String {
     val date = Instant.ofEpochSecond(epochSeconds.toLong()).atZone(zone).toLocalDate()

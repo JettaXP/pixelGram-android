@@ -41,6 +41,7 @@ fun PixelTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalAvatarShape provides settings.avatarShape.shape(settings.avatarCorner),
             LocalDarkTheme provides dark,
+            LocalAppearance provides settings,
             content = content,
         )
     }
