@@ -1,0 +1,88 @@
+name: Build
+
+on:
+  push:
+    branches: [pixelgram-next, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TDLIB_COMMIT: 4c6377aa7386c39217878a9a56d581922ad37ca4
+  NDK_VERSION: 28.2.13676358
+  TDLIB_ABIS: arm64-v8a armeabi-v7a x86_64
+
+jobs:
+  tdlib:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore TDLib
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: tdlib-out
+          key: tdlib-${{ env.TDLIB_COMMIT }}-ndk${{ env.NDK_VERSION }}-${{ env.TDLIB_ABIS }}
+
+      - name: Install toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gperf
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "cmake;3.22.1" "platforms;android-34" > /dev/null
+
+      - name: Build TDLib
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone -q https://github.com/tdlib/td td
+          git -C td checkout -q "$TDLIB_COMMIT"
+          cd td/example/android
+          ./build-openssl.sh "$ANDROID_HOME" "$NDK_VERSION" third-party/openssl
+          ./build-tdlib.sh "$ANDROID_HOME" "$NDK_VERSION" third-party/openssl c++_static Java 26 "$TDLIB_ABIS"
+          mkdir -p "$GITHUB_WORKSPACE/tdlib-out"
+          cp -r tdlib/libs/* "$GITHUB_WORKSPACE/tdlib-out/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tdlib-native
+          path: tdlib-out
+
+  apk:
+    needs: tdlib
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tdlib-native
+          path: tdlib/src/main/jniLibs
+
+      - name: Write secrets
+        env:
+          KEYS: ${{ secrets.KEYS }}
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+        run: |
+          set +x
+          if [ -n "$KEYS" ]; then printf '%s\n' "$KEYS" > local.properties; fi
+          if [ -n "$KEYSTORE" ]; then
+            printf '%s' "$KEYSTORE" | base64 -d > release.keystore
+            grep -q '^RELEASE_STORE_FILE=' local.properties 2>/dev/null || printf 'RELEASE_STORE_FILE=release.keystore\n' >> local.properties
+          fi
+
+      - name: Assemble
+        run: ./gradlew --no-daemon -PtargetAbi="${TDLIB_ABIS// /,}" :app:assembleDebug :app:assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pixelgram-apk
+          path: app/build/outputs/apk/*/pixelgram-*.apk
