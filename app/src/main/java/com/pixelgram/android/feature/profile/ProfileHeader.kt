@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -75,7 +76,7 @@ fun ProfileHeader(
     val shown by animateFloatAsState(if (banner != null) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "banner")
     Box(Modifier.fillMaxWidth()) {
         if (banner != null) {
-            Box(Modifier.fillMaxWidth().height(BannerHeight)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(BannerRatio)) {
                 AsyncImage(
                     model = banner,
                     contentDescription = null,
@@ -136,7 +137,7 @@ fun ProfileHeader(
     }
 }
 
-private val BannerHeight = 240.dp
+private const val BannerRatio = 3f
 
 @Composable
 fun rememberAvatarPicker(graph: AppGraph): () -> Unit {

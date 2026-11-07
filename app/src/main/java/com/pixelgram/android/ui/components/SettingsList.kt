@@ -16,7 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -51,9 +54,16 @@ fun segmentPosition(index: Int, count: Int) = when {
     else -> SegmentPosition.Middle
 }
 
+fun SegmentPosition.index(): Pair<Int, Int> = when (this) {
+    SegmentPosition.Single -> 0 to 1
+    SegmentPosition.Top -> 0 to 3
+    SegmentPosition.Middle -> 1 to 3
+    SegmentPosition.Bottom -> 2 to 3
+}
+
 @Composable
 fun SettingsGroup(title: String? = null, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
         if (title != null) {
             Text(
                 title,
@@ -66,6 +76,7 @@ fun SettingsGroup(title: String? = null, modifier: Modifier = Modifier, content:
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsItem(
     title: String,
@@ -79,31 +90,43 @@ fun SettingsItem(
     onClick: (() -> Unit)? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
-    val content: @Composable () -> Unit = {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (icon != null || painter != null) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(iconBackground), contentAlignment = Alignment.Center) {
-                    if (icon != null) Icon(icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
-                    else if (painter != null) Icon(painter, null, tint = iconTint, modifier = Modifier.size(22.dp))
-                }
+    val (index, count) = position.index()
+    val shapes = ListItemDefaults.segmentedShapes(index, count)
+    val leading: (@Composable () -> Unit)? = if (icon != null || painter != null) {
+        {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(iconBackground), contentAlignment = Alignment.Center) {
+                if (icon != null) Icon(icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
+                else if (painter != null) Icon(painter, null, tint = iconTint, modifier = Modifier.size(22.dp))
             }
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
-                if (subtitle != null) {
-                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            trailing?.invoke(this)
         }
+    } else {
+        null
+    }
+    val trailingSlot: (@Composable () -> Unit)? = trailing?.let { content -> { Row(verticalAlignment = Alignment.CenterVertically) { content() } } }
+    val supporting: (@Composable () -> Unit)? = subtitle?.let { { Text(it) } }
+    val headline: @Composable () -> Unit = {
+        Text(title, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
     }
     if (onClick != null) {
-        Surface(onClick = onClick, enabled = enabled, shape = segmentShape(position), color = MaterialTheme.colorScheme.surfaceContainer, content = content)
+        SegmentedListItem(
+            onClick = onClick,
+            shapes = shapes,
+            enabled = enabled,
+            leadingContent = leading,
+            trailingContent = trailingSlot,
+            supportingContent = supporting,
+            colors = ListItemDefaults.segmentedColors(),
+            content = headline,
+        )
     } else {
-        Surface(shape = segmentShape(position), color = MaterialTheme.colorScheme.surfaceContainer, content = content)
+        SegmentedListItem(
+            shapes = shapes,
+            leadingContent = leading,
+            trailingContent = trailingSlot,
+            supportingContent = supporting,
+            colors = ListItemDefaults.segmentedColors(),
+            content = headline,
+        )
     }
 }
 

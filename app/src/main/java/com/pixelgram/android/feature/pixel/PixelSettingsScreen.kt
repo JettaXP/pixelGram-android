@@ -74,7 +74,7 @@ import com.pixelgram.android.settings.NavBarStyle
 import com.pixelgram.android.feature.main.MainTab
 import com.pixelgram.android.ui.components.PixelSwitch
 import com.pixelgram.android.ui.components.segmentPosition
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
@@ -502,42 +502,46 @@ private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> U
                     .zIndex(if (isDragged) 1f else 0f)
                     .graphicsLayer { translationY = if (isDragged) offset else 0f },
             ) {
-                Row(Modifier.fillMaxWidth().height(70.dp).padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(70.dp)
+                        .pointerInput(item) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    dragging = item
+                                    offset = 0f
+                                },
+                                onDragEnd = {
+                                    dragging = null
+                                    offset = 0f
+                                    commit()
+                                },
+                                onDragCancel = {
+                                    dragging = null
+                                    offset = 0f
+                                },
+                            ) { change, amount ->
+                                change.consume()
+                                offset += amount.y
+                                val from = order.indexOf(item)
+                                if (offset > rowHeight / 2 && from < order.lastIndex) {
+                                    order.add(from + 1, order.removeAt(from))
+                                    offset -= rowHeight
+                                } else if (offset < -rowHeight / 2 && from > 0) {
+                                    order.add(from - 1, order.removeAt(from))
+                                    offset += rowHeight
+                                }
+                            }
+                        }
+                        .padding(start = 8.dp, end = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(
                         Icons.Rounded.DragHandle,
                         stringResource(R.string.pixel_nav_drag),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .padding(12.dp)
-                            .pointerInput(item) {
-                                detectDragGestures(
-                                    onDragStart = {
-                                        dragging = item
-                                        offset = 0f
-                                    },
-                                    onDragEnd = {
-                                        dragging = null
-                                        offset = 0f
-                                        commit()
-                                    },
-                                    onDragCancel = {
-                                        dragging = null
-                                        offset = 0f
-                                    },
-                                ) { change, amount ->
-                                    change.consume()
-                                    offset += amount.y
-                                    val from = order.indexOf(item)
-                                    if (offset > rowHeight / 2 && from < order.lastIndex) {
-                                        order.add(from + 1, order.removeAt(from))
-                                        offset -= rowHeight
-                                    } else if (offset < -rowHeight / 2 && from > 0) {
-                                        order.add(from - 1, order.removeAt(from))
-                                        offset += rowHeight
-                                    }
-                                }
-                            },
+                        modifier = Modifier.size(48.dp).padding(12.dp),
                     )
                     Text(stringResource(item.label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(start = 4.dp))
                     PixelSwitch(

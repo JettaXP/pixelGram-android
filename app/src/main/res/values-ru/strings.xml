@@ -195,7 +195,7 @@
     <string name="pixel_capsule_spacing">Расстояние между вкладками</string>
     <string name="pixel_capsule_height">Высота</string>
     <string name="pixel_nav_tabs">Вкладки нижней панели</string>
-    <string name="pixel_nav_drag">Перетащите, чтобы изменить порядок</string>
+    <string name="pixel_nav_drag">Зажмите и перетащите, чтобы изменить порядок</string>
     <string name="chat_attach_photo">Прикрепить фото</string>
     <string name="backup">Резервная копия</string>
     <string name="backup_sub">Сохраните настройки pixelGram в файл .backup и отправьте в любой чат или загрузите их из файла. Аккаунты не сохраняются.</string>

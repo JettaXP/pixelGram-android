@@ -196,7 +196,7 @@
     <string name="pixel_capsule_spacing">Spacing</string>
     <string name="pixel_capsule_height">Height</string>
     <string name="pixel_nav_tabs">Navigation bar tabs</string>
-    <string name="pixel_nav_drag">Drag to reorder</string>
+    <string name="pixel_nav_drag">Hold and drag to reorder</string>
     <string name="chat_attach_photo">Attach photo</string>
     <string name="backup">Backup</string>
     <string name="backup_sub">Save pixelGram Settings to a .backup file and send it to any chat, or load them from one. Accounts are not included.</string>

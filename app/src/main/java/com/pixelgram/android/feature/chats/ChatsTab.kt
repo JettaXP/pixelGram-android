@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -186,12 +189,15 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     } else {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = 8.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 8.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(rows, key = { it.id }, contentType = { "chat" }) { row ->
+            itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 ChatListItem(
                     row = row,
+                    index = index,
+                    count = rows.size,
                     onClick = { navigator.open(ChatKey(row.id)) },
                     onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
                     modifier = Modifier.animateItem(),
@@ -201,50 +207,36 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ChatListItem(row: ChatRow, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Box {
-            Avatar(
-                title = row.title,
-                seed = row.id,
-                path = row.photoPath,
-                minithumb = row.minithumb,
-                size = 56.dp,
-                icon = if (row.kind == ChatKind.Saved) Icons.Rounded.Bookmark else null,
-                onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
-            )
-            if (row.online) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.BottomEnd).size(14.dp),
+fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier) {
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = ListItemDefaults.segmentedShapes(index, count),
+        modifier = modifier,
+        colors = ListItemDefaults.segmentedColors(),
+        leadingContent = {
+            Box {
+                Avatar(
+                    title = row.title,
+                    seed = row.id,
+                    path = row.photoPath,
+                    minithumb = row.minithumb,
+                    size = 52.dp,
+                    icon = if (row.kind == ChatKind.Saved) Icons.Rounded.Bookmark else null,
+                    onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
                 )
+                if (row.online) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.BottomEnd).size(14.dp),
+                    )
+                }
             }
-        }
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = if (row.kind == ChatKind.Saved) stringResource(R.string.drawer_saved) else row.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (row.unread > 0) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                NameBadges(row.userId, row.verified, 16.dp)
-                if (row.muted) Icon(Icons.Rounded.VolumeOff, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
-                Box(Modifier.weight(1f))
+        },
+        trailingContent = {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(chatListTime(row.date), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                PreviewText(row, Modifier.weight(1f))
                 when {
                     row.mentions > 0 -> Badge(containerColor = MaterialTheme.colorScheme.primary) { Text("@") }
                     row.unread > 0 -> Badge(
@@ -255,6 +247,19 @@ fun ChatListItem(row: ChatRow, onClick: () -> Unit, onNeedPhoto: () -> Unit, mod
                     row.pinned -> Icon(Icons.Rounded.PushPin, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
                 }
             }
+        },
+        supportingContent = { PreviewText(row, Modifier) },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = if (row.kind == ChatKind.Saved) stringResource(R.string.drawer_saved) else row.title,
+                fontWeight = if (row.unread > 0) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            NameBadges(row.userId, row.verified, 16.dp)
+            if (row.muted) Icon(Icons.Rounded.VolumeOff, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
         }
     }
 }

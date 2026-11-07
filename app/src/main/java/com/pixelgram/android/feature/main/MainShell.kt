@@ -140,10 +140,17 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
         val floating = appearance.navBarStyle == NavBarStyle.Expressive
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
             CompositionLocalProvider(LocalBottomBarPadding provides if (floating) barHeight else 0.dp) {
-                val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+                val order = appearance.navTabs
                 AnimatedContent(
                     targetState = tab,
-                    transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
+                    transitionSpec = {
+                        val forward = order.indexOf(targetState) > order.indexOf(initialState)
+                        val shift: (Int) -> Int = { full -> (if (forward) full else -full) / 6 }
+                        (androidx.compose.animation.slideInHorizontally(spatial) { shift(it) } + fadeIn(effects)) togetherWith
+                            (androidx.compose.animation.slideOutHorizontally(spatial) { -shift(it) } + fadeOut(effects))
+                    },
                     label = "main-tab",
                     modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
                 ) { current ->

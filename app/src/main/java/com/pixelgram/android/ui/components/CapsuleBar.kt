@@ -1,7 +1,6 @@
 package com.pixelgram.android.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -26,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -65,15 +63,10 @@ fun <K> CapsuleBar(
     val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val bounds = remember { mutableStateMapOf<K, Pair<Float, Float>>() }
-    var previous by remember { mutableStateOf(selected) }
-    val travel = remember { Animatable(1f) }
-    LaunchedEffect(selected) {
-        if (previous != selected) {
-            travel.snapTo(0f)
-            travel.animateTo(1f, spatial)
-        }
-        previous = selected
-    }
+    val target = bounds[selected]
+    val indicatorSpring = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.8f, stiffness = 380f)
+    val left by animateFloatAsState(target?.first ?: 0f, indicatorSpring, label = "capsule-left")
+    val width by animateFloatAsState(target?.second ?: 0f, indicatorSpring, label = "capsule-width")
     Box(
         modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
@@ -83,11 +76,6 @@ fun <K> CapsuleBar(
                 Box(
                     Modifier
                         .layout { measurable, _ ->
-                            val from = bounds[previous]
-                            val to = bounds[selected] ?: from
-                            val t = travel.value
-                            val left = androidx.compose.ui.util.lerp(from?.first ?: to?.first ?: 0f, to?.first ?: 0f, t)
-                            val width = androidx.compose.ui.util.lerp(from?.second ?: to?.second ?: 0f, to?.second ?: 0f, t)
                             val placeable = measurable.measure(Constraints.fixed(width.roundToInt().coerceAtLeast(0), itemHeight.roundToPx()))
                             layout(0, 0) { placeable.place(left.roundToInt(), 0) }
                         }

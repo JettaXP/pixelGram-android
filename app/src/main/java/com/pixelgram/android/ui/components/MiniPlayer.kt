@@ -88,7 +88,13 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
                             LoadingIndicator(Modifier.size(48.dp))
                         } else {
                             val progress = if (state.duration > 0) (state.position.toFloat() / state.duration).coerceIn(0f, 1f) else 0f
-                            CircularWavyProgressIndicator(progress = { progress }, modifier = Modifier.size(48.dp))
+                            val amplitude by androidx.compose.animation.core.animateFloatAsState(if (state.playing) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "wave")
+                            CircularWavyProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.size(48.dp),
+                                amplitude = { amplitude },
+                                waveSpeed = if (state.playing) androidx.compose.material3.WavyProgressIndicatorDefaults.CircularWavelength else 0.dp,
+                            )
                             IconButton(onClick = music::toggle) {
                                 Icon(
                                     if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,

@@ -78,16 +78,22 @@ import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.rounded.WorkspacePremium
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
@@ -103,7 +109,6 @@ import com.pixelgram.android.settings.FolderTitle
 @Immutable
 data class FolderTab(val id: Int, val title: String, val icon: String, val unreadChats: Int = 0, val unreadUnmuted: Int = 0)
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FolderChips(
     tabs: List<FolderTab>,
@@ -113,14 +118,9 @@ fun FolderChips(
     modifier: Modifier = Modifier,
 ) {
     if (tabs.size < 2) return
-    val colors = MaterialTheme.colorScheme
-    val chipColors = ToggleButtonDefaults.colors(
-        containerColor = colors.secondaryContainer.copy(alpha = ChipIdleAlpha),
-        contentColor = colors.onSecondaryContainer,
-    )
     val scroll = rememberScrollState()
     val bounds = remember { mutableStateMapOf<Int, Pair<Int, Int>>() }
-    val spec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val spec = MaterialTheme.motionScheme.slowEffectsSpec<Float>()
     LaunchedEffect(selected, bounds[selected], scroll.viewportSize) {
         val (left, width) = bounds[selected] ?: return@LaunchedEffect
         if (scroll.maxValue == 0) return@LaunchedEffect
@@ -128,55 +128,101 @@ fun FolderChips(
         scroll.animateScrollTo(target, spec)
     }
     Row(
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        horizontalArrangement = Arrangement.spacedBy(ChipGap),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(scroll)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        tabs.forEachIndexed { position, tab ->
-            val isSelected = tab.id == selected
-            val showIcon = mode != FolderTitle.Names
-            val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && isSelected)
-            ToggleButton(
-                checked = isSelected,
-                onCheckedChange = { onSelect(tab.id) },
-                shapes = when (position) {
-                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    tabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+        tabs.forEach { tab ->
+            FolderPill(
+                tab = tab,
+                selected = tab.id == selected,
+                mode = mode,
+                onClick = { onSelect(tab.id) },
+                modifier = Modifier.onPlaced {
+                    val value = it.positionInParent().x.toInt() to it.size.width
+                    if (bounds[tab.id] != value) bounds[tab.id] = value
                 },
-                colors = chipColors,
-                modifier = Modifier
-                    .height(PillHeight)
-                    .onPlaced {
-                        val value = it.positionInParent().x.toInt() to it.size.width
-                        if (bounds[tab.id] != value) bounds[tab.id] = value
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit, modifier: Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val fade = tween<Color>(SwitchMs, easing = FastOutSlowInEasing)
+    val container by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, fade, label = "pill-container")
+    val content by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, fade, label = "pill-content")
+    val dip = remember { Animatable(1f) }
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(selected) {
+        if (first) {
+            first = false
+            return@LaunchedEffect
+        }
+        dip.animateTo(DipAlpha, tween(SwitchMs / 3, easing = FastOutSlowInEasing))
+        dip.animateTo(1f, tween(SwitchMs * 2 / 3, easing = FastOutSlowInEasing))
+    }
+    val showIcon = mode != FolderTitle.Names
+    val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && selected)
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+        modifier = modifier.height(PillHeight),
+    ) {
+        Row(
+            Modifier
+                .padding(horizontal = 16.dp)
+                .graphicsLayer { alpha = dip.value }
+                .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (showIcon) Icon(folderIcon(tab.icon, selected), contentDescription = tab.title, modifier = Modifier.size(18.dp))
+            if (showName) {
+                Text(
+                    tab.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            if (tab.unreadChats > 0) {
+                val badgeColor by animateColorAsState(
+                    when {
+                        selected -> colors.onPrimaryContainer
+                        tab.unreadUnmuted > 0 -> colors.primary
+                        else -> colors.outline
                     },
-            ) {
-                if (showIcon) Icon(folderIcon(tab.icon, isSelected), contentDescription = tab.title, modifier = Modifier.size(ButtonDefaults.IconSize))
-                if (showIcon && showName) Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                if (showName) Text(tab.title, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-                if (tab.unreadChats > 0) {
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Surface(
-                        shape = CircleShape,
-                        color = when {
-                            isSelected -> colors.onPrimary
-                            tab.unreadUnmuted > 0 -> colors.primary
-                            else -> colors.outline
-                        },
-                        contentColor = when {
-                            isSelected -> colors.primary
-                            tab.unreadUnmuted > 0 -> colors.onPrimary
-                            else -> colors.surface
-                        },
-                        modifier = Modifier.defaultMinSize(minWidth = ChipBadgeHeight, minHeight = ChipBadgeHeight),
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
-                            Text(if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(), style = MaterialTheme.typography.labelMedium)
-                        }
+                    fade,
+                    label = "pill-badge",
+                )
+                val badgeContent by animateColorAsState(
+                    when {
+                        selected -> colors.primaryContainer
+                        tab.unreadUnmuted > 0 -> colors.onPrimary
+                        else -> colors.surface
+                    },
+                    fade,
+                    label = "pill-badge-content",
+                )
+                Surface(
+                    shape = CircleShape,
+                    color = badgeColor,
+                    contentColor = badgeContent,
+                    modifier = Modifier.defaultMinSize(minWidth = ChipBadgeHeight, minHeight = ChipBadgeHeight),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 5.dp)) {
+                        Text(
+                            if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
             }
@@ -184,9 +230,11 @@ fun FolderChips(
     }
 }
 
-private val PillHeight = 40.dp
-private const val ChipIdleAlpha = 0.55f
-private val ChipBadgeHeight = 20.dp
+private val PillHeight = 36.dp
+private val ChipGap = 6.dp
+private val ChipBadgeHeight = 18.dp
+private const val SwitchMs = 450
+private const val DipAlpha = 0.45f
 
 fun folderIcon(name: String, filled: Boolean): ImageVector {
     val pair = FolderIcons[name] ?: FolderIcons.getValue("Custom")
