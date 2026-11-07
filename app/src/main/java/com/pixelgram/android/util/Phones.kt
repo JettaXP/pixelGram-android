@@ -47,6 +47,19 @@ object Phones {
         return if (rest.filter(Char::isDigit) == national) rest else national
     }
 
+    private val maxLengths = HashMap<String, Int>()
+
+    fun maxNationalLength(code: String): Int = synchronized(maxLengths) {
+        maxLengths.getOrPut(code) {
+            val fallback = (15 - code.length).coerceAtLeast(4)
+            val country = code.toIntOrNull() ?: return@getOrPut fallback
+            (17 downTo 4).firstOrNull { length ->
+                val number = PhoneNumber().setCountryCode(country).setNationalNumber("9".repeat(length).toLong())
+                util.isPossibleNumberForTypeWithReason(number, PhoneNumberUtil.PhoneNumberType.MOBILE) == PhoneNumberUtil.ValidationResult.IS_POSSIBLE
+            } ?: fallback
+        }
+    }
+
     fun placeholder(code: String): String? {
         if (!isCallingCode(code)) return null
         val region = util.getRegionCodeForCountryCode(code.toInt())

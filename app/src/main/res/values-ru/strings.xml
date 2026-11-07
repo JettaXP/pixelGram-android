@@ -213,4 +213,7 @@
     <string name="backup_not_backup">Это не резервная копия pixelGram</string>
     <string name="backup_sent">Отправлено: %1$s</string>
     <string name="backup_pick_chat">Отправить копию в</string>
+    <string name="auth_code_where">Код приходит сообщением от «Telegram» в другие ваши сеансы: официальное приложение или pixelGram Desktop. SMS для этого входа Telegram не предложил.</string>
+    <string name="auth_change_number">Изменить номер</string>
+    <string name="auth_qr_short">Войти по QR</string>
 </resources>

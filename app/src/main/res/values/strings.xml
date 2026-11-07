@@ -214,4 +214,7 @@
     <string name="backup_not_backup">That\'s not a pixelGram backup</string>
     <string name="backup_sent">Sent %1$s</string>
     <string name="backup_pick_chat">Send backup to</string>
+    <string name="auth_code_where">The code comes as a message from "Telegram" in your other sessions: the official app or pixelGram Desktop. Telegram did not offer an SMS for this login.</string>
+    <string name="auth_change_number">Change number</string>
+    <string name="auth_qr_short">Log in with QR</string>
 </resources>

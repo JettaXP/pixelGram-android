@@ -40,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -127,6 +128,7 @@ private fun AuthScaffold(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (onBack != null) BackHandler(onBack = onBack)
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
         Box(Modifier.fillMaxWidth().height(56.dp)) {
             if (onBack != null) {
@@ -145,6 +147,7 @@ private fun AuthScaffold(
             content = content,
         )
         bottom()
+    }
     }
 }
 
@@ -178,7 +181,7 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
                             code += digit
                             if (Phones.completesCode(code)) field = PhoneField.Number
                         }
-                        PhoneField.Number -> if (code.length + number.length < 15) number += digit
+                        PhoneField.Number -> if (number.length < Phones.maxNationalLength(code)) number += digit
                     }
                 },
                 onBackspace = {
@@ -328,6 +331,22 @@ private fun CodeScreen(step: AuthStep.Code, ui: AuthUi, controller: AuthControll
                     if (left > 0) stringResource(R.string.auth_resend_in, left / 60, left % 60)
                     else stringResource(R.string.auth_resend, codeTypeName(step.nextType)),
                 )
+            }
+        }
+        if (step.type == CodeType.App) {
+            Text(
+                stringResource(R.string.auth_code_where),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            OutlinedButton(onClick = controller::backToPhone, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.auth_change_number)) }
+            FilledTonalButton(onClick = controller::requestQr, enabled = !ui.busy, shapes = ButtonDefaults.shapes()) {
+                Icon(Icons.Rounded.QrCode2, null, Modifier.size(18.dp))
+                Text(stringResource(R.string.auth_qr_short), Modifier.padding(start = 6.dp))
             }
         }
     }
