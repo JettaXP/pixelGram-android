@@ -125,7 +125,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 )
                 Column {
                     MiniPlayer()
-                    MainNavBar(appearance.navBarStyle, tabs, tab) { tab = it }
+                    MainNavBar(appearance.navBarStyle, tabs, tab, { tab = it }, appearance.capsuleInset, appearance.capsuleSpacing, appearance.capsuleHeight)
                 }
             },
         ) { padding ->
@@ -155,7 +155,7 @@ internal data class MainTabItem(val tab: MainTab, val selectedIcon: ImageVector,
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: MainTab, onSelect: (MainTab) -> Unit) {
+internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: MainTab, onSelect: (MainTab) -> Unit, inset: Int = 12, spacing: Int = 4, height: Int = 64) {
     val icon: @Composable (MainTabItem) -> Unit = { item ->
         BadgedBox(badge = { if (item.badge > 0) Badge { Text(if (item.badge > 999) "999+" else item.badge.toString()) } }) {
             Icon(if (item.tab == selected) item.selectedIcon else item.icon, contentDescription = null)
@@ -166,6 +166,9 @@ internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: M
             items = tabs.map { CapsuleItem(it.tab, it.selectedIcon, it.icon, it.label, it.badge) },
             selected = selected,
             onSelect = onSelect,
+            inset = inset.dp,
+            spacing = spacing.dp,
+            height = height.dp,
         )
         NavBarStyle.Classic -> NavigationBar {
             tabs.forEach { item ->

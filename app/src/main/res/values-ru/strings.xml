@@ -190,4 +190,8 @@
     <string name="profile_birthday">День рождения</string>
     <string name="profile_music">Музыка профиля</string>
     <string name="profile_id">ID</string>
+    <string name="pixel_capsule">Капсула</string>
+    <string name="pixel_capsule_inset">Отступ от края</string>
+    <string name="pixel_capsule_spacing">Расстояние между вкладками</string>
+    <string name="pixel_capsule_height">Высота</string>
 </resources>

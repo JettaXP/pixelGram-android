@@ -276,6 +276,13 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
             }
         }
     }
+    androidx.compose.animation.AnimatedVisibility(settings.navBarStyle == NavBarStyle.Expressive) {
+        SettingsGroup(stringResource(R.string.pixel_capsule)) {
+            CapsuleSlider(stringResource(R.string.pixel_capsule_inset), settings.capsuleInset, 4..20, SegmentPosition.Top) { v -> update { it.copy(capsuleInset = v) } }
+            CapsuleSlider(stringResource(R.string.pixel_capsule_spacing), settings.capsuleSpacing, 0..16, SegmentPosition.Middle) { v -> update { it.copy(capsuleSpacing = v) } }
+            CapsuleSlider(stringResource(R.string.pixel_capsule_height), settings.capsuleHeight, 56..80, SegmentPosition.Bottom) { v -> update { it.copy(capsuleHeight = v) } }
+        }
+    }
     SettingsGroup(stringResource(R.string.pixel_avatars)) {
         AvatarShapePicker(settings.avatarShape) { shape -> update { it.copy(avatarShape = shape) } }
         if (settings.avatarShape == AvatarShape.Custom) {
@@ -350,5 +357,23 @@ internal fun AboutPage() {
     SettingsGroup(stringResource(R.string.pixel_info)) {
         SettingsItem(stringResource(R.string.pixel_version), SegmentPosition.Top, BuildConfig.VERSION_NAME, Icons.Rounded.Info)
         SettingsItem(stringResource(R.string.pixel_credits), SegmentPosition.Bottom, stringResource(R.string.pixel_credits_sub), Icons.Rounded.Palette)
+    }
+}
+
+@Composable
+private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, onChange: (Int) -> Unit) {
+    androidx.compose.material3.Surface(shape = segmentShape(position), color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("$value dp", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            Slider(
+                value = value.toFloat(),
+                onValueChange = { onChange(it.roundToInt()) },
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+                steps = range.last - range.first - 1,
+            )
+        }
     }
 }

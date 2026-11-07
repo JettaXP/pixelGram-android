@@ -191,4 +191,8 @@
     <string name="profile_birthday">Birthday</string>
     <string name="profile_music">Profile music</string>
     <string name="profile_id">ID</string>
+    <string name="pixel_capsule">Capsule bar</string>
+    <string name="pixel_capsule_inset">Edge padding</string>
+    <string name="pixel_capsule_spacing">Spacing</string>
+    <string name="pixel_capsule_height">Height</string>
 </resources>

@@ -35,6 +35,9 @@ data class AppearanceSettings(
     val phoneDetails: Boolean = true,
     val navBarStyle: NavBarStyle = NavBarStyle.Expressive,
     val folderTitle: FolderTitle = FolderTitle.NamesAndIcons,
+    val capsuleInset: Int = 12,
+    val capsuleSpacing: Int = 4,
+    val capsuleHeight: Int = 64,
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -51,6 +54,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val PhoneDetails = booleanPreferencesKey("phone_details")
         val NavBar = stringPreferencesKey("nav_bar")
         val FolderTitleMode = stringPreferencesKey("folder_title")
+        val CapsuleInset = intPreferencesKey("capsule_inset")
+        val CapsuleSpacing = intPreferencesKey("capsule_spacing")
+        val CapsuleHeight = intPreferencesKey("capsule_height")
     }
 
     val state: StateFlow<AppearanceSettings> = context.store.data
@@ -68,6 +74,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         phoneDetails = p[Keys.PhoneDetails] ?: true,
         navBarStyle = NavBarStyle.entries.firstOrNull { it.name == p[Keys.NavBar] } ?: NavBarStyle.Expressive,
         folderTitle = FolderTitle.entries.firstOrNull { it.name == p[Keys.FolderTitleMode] } ?: FolderTitle.NamesAndIcons,
+        capsuleInset = p[Keys.CapsuleInset] ?: 12,
+        capsuleSpacing = p[Keys.CapsuleSpacing] ?: 4,
+        capsuleHeight = p[Keys.CapsuleHeight] ?: 64,
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -84,6 +93,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.PhoneDetails] = next.phoneDetails
                 p[Keys.NavBar] = next.navBarStyle.name
                 p[Keys.FolderTitleMode] = next.folderTitle.name
+                p[Keys.CapsuleInset] = next.capsuleInset
+                p[Keys.CapsuleSpacing] = next.capsuleSpacing
+                p[Keys.CapsuleHeight] = next.capsuleHeight
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

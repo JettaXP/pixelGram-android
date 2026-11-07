@@ -42,13 +42,23 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
 data class CapsuleItem<K>(val key: K, val selectedIcon: ImageVector, val icon: ImageVector, val label: String, val badge: Int = 0)
 
 @Composable
-fun <K> CapsuleBar(items: List<CapsuleItem<K>>, selected: K, onSelect: (K) -> Unit, modifier: Modifier = Modifier) {
+fun <K> CapsuleBar(
+    items: List<CapsuleItem<K>>,
+    selected: K,
+    onSelect: (K) -> Unit,
+    modifier: Modifier = Modifier,
+    inset: Dp = 12.dp,
+    spacing: Dp = 4.dp,
+    height: Dp = 64.dp,
+) {
+    val itemHeight = (height - inset * 2).coerceAtLeast(32.dp)
     val colors = MaterialTheme.colorScheme
     val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
@@ -67,7 +77,7 @@ fun <K> CapsuleBar(items: List<CapsuleItem<K>>, selected: K, onSelect: (K) -> Un
         contentAlignment = Alignment.Center,
     ) {
         Surface(shape = CircleShape, color = colors.surfaceContainerHighest, shadowElevation = 3.dp) {
-            Box(Modifier.padding(Inset)) {
+            Box(Modifier.padding(inset)) {
                 Box(
                     Modifier
                         .layout { measurable, _ ->
@@ -76,13 +86,13 @@ fun <K> CapsuleBar(items: List<CapsuleItem<K>>, selected: K, onSelect: (K) -> Un
                             val t = travel.value
                             val left = androidx.compose.ui.util.lerp(from?.first ?: to?.first ?: 0f, to?.first ?: 0f, t)
                             val width = androidx.compose.ui.util.lerp(from?.second ?: to?.second ?: 0f, to?.second ?: 0f, t)
-                            val placeable = measurable.measure(Constraints.fixed(width.roundToInt().coerceAtLeast(0), ItemHeight.roundToPx()))
+                            val placeable = measurable.measure(Constraints.fixed(width.roundToInt().coerceAtLeast(0), itemHeight.roundToPx()))
                             layout(0, 0) { placeable.place(left.roundToInt(), 0) }
                         }
                         .clip(CircleShape)
                         .background(colors.primary),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing), verticalAlignment = Alignment.CenterVertically) {
                     items.forEach { item ->
                         val active = item.key == selected
                         val progress by animateFloatAsState(if (active) 1f else 0f, effects, label = "capsule-tint")
@@ -91,7 +101,7 @@ fun <K> CapsuleBar(items: List<CapsuleItem<K>>, selected: K, onSelect: (K) -> Un
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .onPlaced { bounds[item.key] = it.positionInParent().x to it.size.width.toFloat() }
-                                .height(ItemHeight)
+                                .height(itemHeight)
                                 .clip(CircleShape)
                                 .selectable(selected = active, role = Role.Tab) { onSelect(item.key) }
                                 .padding(horizontal = 18.dp),
@@ -122,5 +132,3 @@ fun <K> CapsuleBar(items: List<CapsuleItem<K>>, selected: K, onSelect: (K) -> Un
     }
 }
 
-private val Inset = 6.dp
-private val ItemHeight = 48.dp
