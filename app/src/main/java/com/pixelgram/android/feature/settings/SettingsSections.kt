@@ -34,6 +34,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import org.drinkless.tdlib.TdApi
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -95,6 +109,10 @@ fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            if (current == SettingsSection.Account) {
+                AccountEditor(graph)
+                return@Column
+            }
             if (current == SettingsSection.Privacy) {
                 SettingsGroup(stringResource(R.string.section_security)) {
                     SettingsItem(
@@ -133,5 +151,63 @@ fun ComingSoon(icon: ImageVector, tone: Tone, title: String = stringResource(R.s
             color = scheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AccountEditor(graph: AppGraph) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    val me = snapshot.users[snapshot.meId]
+    var first by rememberSaveable(me?.id) { mutableStateOf(me?.firstName.orEmpty()) }
+    var last by rememberSaveable(me?.id) { mutableStateOf(me?.lastName.orEmpty()) }
+    var username by rememberSaveable(me?.id) { mutableStateOf(me?.username.orEmpty()) }
+    var bio by rememberSaveable(me?.id) { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(snapshot.meId) {
+        if (snapshot.meId != 0L) bio = runCatching { graph.td.send(TdApi.GetUserFullInfo(snapshot.meId)).bio?.text.orEmpty() }.getOrDefault(bio)
+    }
+    val saved = stringResource(R.string.account_saved)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.account_first_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.account_last_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            username,
+            { username = it.filter { c -> c.isLetterOrDigit() || c == '_' }.take(32) },
+            label = { Text(stringResource(R.string.profile_username)) },
+            prefix = { Text("@") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            bio,
+            { bio = it.take(70) },
+            label = { Text(stringResource(R.string.profile_bio)) },
+            supportingText = { Text("${bio.length} / 70") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        status?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
+        Button(
+            onClick = {
+                busy = true
+                scope.launch {
+                    val errors = listOfNotNull(
+                        runCatching { graph.td.send(TdApi.SetName(first.trim(), last.trim())) }.exceptionOrNull(),
+                        runCatching { graph.td.send(TdApi.SetBio(bio.trim())) }.exceptionOrNull(),
+                        if (username != me?.username.orEmpty()) runCatching { graph.td.send(TdApi.SetUsername(username)) }.exceptionOrNull() else null,
+                    )
+                    busy = false
+                    status = errors.firstOrNull()?.let { (it as? com.pixelgram.android.td.TdException)?.error?.message ?: it.message } ?: saved
+                }
+            },
+            enabled = !busy && first.isNotBlank(),
+            shapes = ButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (busy) LoadingIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+            else Text(stringResource(R.string.account_save))
+        }
     }
 }

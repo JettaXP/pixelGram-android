@@ -46,6 +46,8 @@ data class ChatUi(
     val loading: Boolean = true,
     val reachedEnd: Boolean = false,
     val replyTo: UiMessage? = null,
+    val editing: UiMessage? = null,
+    val typing: List<Long> = emptyList(),
     val replies: Map<Long, UiMessage> = emptyMap(),
     val canSend: Boolean = true,
 )
@@ -57,6 +59,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
     private val messages = LinkedHashMap<Long, TdApi.Message>()
     private val replies = HashMap<Long, TdApi.Message>()
     private val loadingReplies = HashSet<Long>()
+    private val actions = HashMap<Long, Long>()
     private var readOutbox = 0L
     private val ui = MutableStateFlow(ChatUi())
     val state: StateFlow<ChatUi> = ui.asStateFlow()
@@ -92,6 +95,22 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
             } else return
             is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
                 messages[update.messageId]?.editDate = update.editDate
+            } else return
+            is TdApi.UpdateChatAction -> if (update.chatId == chatId) {
+                val sender = when (val from = update.senderId) {
+                    is TdApi.MessageSenderUser -> from.userId
+                    is TdApi.MessageSenderChat -> from.chatId
+                    else -> 0L
+                }
+                if (update.action is TdApi.ChatActionCancel) actions.remove(sender) else actions[sender] = System.currentTimeMillis()
+                ui.value = ui.value.copy(typing = actions.keys.toList())
+                scope.launch(worker) {
+                    kotlinx.coroutines.delay(6000)
+                    val now = System.currentTimeMillis()
+                    actions.entries.removeAll { now - it.value >= 6000 }
+                    ui.value = ui.value.copy(typing = actions.keys.toList())
+                }
+                return
             } else return
             is TdApi.UpdateChatReadOutbox -> if (update.chatId == chatId) {
                 readOutbox = update.lastReadOutboxMessageId
@@ -156,8 +175,66 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
     }
 
     fun reply(message: UiMessage?) {
-        ui.value = ui.value.copy(replyTo = message)
+        ui.value = ui.value.copy(replyTo = message, editing = null)
     }
+
+    fun startEdit(message: UiMessage?) {
+        ui.value = ui.value.copy(editing = message, replyTo = null)
+    }
+
+    fun submitEdit(text: String) {
+        val target = ui.value.editing ?: return
+        ui.value = ui.value.copy(editing = null)
+        val body = text.trim()
+        if (body.isEmpty()) return
+        scope.launch {
+            runCatching {
+                if (target.content is TdApi.MessageText) {
+                    graph.td.send(TdApi.EditMessageText().apply {
+                        chatId = this@ChatController.chatId
+                        messageId = target.id
+                        inputMessageContent = TdApi.InputMessageText().apply { this.text = TdApi.FormattedText(body, emptyArray()) }
+                    })
+                } else {
+                    graph.td.send(TdApi.EditMessageCaption().apply {
+                        chatId = this@ChatController.chatId
+                        messageId = target.id
+                        caption = TdApi.FormattedText(body, emptyArray())
+                    })
+                }
+            }
+        }
+    }
+
+    fun delete(message: UiMessage, everyone: Boolean) {
+        val ids = (message.parts.map { it.id }.ifEmpty { listOf(message.id) }).toLongArray()
+        scope.launch { runCatching { graph.td.send(TdApi.DeleteMessages(chatId, ids, everyone)) } }
+    }
+
+    fun forward(message: UiMessage, toChatId: Long) {
+        val ids = (message.parts.map { it.id }.ifEmpty { listOf(message.id) }).toLongArray()
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.ForwardMessages().apply {
+                    chatId = toChatId
+                    fromChatId = this@ChatController.chatId
+                    messageIds = ids
+                })
+            }
+        }
+    }
+
+    fun pin(message: UiMessage) {
+        scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, true, false)) } }
+    }
+
+    suspend fun canDeleteForEveryone(message: UiMessage): Boolean = runCatching {
+        graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeDeletedForAllUsers
+    }.getOrDefault(false)
+
+    suspend fun canEdit(message: UiMessage): Boolean = runCatching {
+        graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeEdited
+    }.getOrDefault(false)
 
     fun sendPhotos(paths: List<String>, caption: String) {
         if (paths.isEmpty()) return

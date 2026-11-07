@@ -72,13 +72,13 @@ fun BackupImportDialog(file: File, onDone: (String?) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatPickerSheet(onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+fun ChatPickerSheet(onPick: (Long) -> Unit, onDismiss: () -> Unit, title: String = stringResource(R.string.backup_pick_chat)) {
     val graph = LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
     val rows = snapshot.lists[LIST_MAIN].orEmpty()
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(
-            stringResource(R.string.backup_pick_chat),
+            title,
             style = MaterialTheme.typography.titleLargeEmphasized,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
         )

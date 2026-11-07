@@ -33,6 +33,8 @@ data class ChatRow(
     val verified: Boolean,
     val online: Boolean,
     val order: Long,
+    val lastMessageId: Long = 0,
+    val list: String = LIST_MAIN,
 )
 
 @Immutable
@@ -197,6 +199,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
             verified = user?.verificationStatus?.isVerified == true,
             online = user?.status is TdApi.UserStatusOnline,
             order = position.order,
+            lastMessageId = last?.id ?: 0,
+            list = position.list.key(),
         )
     }
 

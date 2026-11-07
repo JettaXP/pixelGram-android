@@ -25,6 +25,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ProfileKey(val userId: Long, val chatId: Long = 0) : NavKey
 @Serializable data class PixelSettingsKey(val page: String = "") : NavKey
 @Serializable data object SessionsKey : NavKey
+@Serializable data object SearchKey : NavKey
 @Serializable data class ProfilePhotosKey(val userId: Long) : NavKey
 @Serializable data class SettingsSectionKey(val section: String) : NavKey
 
@@ -60,6 +61,7 @@ fun AppNavigation(graph: AppGraph) {
             entry<ProfileKey> { key -> ProfileScreen(graph, key.userId, key.chatId, navigator) }
             entry<PixelSettingsKey> { key -> PixelSettingsScreen(graph, key.page, navigator) }
             entry<SessionsKey> { SessionsScreen(graph, navigator) }
+            entry<SearchKey> { com.pixelgram.android.feature.search.SearchScreen(graph, navigator) }
             entry<ProfilePhotosKey> { key -> com.pixelgram.android.feature.profile.ProfilePhotosScreen(graph, key.userId, navigator) }
             entry<SettingsSectionKey> { key -> com.pixelgram.android.feature.settings.SettingsSectionScreen(graph, key.section, navigator) }
         },

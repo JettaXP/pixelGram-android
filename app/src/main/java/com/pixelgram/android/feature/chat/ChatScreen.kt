@@ -1,6 +1,12 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.material.icons.automirrored.rounded.Forward
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -132,6 +138,9 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
     val privateUserId = (chat?.type as? org.drinkless.tdlib.TdApi.ChatTypePrivate)?.userId ?: 0L
     val saved = privateUserId != 0L && privateUserId == snapshot.meId
     var viewer by remember { mutableStateOf<Pair<List<UiMessage>, Int>?>(null) }
+    var menuFor by remember { mutableStateOf<UiMessage?>(null) }
+    var forwarding by remember { mutableStateOf<UiMessage?>(null) }
+    var deleting by remember { mutableStateOf<UiMessage?>(null) }
     val listState = rememberLazyListState()
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
@@ -150,7 +159,16 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                     )
                 },
                 subtitle = {
-                    if (!saved) subtitle(snapshot, privateUserId)?.let { Text(it, maxLines = 1) }
+                    when {
+                        saved -> Unit
+                        ui.typing.isNotEmpty() -> Text(
+                            if (privateUserId != 0L || ui.typing.size > 1) stringResource(R.string.chat_typing)
+                            else stringResource(R.string.chat_typing_named, snapshot.users[ui.typing.first()]?.firstName.orEmpty()),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                        )
+                        else -> subtitle(snapshot, privateUserId)?.let { Text(it, maxLines = 1) }
+                    }
                 },
                 titleHorizontalAlignment = Alignment.CenterHorizontally,
                 navigationIcon = {
@@ -171,7 +189,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                 },
             )
         },
-        bottomBar = { Composer(ui.replyTo, controller) },
+        bottomBar = { Composer(ui.replyTo, ui.editing, controller) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
@@ -203,6 +221,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                     onOpenPhoto = { list, index -> viewer = list to index },
                                     reply = reply,
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
+                                    onLongPress = { menuFor = message },
                                 )
                             }
                         }
@@ -218,6 +237,28 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
     }
     viewer?.let { (list, index) ->
         PhotoViewer(list, index, snapshot.files, graph.store::requestFileAsync) { viewer = null }
+    }
+    menuFor?.let { message ->
+        MessageActions(
+            message = message,
+            controller = controller,
+            onDismiss = { menuFor = null },
+            onForward = { forwarding = message },
+            onDelete = { deleting = message },
+        )
+    }
+    forwarding?.let { message ->
+        com.pixelgram.android.ui.components.ChatPickerSheet(
+            onPick = { target ->
+                controller.forward(message, target)
+                forwarding = null
+            },
+            onDismiss = { forwarding = null },
+            title = stringResource(R.string.forward_to),
+        )
+    }
+    deleting?.let { message ->
+        DeleteDialog(message, controller, privateUserId, snapshot) { deleting = null }
     }
 }
 
@@ -316,6 +357,7 @@ internal fun MessageBubble(
     onOpenPhoto: (List<UiMessage>, Int) -> Unit,
     reply: UiMessage?,
     replySender: String?,
+    onLongPress: () -> Unit = {},
 ) {
     val big = 20.dp
     val small = 6.dp
@@ -330,7 +372,12 @@ internal fun MessageBubble(
         Modifier.fillMaxWidth().padding(top = if (joinsAbove) 2.dp else 6.dp),
         horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
     ) {
-        Surface(shape = shape, color = container, contentColor = onContainer, modifier = Modifier.widthIn(max = 320.dp)) {
+        Surface(
+            shape = shape,
+            color = container,
+            contentColor = onContainer,
+            modifier = Modifier.widthIn(max = 320.dp).clip(shape).combinedClickable(onClick = {}, onLongClick = onLongPress),
+        ) {
             Column(Modifier.padding(4.dp)) {
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files)
                 val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
@@ -342,7 +389,11 @@ internal fun MessageBubble(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (message.text.isNotBlank()) {
-                        Text(message.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false))
+                        Text(
+                            formatted(message.text, message.entities, MaterialTheme.colorScheme.primary, onContainer),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
@@ -542,8 +593,9 @@ private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, Str
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Composer(replyTo: UiMessage?, controller: ChatController) {
+private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController) {
     var text by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(editing?.id) { if (editing != null) text = editing.text }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -567,17 +619,24 @@ private fun Composer(replyTo: UiMessage?, controller: ChatController) {
     }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars).imePadding()) {
-            AnimatedVisibility(replyTo != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = MaterialTheme.colorScheme.primary)
-                    Text(
-                        replyTo?.text.orEmpty(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                    )
-                    IconButton(onClick = { controller.reply(null) }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
-                }
+            val target = editing ?: replyTo
+            AnimatedVisibility(target != null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = { Icon(if (editing != null) Icons.Rounded.Edit else Icons.AutoMirrored.Rounded.Reply, null, tint = MaterialTheme.colorScheme.primary) },
+                    overlineContent = { Text(stringResource(if (editing != null) R.string.chat_editing else R.string.chat_replying)) },
+                    headlineContent = { Text(target?.text.orEmpty().ifBlank { stringResource(R.string.preview_photo) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    trailingContent = {
+                        IconButton(onClick = {
+                            if (editing != null) {
+                                controller.startEdit(null)
+                                text = ""
+                            } else {
+                                controller.reply(null)
+                            }
+                        }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
+                    },
+                )
             }
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalIconButton(
@@ -607,7 +666,7 @@ private fun Composer(replyTo: UiMessage?, controller: ChatController) {
                 )
                 FilledIconButton(
                     onClick = {
-                        controller.send(text)
+                        if (editing != null) controller.submitEdit(text) else controller.send(text)
                         text = ""
                     },
                     enabled = text.isNotBlank(),
@@ -620,3 +679,93 @@ private fun Composer(replyTo: UiMessage?, controller: ChatController) {
         }
     }
 }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MessageActions(message: UiMessage, controller: ChatController, onDismiss: () -> Unit, onForward: () -> Unit, onDelete: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val canEdit by androidx.compose.runtime.produceState(false, message.id) { value = controller.canEdit(message) }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        val close: (() -> Unit) -> Unit = { action ->
+            action()
+            onDismiss()
+        }
+        ActionItem(Icons.AutoMirrored.Rounded.Reply, stringResource(R.string.action_reply)) { close { controller.reply(message) } }
+        if (message.text.isNotBlank()) {
+            ActionItem(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy)) {
+                close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) }
+            }
+        }
+        if (canEdit) ActionItem(Icons.Rounded.Edit, stringResource(R.string.action_edit)) { close { controller.startEdit(message) } }
+        ActionItem(Icons.AutoMirrored.Rounded.Forward, stringResource(R.string.action_forward)) { close(onForward) }
+        ActionItem(Icons.Rounded.PushPin, stringResource(R.string.action_pin)) { close { controller.pin(message) } }
+        ActionItem(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error) { close(onDelete) }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = tint, leadingIconColor = tint),
+        leadingContent = { Icon(icon, null) },
+        headlineContent = { Text(label) },
+    )
+}
+
+@Composable
+private fun DeleteDialog(message: UiMessage, controller: ChatController, privateUserId: Long, snapshot: StoreSnapshot, onDone: () -> Unit) {
+    val canEveryone by androidx.compose.runtime.produceState(false, message.id) { value = controller.canDeleteForEveryone(message) }
+    var everyone by remember { mutableStateOf(true) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDone,
+        icon = { Icon(Icons.Rounded.Delete, null) },
+        title = { Text(stringResource(R.string.delete_title)) },
+        text = {
+            if (canEveryone) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { everyone = !everyone },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.Checkbox(checked = everyone, onCheckedChange = { everyone = it })
+                    val name = snapshot.users[privateUserId]?.firstName
+                    Text(if (name != null) stringResource(R.string.delete_for_user, name) else stringResource(R.string.delete_for_everyone))
+                }
+            } else {
+                Text(stringResource(R.string.delete_text))
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                controller.delete(message, canEveryone && everyone)
+                onDone()
+            }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDone) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Color, content: Color): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        for (entity in entities) {
+            val start = entity.offset.coerceIn(0, text.length)
+            val end = (entity.offset + entity.length).coerceIn(start, text.length)
+            if (start == end) continue
+            when (val type = entity.type) {
+                is TdApi.TextEntityTypeBold -> addStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), start, end)
+                is TdApi.TextEntityTypeItalic -> addStyle(androidx.compose.ui.text.SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), start, end)
+                is TdApi.TextEntityTypeUnderline -> addStyle(androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), start, end)
+                is TdApi.TextEntityTypeStrikethrough -> addStyle(androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough), start, end)
+                is TdApi.TextEntityTypeCode, is TdApi.TextEntityTypePre, is TdApi.TextEntityTypePreCode ->
+                    addStyle(androidx.compose.ui.text.SpanStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, background = content.copy(alpha = 0.1f)), start, end)
+                is TdApi.TextEntityTypeSpoiler -> addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent, background = content.copy(alpha = 0.35f)), start, end)
+                is TdApi.TextEntityTypeUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeTextUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeMention, is TdApi.TextEntityTypeMentionName, is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeEmailAddress, is TdApi.TextEntityTypePhoneNumber, is TdApi.TextEntityTypeBotCommand ->
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = link), start, end)
+                else -> Unit
+            }
+        }
+    }

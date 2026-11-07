@@ -23,6 +23,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
@@ -117,6 +122,9 @@ fun ChatsTab(
                             style = MaterialTheme.typography.titleLargeEmphasized,
                         )
                     },
+                    actions = {
+                        IconButton(onClick = { navigator.open(com.pixelgram.android.nav.SearchKey) }) { Icon(Icons.Rounded.Search, stringResource(R.string.search_chats)) }
+                    },
                     navigationIcon = {
                         if (archive) {
                             IconButton(onClick = onCloseArchive) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
@@ -160,6 +168,8 @@ fun ChatsTab(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>) {
+    var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
+    actionsFor?.let { row -> ChatActions(graph, row) { actionsFor = null } }
     val listState = rememberLazyListState()
     var loading by remember(listKey) { mutableStateOf(true) }
     val tdList: TdApi.ChatList = remember(listKey) {
@@ -200,6 +210,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                     count = rows.size,
                     onClick = { navigator.open(ChatKey(row.id)) },
                     onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
+                    onLongClick = { actionsFor = row },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -209,9 +220,10 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier) {
+fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
     SegmentedListItem(
         onClick = onClick,
+        onLongClick = onLongClick,
         shapes = ListItemDefaults.segmentedShapes(index, count),
         modifier = modifier,
         colors = com.pixelgram.android.ui.components.segmentedColors(),
@@ -303,4 +315,80 @@ private fun previewLabel(kind: PreviewKind): String? = when (kind) {
     PreviewKind.Contact -> stringResource(R.string.preview_contact)
     PreviewKind.Service -> stringResource(R.string.preview_service)
     PreviewKind.Other -> null
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatActions(graph: AppGraph, row: ChatRow, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var confirmDelete by remember { mutableStateOf(false) }
+    val run: (TdApi.Function<*>) -> Unit = { function ->
+        scope.launch { runCatching { graph.td.send(function as TdApi.Function<TdApi.Object>) } }
+        onDismiss()
+    }
+    val chatList: TdApi.ChatList = when {
+        row.list == LIST_ARCHIVE -> TdApi.ChatListArchive()
+        row.list.startsWith("folder:") -> TdApi.ChatListFolder(row.list.removePrefix("folder:").toInt())
+        else -> TdApi.ChatListMain()
+    }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = { Icon(Icons.Rounded.Delete, null) },
+            title = { Text(stringResource(if (row.kind == ChatKind.Group || row.kind == ChatKind.Channel) R.string.chat_leave_title else R.string.chat_delete_title)) },
+            text = { Text(row.title) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    run(
+                        if (row.kind == ChatKind.Group || row.kind == ChatKind.Channel) TdApi.LeaveChat(row.id)
+                        else TdApi.DeleteChatHistory(row.id, true, false),
+                    )
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        )
+        return
+    }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(row.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        SheetItem(Icons.Rounded.PushPin, stringResource(if (row.pinned) R.string.chat_unpin else R.string.chat_pin)) {
+            run(TdApi.ToggleChatIsPinned(chatList, row.id, !row.pinned))
+        }
+        if (row.kind != ChatKind.Saved) {
+            SheetItem(if (row.muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.Rounded.VolumeOff, stringResource(if (row.muted) R.string.chat_unmute else R.string.chat_mute)) {
+                run(TdApi.SetChatNotificationSettings(row.id, TdApi.ChatNotificationSettings().apply {
+                    useDefaultMuteFor = false
+                    muteFor = if (row.muted) 0 else Int.MAX_VALUE
+                    useDefaultSound = true
+                    useDefaultShowPreview = true
+                    useDefaultMuteStories = true
+                    useDefaultShowStoryPoster = true
+                    useDefaultDisablePinnedMessageNotifications = true
+                    useDefaultDisableMentionNotifications = true
+                }))
+            }
+            SheetItem(Icons.Rounded.Archive, stringResource(if (row.list == LIST_ARCHIVE) R.string.chat_unarchive else R.string.chat_archive)) {
+                run(TdApi.AddChatToList(row.id, if (row.list == LIST_ARCHIVE) TdApi.ChatListMain() else TdApi.ChatListArchive()))
+            }
+        }
+        if (row.unread > 0 && row.lastMessageId != 0L) {
+            SheetItem(Icons.Rounded.DoneAll, stringResource(R.string.chat_mark_read)) {
+                run(TdApi.ViewMessages(row.id, longArrayOf(row.lastMessageId), null, true))
+            }
+        }
+        SheetItem(Icons.Rounded.Delete, stringResource(if (row.kind == ChatKind.Group || row.kind == ChatKind.Channel) R.string.chat_leave else R.string.chat_delete), MaterialTheme.colorScheme.error) {
+            confirmDelete = true
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
+    androidx.compose.material3.ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent, headlineColor = tint, leadingIconColor = tint),
+        leadingContent = { Icon(icon, null) },
+        headlineContent = { Text(label) },
+    )
 }
