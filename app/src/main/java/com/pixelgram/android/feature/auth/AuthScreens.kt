@@ -163,7 +163,6 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
     var code by rememberSaveable { mutableStateOf(initialCode) }
     var number by rememberSaveable { mutableStateOf("") }
     var field by rememberSaveable { mutableStateOf(if (initialCode.isNotEmpty()) PhoneField.Number else PhoneField.Code) }
-    var manual by rememberSaveable { mutableStateOf(false) }
     val validCode = remember(code) { Phones.isCallingCode(code) }
     val country = remember(code, number) { Phones.country(code, number) }
     val formatted = remember(code, number) { Phones.formatNational(code, number) }
@@ -177,7 +176,7 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
                     when (field) {
                         PhoneField.Code -> if (code.length < 4 && Phones.isCodePrefix(code + digit)) {
                             code += digit
-                            if (!manual && Phones.completesCode(code)) field = PhoneField.Number
+                            if (Phones.completesCode(code)) field = PhoneField.Number
                         }
                         PhoneField.Number -> if (code.length + number.length < 15) number += digit
                     }
@@ -186,7 +185,6 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
                     when (field) {
                         PhoneField.Number -> if (number.isEmpty()) {
                             field = PhoneField.Code
-                            manual = false
                         } else {
                             number = number.dropLast(1)
                         }
@@ -205,10 +203,7 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             PhonePart(
                 active = field == PhoneField.Code,
-                onClick = {
-                    field = PhoneField.Code
-                    manual = true
-                },
+                onClick = { field = PhoneField.Code },
             ) {
                 Text(
                     "+$code",
