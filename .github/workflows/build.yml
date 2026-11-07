@@ -78,6 +78,7 @@ jobs:
             printf '%s' "$KEYSTORE" | base64 -d > release.keystore
             grep -q '^RELEASE_STORE_FILE=' local.properties 2>/dev/null || printf 'RELEASE_STORE_FILE=release.keystore\n' >> local.properties
           fi
+          if [ -z "$KEYSTORE" ]; then echo "::warning::KEYSTORE secret is missing: APKs are signed with a throwaway key and cannot update each other"; fi
 
       - name: Assemble
         run: ./gradlew --no-daemon -PtargetAbi="${TDLIB_ABIS// /,}" :app:assembleDebug :app:assembleRelease

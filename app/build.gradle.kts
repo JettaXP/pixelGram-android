@@ -15,7 +15,8 @@ fun credential(name: String): String? =
         ?: providers.gradleProperty(name).orNull?.takeIf { it.isNotBlank() }
         ?: System.getenv(name)?.takeIf { it.isNotBlank() }
 
-val appVersionCode = 1
+val appVersionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+val hasReleaseKey = credential("RELEASE_STORE_FILE") != null
 val appVersionName = "0.1.0"
 
 android {
@@ -51,11 +52,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (credential("RELEASE_STORE_FILE") != null) {
+            signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
