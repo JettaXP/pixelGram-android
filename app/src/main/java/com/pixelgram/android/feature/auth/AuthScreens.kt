@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -259,7 +260,7 @@ private fun PhonePart(active: Boolean, onClick: () -> Unit, modifier: Modifier =
         border = androidx.compose.foundation.BorderStroke(if (active) 2.dp else 1.dp, border),
         modifier = modifier.height(64.dp),
     ) {
-        Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { content() }
+        Box(Modifier.fillMaxHeight().padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { content() }
     }
 }
 
