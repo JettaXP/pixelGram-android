@@ -106,14 +106,11 @@ fun ProfileHeader(
                     onNeedFile = { graph.store.requestFileAsync(photoFileId) },
                 )
                 if (showCamera) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(36.dp),
+                    androidx.compose.material3.FilledIconButton(
                         onClick = onAvatarClick,
+                        modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
                     ) {
-                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp)) }
+                        Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
                     }
                 }
             }

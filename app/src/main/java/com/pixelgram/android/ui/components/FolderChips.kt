@@ -80,7 +80,13 @@ import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Badge
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButtonShapes
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -150,6 +156,7 @@ fun FolderChips(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -168,16 +175,21 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     }
     val showIcon = mode != FolderTitle.Names
     val showName = mode == FolderTitle.NamesAndIcons || mode == FolderTitle.Names || (mode == FolderTitle.ActiveName && selected)
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = container,
-        contentColor = content,
+    ToggleButton(
+        checked = selected,
+        onCheckedChange = { onClick() },
+        shapes = ToggleButtonShapes(CircleShape, RoundedCornerShape(10.dp), CircleShape),
+        colors = ToggleButtonDefaults.colors(
+            containerColor = container,
+            contentColor = content,
+            checkedContainerColor = container,
+            checkedContentColor = content,
+        ),
+        contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = modifier.height(PillHeight),
     ) {
         Row(
             Modifier
-                .padding(horizontal = 16.dp)
                 .graphicsLayer { alpha = dip.value }
                 .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
             verticalAlignment = Alignment.CenterVertically,
@@ -185,12 +197,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
         ) {
             if (showIcon) Icon(folderIcon(tab.icon, selected), contentDescription = tab.title, modifier = Modifier.size(18.dp))
             if (showName) {
-                Text(
-                    tab.title,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
+                Text(tab.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             if (tab.unreadChats > 0) {
                 val badgeColor by animateColorAsState(
@@ -211,19 +218,8 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
                     fade,
                     label = "pill-badge-content",
                 )
-                Surface(
-                    shape = CircleShape,
-                    color = badgeColor,
-                    contentColor = badgeContent,
-                    modifier = Modifier.defaultMinSize(minWidth = ChipBadgeHeight, minHeight = ChipBadgeHeight),
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 5.dp)) {
-                        Text(
-                            if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                Badge(containerColor = badgeColor, contentColor = badgeContent) {
+                    Text(if (tab.unreadChats > 999) "999+" else tab.unreadChats.toString(), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -232,7 +228,6 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
 
 private val PillHeight = 36.dp
 private val ChipGap = 6.dp
-private val ChipBadgeHeight = 18.dp
 private const val SwitchMs = 450
 private const val DipAlpha = 0.45f
 

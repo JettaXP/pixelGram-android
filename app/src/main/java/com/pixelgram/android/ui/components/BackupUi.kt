@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -83,26 +84,24 @@ fun ChatPickerSheet(onPick: (Long) -> Unit, onDismiss: () -> Unit) {
         )
         LazyColumn(Modifier.fillMaxWidth()) {
             items(rows, key = { it.id }) { row ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { onPick(row.id) }.padding(horizontal = 24.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Avatar(
-                        title = row.title,
-                        seed = row.id,
-                        path = row.photoPath,
-                        minithumb = row.minithumb,
-                        size = 44.dp,
-                        onNeedFile = { graph.store.requestFileAsync(row.photoFileId) },
-                    )
-                    Text(
-                        if (row.userId == snapshot.meId && row.userId != 0L) stringResource(R.string.drawer_saved) else row.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                val saved = row.userId == snapshot.meId && row.userId != 0L
+                androidx.compose.material3.ListItem(
+                    modifier = Modifier.clickable { onPick(row.id) },
+                    leadingContent = {
+                        Avatar(
+                            title = row.title,
+                            seed = row.id,
+                            path = if (saved) null else row.photoPath,
+                            minithumb = if (saved) null else row.minithumb,
+                            size = 44.dp,
+                            icon = if (saved) Icons.Rounded.Bookmark else null,
+                            onNeedFile = { graph.store.requestFileAsync(row.photoFileId) },
+                        )
+                    },
+                    headlineContent = {
+                        Text(if (saved) stringResource(R.string.drawer_saved) else row.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
+                )
             }
         }
     }

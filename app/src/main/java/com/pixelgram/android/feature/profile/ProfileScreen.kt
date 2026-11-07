@@ -64,6 +64,7 @@ import androidx.compose.runtime.produceState
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
@@ -210,19 +211,19 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RowScope.ProfileAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-        androidx.compose.material3.Surface(
-            onClick = onClick,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) { Icon(icon, null) }
+    androidx.compose.material3.FilledTonalButton(
+        onClick = onClick,
+        shapes = ButtonDefaults.shapes(),
+        contentPadding = PaddingValues(vertical = 12.dp),
+        modifier = Modifier.weight(1f),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, null)
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
 }
 
@@ -233,27 +234,34 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
     val coverId = audio.albumCoverThumbnail?.file?.id ?: 0
     LaunchedEffect(coverId) { if (coverId != 0) graph.store.requestFileAsync(coverId) }
     val cover: Any? = snapshot.files[coverId]?.let { java.io.File(it) } ?: audio.albumCoverMinithumbnail?.data
-    androidx.compose.material3.Surface(
+    androidx.compose.material3.Card(
         onClick = onClick,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(72.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(72.dp))
-                else Icon(Icons.Rounded.MusicNote, null)
-            }
-            Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                Text(audio.title.ifBlank { audio.fileName }, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1)
-                if (audio.performer.isNotBlank()) Text(audio.performer, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                Text(stringResource(R.string.profile_music), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-            }
-            Icon(Icons.Rounded.PlayArrow, null, Modifier.size(32.dp))
-        }
+        androidx.compose.material3.ListItem(
+            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            leadingContent = {
+                Box(
+                    Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp))
+                    else Icon(Icons.Rounded.MusicNote, null)
+                }
+            },
+            overlineContent = { Text(stringResource(R.string.profile_music)) },
+            headlineContent = { Text(audio.title.ifBlank { audio.fileName }, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1) },
+            supportingContent = if (audio.performer.isNotBlank()) {
+                { Text(audio.performer, maxLines = 1) }
+            } else {
+                null
+            },
+            trailingContent = { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(32.dp)) },
+        )
     }
 }

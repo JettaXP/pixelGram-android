@@ -54,6 +54,9 @@ fun segmentPosition(index: Int, count: Int) = when {
     else -> SegmentPosition.Middle
 }
 
+@Composable
+fun segmentedColors(container: Color = MaterialTheme.colorScheme.surfaceContainer) = ListItemDefaults.segmentedColors(containerColor = container)
+
 fun SegmentPosition.index(): Pair<Int, Int> = when (this) {
     SegmentPosition.Single -> 0 to 1
     SegmentPosition.Top -> 0 to 3
@@ -115,7 +118,7 @@ fun SettingsItem(
             leadingContent = leading,
             trailingContent = trailingSlot,
             supportingContent = supporting,
-            colors = ListItemDefaults.segmentedColors(),
+            colors = segmentedColors(),
             content = headline,
         )
     } else {
@@ -124,7 +127,7 @@ fun SettingsItem(
             leadingContent = leading,
             trailingContent = trailingSlot,
             supportingContent = supporting,
-            colors = ListItemDefaults.segmentedColors(),
+            colors = segmentedColors(),
             content = headline,
         )
     }

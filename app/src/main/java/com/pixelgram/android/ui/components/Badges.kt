@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.pixelgram.android.ui.components
 
@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -56,7 +57,7 @@ import coil.compose.AsyncImage
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.R
 import com.pixelgram.android.pixel.CustomBadge
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 
 enum class UserBadge(val userId: Long, val notice: Int) {
@@ -107,22 +108,28 @@ fun UserBadgeView(badge: UserBadge, size: Dp = 18.dp) {
     val scheme = MaterialTheme.colorScheme
     val custom by remember { graph.remote.badges }.collectAsState()
     val own = custom[badge.userId]
-    var tip by remember { mutableStateOf<String?>(null) }
     val notice = stringResource(badge.notice)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .padding(start = 4.dp)
-            .size(size)
-            .then(if (own == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.primary) else Modifier)
-            .clickable(interactionSource = null, indication = null) { tip = own?.text?.takeIf { it.isNotBlank() } ?: notice },
+    val tooltip = androidx.compose.material3.rememberTooltipState(isPersistent = true)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.material3.TooltipBox(
+        positionProvider = androidx.compose.material3.TooltipDefaults.rememberTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(own?.text?.takeIf { it.isNotBlank() } ?: notice) } },
+        state = tooltip,
     ) {
-        if (own != null) {
-            CustomEmoji(own, size)
-        } else {
-            Icon(badge.icon, contentDescription = notice, tint = scheme.onPrimary, modifier = Modifier.size(size * LogoScale))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .size(size)
+                .then(if (own == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.primary) else Modifier)
+                .clickable(interactionSource = null, indication = null) { scope.launch { tooltip.show() } },
+        ) {
+            if (own != null) {
+                CustomEmoji(own, size)
+            } else {
+                Icon(badge.icon, contentDescription = notice, tint = scheme.onPrimary, modifier = Modifier.size(size * LogoScale))
+            }
         }
-        BadgeTip(tip) { tip = null }
     }
 }
 
@@ -144,44 +151,6 @@ fun CustomEmoji(badge: CustomBadge, size: Dp) {
     } else {
         val fontSize = with(LocalDensity.current) { (size * 0.8f).toSp() }
         Text(badge.emoji, fontSize = fontSize)
-    }
-}
-
-@Composable
-fun BadgeTip(text: String?, onDone: () -> Unit) {
-    if (text == null) return
-    val shown = remember(text) { MutableTransitionState(false).apply { targetState = true } }
-    LaunchedEffect(text) {
-        delay(2500)
-        shown.targetState = false
-    }
-    LaunchedEffect(shown.currentState, shown.isIdle) {
-        if (shown.isIdle && !shown.currentState) onDone()
-    }
-    Popup(popupPositionProvider = AboveAnchor, onDismissRequest = { shown.targetState = false }) {
-        val motion = MaterialTheme.motionScheme
-        AnimatedVisibility(
-            visibleState = shown,
-            enter = fadeIn(motion.fastEffectsSpec()) + scaleIn(motion.defaultSpatialSpec(), initialScale = 0.8f),
-            exit = fadeOut(motion.fastEffectsSpec()) + scaleOut(motion.fastSpatialSpec(), targetScale = 0.8f),
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.inverseSurface,
-                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                shadowElevation = 6.dp,
-            ) {
-                Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp))
-            }
-        }
-    }
-}
-
-private object AboveAnchor : PopupPositionProvider {
-    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        val x = (anchorBounds.center.x - popupContentSize.width / 2).coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
-        val y = (anchorBounds.top - popupContentSize.height - 16).coerceAtLeast(0)
-        return IntOffset(x, y)
     }
 }
 

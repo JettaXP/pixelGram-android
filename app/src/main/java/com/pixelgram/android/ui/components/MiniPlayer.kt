@@ -25,7 +25,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -63,49 +67,55 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
         val dismiss = rememberSwipeToDismissBoxState()
         LaunchedEffect(dismiss.currentValue) { if (dismiss.currentValue != SwipeToDismissBoxValue.Settled) music.stop() }
         SwipeToDismissBox(state = dismiss, backgroundContent = {}, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-            Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 2.dp) {
-                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(48.dp).clip(LocalAvatarShape.current).background(MaterialTheme.colorScheme.secondaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val image: Any? = track.cover?.let { java.io.File(it) } ?: track.minithumb
-                        if (image != null) {
-                            AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(48.dp))
-                        } else {
-                            Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                        }
-                    }
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(track.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (track.performer.isNotBlank()) {
-                            Text(track.performer, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    IconButton(onClick = music::previous) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_previous), tint = MaterialTheme.colorScheme.primary) }
-                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        if (state.loading) {
-                            LoadingIndicator(Modifier.size(48.dp))
-                        } else {
-                            val progress = if (state.duration > 0) (state.position.toFloat() / state.duration).coerceIn(0f, 1f) else 0f
-                            val amplitude by androidx.compose.animation.core.animateFloatAsState(if (state.playing) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "wave")
-                            CircularWavyProgressIndicator(
-                                progress = { progress },
-                                modifier = Modifier.size(48.dp),
-                                amplitude = { amplitude },
-                                waveSpeed = if (state.playing) androidx.compose.material3.WavyProgressIndicatorDefaults.CircularWavelength else 0.dp,
-                            )
-                            IconButton(onClick = music::toggle) {
-                                Icon(
-                                    if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    stringResource(if (state.playing) R.string.player_pause else R.string.player_play),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
+            ElevatedCard(shape = RoundedCornerShape(28.dp)) {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                    leadingContent = {
+                        Box(
+                            Modifier.size(48.dp).clip(LocalAvatarShape.current).background(MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            val image: Any? = track.cover?.let { java.io.File(it) } ?: track.minithumb
+                            if (image != null) {
+                                AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(48.dp))
+                            } else {
+                                Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                             }
                         }
-                    }
-                    IconButton(onClick = music::next, enabled = state.hasNext) { Icon(Icons.Rounded.SkipNext, stringResource(R.string.player_next), tint = MaterialTheme.colorScheme.primary) }
-                }
+                    },
+                    headlineContent = { Text(track.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = if (track.performer.isNotBlank()) {
+                        { Text(track.performer, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    } else {
+                        null
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = music::previous) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_previous)) }
+                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                if (state.loading) {
+                                    LoadingIndicator(Modifier.size(48.dp))
+                                } else {
+                                    val progress = if (state.duration > 0) (state.position.toFloat() / state.duration).coerceIn(0f, 1f) else 0f
+                                    val amplitude by androidx.compose.animation.core.animateFloatAsState(if (state.playing) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "wave")
+                                    CircularWavyProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.size(48.dp),
+                                        amplitude = { amplitude },
+                                        waveSpeed = if (state.playing) androidx.compose.material3.WavyProgressIndicatorDefaults.CircularWavelength else 0.dp,
+                                    )
+                                    FilledTonalIconButton(onClick = music::toggle, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(38.dp)) {
+                                        Icon(
+                                            if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                            stringResource(if (state.playing) R.string.player_pause else R.string.player_play),
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(onClick = music::next, enabled = state.hasNext) { Icon(Icons.Rounded.SkipNext, stringResource(R.string.player_next)) }
+                        }
+                    },
+                )
             }
         }
     }

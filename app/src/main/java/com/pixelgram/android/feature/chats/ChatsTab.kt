@@ -214,7 +214,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index, count),
         modifier = modifier,
-        colors = ListItemDefaults.segmentedColors(),
+        colors = com.pixelgram.android.ui.components.segmentedColors(),
         leadingContent = {
             Box {
                 Avatar(

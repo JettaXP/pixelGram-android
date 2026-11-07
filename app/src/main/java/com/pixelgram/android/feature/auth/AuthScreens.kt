@@ -252,14 +252,14 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
 private fun PhonePart(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val border by androidx.compose.animation.animateColorAsState(if (active) scheme.primary else scheme.outlineVariant, label = "phone-border")
-    androidx.compose.material3.Surface(
+    androidx.compose.material3.OutlinedCard(
         onClick = onClick,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-        color = if (active) scheme.surfaceContainerHigh else scheme.surfaceContainer,
+        colors = androidx.compose.material3.CardDefaults.outlinedCardColors(containerColor = if (active) scheme.surfaceContainerHigh else scheme.surfaceContainer),
         border = androidx.compose.foundation.BorderStroke(if (active) 2.dp else 1.dp, border),
         modifier = modifier.height(64.dp),
     ) {
-        Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { content() }
+        Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { content() }
     }
 }
 

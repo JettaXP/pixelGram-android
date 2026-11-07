@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,22 +61,27 @@ fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
             return@Scaffold
         }
         val users = list.mapNotNull { snapshot.users[it] }.sortedWith(compareByDescending<com.pixelgram.android.td.UserInfo> { it.online }.thenBy { it.name.lowercase() })
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = com.pixelgram.android.ui.components.LocalBottomBarPadding.current)) {
-            items(users, key = { it.id }) { user ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { navigator.open(ProfileKey(user.id)) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Avatar(user.name, user.id, snapshot.files[user.photoFileId], null, 48.dp, onNeedFile = { graph.store.requestFileAsync(user.photoFileId) })
-                    Column {
-                        Text(user.name, style = MaterialTheme.typography.titleMedium)
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = padding.calculateTopPadding() + 4.dp, bottom = 8.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+            verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
+        ) {
+            itemsIndexed(users, key = { _, it -> it.id }) { index, user ->
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { navigator.open(ProfileKey(user.id)) },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, users.size),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(),
+                    leadingContent = {
+                        Avatar(user.name, user.id, snapshot.files[user.photoFileId], user.minithumb, 48.dp, onNeedFile = { graph.store.requestFileAsync(user.photoFileId) })
+                    },
+                    supportingContent = {
                         Text(
                             stringResource(if (user.online) R.string.chat_online else R.string.chat_last_seen_recently),
-                            style = MaterialTheme.typography.bodyMedium,
                             color = if (user.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
+                    },
+                ) {
+                    Text(user.name)
                 }
             }
         }

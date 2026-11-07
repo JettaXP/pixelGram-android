@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -74,6 +75,8 @@ import com.pixelgram.android.settings.NavBarStyle
 import com.pixelgram.android.feature.main.MainTab
 import com.pixelgram.android.ui.components.PixelSwitch
 import com.pixelgram.android.ui.components.segmentPosition
+import com.pixelgram.android.ui.components.index
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
@@ -102,10 +105,13 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
         "about" -> stringResource(R.string.pixel_about)
         else -> stringResource(R.string.pixel_settings)
     }
+    val collapse = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(collapse.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(title, style = MaterialTheme.typography.titleLargeEmphasized) },
+            androidx.compose.material3.MediumFlexibleTopAppBar(
+                scrollBehavior = collapse,
+                title = { Text(title) },
                 navigationIcon = { IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) } },
             )
         },
@@ -182,7 +188,10 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
         FolderTab(3, stringResource(R.string.pixel_folder_sample_channels), "Channels", 1, 1),
     )
     SettingsGroup(stringResource(R.string.pixel_folder_title)) {
-        androidx.compose.material3.Surface(shape = segmentShape(SegmentPosition.Top), color = MaterialTheme.colorScheme.surfaceContainer) {
+        androidx.compose.material3.Card(
+            shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(0, 3).shape,
+            colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        ) {
             FolderChips(sample, preview, settings.folderTitle, onSelect = { preview = it }, modifier = Modifier.padding(vertical = 10.dp))
         }
         val modes = FolderTitle.entries
@@ -330,7 +339,10 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
 @Composable
 private fun AvatarShapePicker(selected: AvatarShape, onSelect: (AvatarShape) -> Unit) {
     val state = rememberLazyListState(initialFirstVisibleItemIndex = (AvatarShape.entries.indexOf(selected) - 2).coerceAtLeast(0))
-    androidx.compose.material3.Surface(shape = com.pixelgram.android.ui.components.segmentShape(if (selected == AvatarShape.Custom) SegmentPosition.Top else SegmentPosition.Single), color = MaterialTheme.colorScheme.surfaceContainer) {
+    androidx.compose.material3.Card(
+        shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(0, if (selected == AvatarShape.Custom) 2 else 1).shape,
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
         LazyRow(
             state = state,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
@@ -338,22 +350,14 @@ private fun AvatarShapePicker(selected: AvatarShape, onSelect: (AvatarShape) -> 
         ) {
             items(AvatarShape.entries, key = { it.name }) { shape ->
                 val active = shape == selected
-                Box(
-                    Modifier
-                        .size(52.dp)
-                        .clip(shape.shape(28))
-                        .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer)
-                        .selectable(selected = active, role = Role.RadioButton) { onSelect(shape) }
-                        .semantics { contentDescription = shape.name },
-                    contentAlignment = Alignment.Center,
+                val tileShape = shape.shape(28)
+                androidx.compose.material3.FilledTonalIconToggleButton(
+                    checked = active,
+                    onCheckedChange = { onSelect(shape) },
+                    shapes = androidx.compose.material3.IconToggleButtonShapes(tileShape, tileShape, tileShape),
+                    modifier = Modifier.size(52.dp).semantics { contentDescription = shape.name },
                 ) {
-                    if (shape == AvatarShape.Custom) {
-                        Icon(
-                            Icons.Rounded.RoundedCorner,
-                            null,
-                            tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
+                    if (shape == AvatarShape.Custom) Icon(Icons.Rounded.RoundedCorner, null)
                 }
             }
         }
@@ -457,24 +461,28 @@ private fun BackupSection() {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, onChange: (Int) -> Unit) {
-    androidx.compose.material3.Surface(shape = segmentShape(position), color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text("$value dp", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            }
+    val (index, count) = position.index()
+    androidx.compose.material3.SegmentedListItem(
+        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
+        colors = com.pixelgram.android.ui.components.segmentedColors(),
+        trailingContent = { Text("$value dp", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+        supportingContent = {
             Slider(
                 value = value.toFloat(),
                 onValueChange = { onChange(it.roundToInt()) },
                 valueRange = range.first.toFloat()..range.last.toFloat(),
                 steps = range.last - range.first - 1,
             )
-        }
+        },
+    ) {
+        Text(title)
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> Unit) {
     val order = remember { androidx.compose.runtime.mutableStateListOf<MainTab>() }
@@ -486,64 +494,59 @@ private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> U
         }
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val rowHeight = with(density) { 72.dp.toPx() }
+    val gap = with(density) { androidx.compose.material3.ListItemDefaults.SegmentedGap.toPx() }
+    var rowHeight by remember { mutableStateOf(with(density) { 72.dp.toPx() }) }
     var dragging by remember { mutableStateOf<MainTab?>(null) }
     var offset by remember { mutableStateOf(0f) }
     val commit = { onChange(order.filter { it in enabled || it == MainTab.Chats }) }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
         order.forEachIndexed { index, item ->
             val isDragged = dragging == item
             val on = item in enabled
-            androidx.compose.material3.Surface(
-                shape = segmentShape(segmentPosition(index, order.size)),
-                color = if (isDragged) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer,
-                shadowElevation = if (isDragged) 6.dp else 0.dp,
+            androidx.compose.material3.SegmentedListItem(
+                shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, order.size),
+                colors = if (isDragged) {
+                    com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHighest)
+                } else {
+                    com.pixelgram.android.ui.components.segmentedColors()
+                },
                 modifier = Modifier
                     .zIndex(if (isDragged) 1f else 0f)
-                    .graphicsLayer { translationY = if (isDragged) offset else 0f },
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(70.dp)
-                        .pointerInput(item) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    dragging = item
-                                    offset = 0f
-                                },
-                                onDragEnd = {
-                                    dragging = null
-                                    offset = 0f
-                                    commit()
-                                },
-                                onDragCancel = {
-                                    dragging = null
-                                    offset = 0f
-                                },
-                            ) { change, amount ->
-                                change.consume()
-                                offset += amount.y
-                                val from = order.indexOf(item)
-                                if (offset > rowHeight / 2 && from < order.lastIndex) {
-                                    order.add(from + 1, order.removeAt(from))
-                                    offset -= rowHeight
-                                } else if (offset < -rowHeight / 2 && from > 0) {
-                                    order.add(from - 1, order.removeAt(from))
-                                    offset += rowHeight
-                                }
+                    .graphicsLayer {
+                        translationY = if (isDragged) offset else 0f
+                        shadowElevation = if (isDragged) 12f else 0f
+                    }
+                    .pointerInput(item) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                dragging = item
+                                offset = 0f
+                            },
+                            onDragEnd = {
+                                dragging = null
+                                offset = 0f
+                                commit()
+                            },
+                            onDragCancel = {
+                                dragging = null
+                                offset = 0f
+                            },
+                        ) { change, amount ->
+                            change.consume()
+                            offset += amount.y
+                            val from = order.indexOf(item)
+                            if (offset > rowHeight / 2 && from < order.lastIndex) {
+                                order.add(from + 1, order.removeAt(from))
+                                offset -= rowHeight
+                            } else if (offset < -rowHeight / 2 && from > 0) {
+                                order.add(from - 1, order.removeAt(from))
+                                offset += rowHeight
                             }
                         }
-                        .padding(start = 8.dp, end = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Rounded.DragHandle,
-                        stringResource(R.string.pixel_nav_drag),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp).padding(12.dp),
-                    )
-                    Text(stringResource(item.label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(start = 4.dp))
+                    }
+                    .onSizeChanged { rowHeight = it.height.toFloat() + gap },
+                leadingContent = { Icon(Icons.Rounded.DragHandle, stringResource(R.string.pixel_nav_drag)) },
+                trailingContent = {
                     PixelSwitch(
                         checked = on,
                         enabled = item != MainTab.Chats,
@@ -552,7 +555,9 @@ private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> U
                             onChange(order.filter { it in next })
                         },
                     )
-                }
+                },
+            ) {
+                Text(stringResource(item.label))
             }
         }
     }

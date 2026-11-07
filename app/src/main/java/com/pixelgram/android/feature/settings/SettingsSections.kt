@@ -36,6 +36,7 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,10 +83,13 @@ enum class SettingsSection(val title: Int, val subtitle: Int, val icon: ImageVec
 @Composable
 fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator) {
     val current = SettingsSection.entries.firstOrNull { it.name == section } ?: SettingsSection.Account
+    val collapse = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(collapse.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(current.title), style = MaterialTheme.typography.titleLargeEmphasized) },
+            androidx.compose.material3.MediumFlexibleTopAppBar(
+                scrollBehavior = collapse,
+                title = { Text(stringResource(current.title)) },
                 navigationIcon = { IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) } },
             )
         },

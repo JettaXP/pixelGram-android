@@ -1,6 +1,13 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -135,10 +142,22 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    Text(
+                        if (saved) stringResource(R.string.drawer_saved) else ui.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = if (saved) Modifier else Modifier.clickable { navigator.open(ProfileKey(privateUserId, chatId)) },
-                    ) {
+                    )
+                },
+                subtitle = {
+                    if (!saved) subtitle(snapshot, privateUserId)?.let { Text(it, maxLines = 1) }
+                },
+                titleHorizontalAlignment = Alignment.CenterHorizontally,
+                navigationIcon = {
+                    IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
+                },
+                actions = {
+                    IconButton(onClick = { if (!saved) navigator.open(ProfileKey(privateUserId, chatId)) }, enabled = !saved, modifier = Modifier.size(48.dp)) {
                         Avatar(
                             title = ui.title,
                             seed = chatId,
@@ -148,17 +167,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                             icon = if (saved) Icons.Rounded.Bookmark else null,
                             onNeedFile = if (saved) null else ({ chat?.photo?.small?.id?.let(graph.store::requestFileAsync) }),
                         )
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(if (saved) stringResource(R.string.drawer_saved) else ui.title, style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (!saved) subtitle(snapshot, privateUserId)?.let {
-                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 },
             )
         },
@@ -233,24 +242,30 @@ private fun sameDay(a: Int, b: Int): Boolean {
 
 @Composable
 private fun DayChip(date: Int) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-            Text(dayHeader(date), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-        }
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+        SuggestionChip(
+            onClick = {},
+            label = { Text(dayHeader(date)) },
+            shape = androidx.compose.foundation.shape.CircleShape,
+            border = null,
+            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        )
     }
 }
 
 @Composable
 private fun ServiceMessage(message: UiMessage) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainer) {
-            Text(
-                stringResource(R.string.preview_service),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-        }
+    Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        SuggestionChip(
+            onClick = {},
+            label = { Text(message.text.ifBlank { stringResource(R.string.preview_service) }, maxLines = 2) },
+            shape = androidx.compose.foundation.shape.CircleShape,
+            border = null,
+            colors = SuggestionChipDefaults.suggestionChipColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+        )
     }
 }
 
@@ -258,40 +273,36 @@ private fun ServiceMessage(message: UiMessage) {
 @Composable
 private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
     val haptic = LocalHapticFeedback.current
-    val density = LocalDensity.current
-    val limit = with(density) { -140.dp.toPx() }
-    val threshold = with(density) { -90.dp.toPx() }
-    var raw by remember { mutableFloatStateOf(0f) }
-    val offset by animateFloatAsState(
-        if (raw > threshold) raw * 0.3f else threshold * 0.3f + (raw - threshold) * 0.5f,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-        label = "swipe-reply",
-    )
-    Box(
-        Modifier.draggable(
-            state = rememberDraggableState { delta ->
-                val old = raw
-                raw = (raw + delta).coerceIn(limit, 0f)
-                if ((old > threshold) != (raw > threshold)) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-            },
-            orientation = Orientation.Horizontal,
-            onDragStopped = {
-                if (raw <= threshold) {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onReply()
-                }
-                raw = 0f
-            },
-        ),
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        Box(Modifier.offset { IntOffset(offset.roundToInt(), 0) }) { content() }
-        if (raw < 0f) {
-            Box(Modifier.padding(end = 16.dp).size(40.dp), contentAlignment = Alignment.Center) {
-                CircularWavyProgressIndicator(progress = { (raw / threshold).coerceIn(0f, 1f) }, modifier = Modifier.size(40.dp))
-                Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+    val scope = rememberCoroutineScope()
+    val state = rememberSwipeToDismissBoxState()
+    var armed by remember { mutableStateOf(false) }
+    val progress = if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) state.progress else 0f
+    LaunchedEffect(progress >= 1f) {
+        if (progress >= 1f && !armed) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+        armed = progress >= 1f
+    }
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        onDismiss = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onReply()
             }
-        }
+            scope.launch { state.reset() }
+        },
+        backgroundContent = {
+            Box(Modifier.fillMaxSize().padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
+                if (progress > 0f) {
+                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                        CircularWavyProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.size(40.dp))
+                        Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        },
+    ) {
+        content()
     }
 }
 
@@ -365,37 +376,30 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
     val backup = com.pixelgram.android.settings.Backup.isBackup(document.fileName)
     var busy by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf<File?>(null) }
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(enabled = !busy) {
-                scope.launch {
-                    busy = true
-                    val path = runCatching { graph.td.send(TdApi.DownloadFile(document.document.id, 32, 0, 0, true)).local.path }.getOrNull()
-                    busy = false
-                    if (backup && !path.isNullOrEmpty()) importing = File(path)
-                }
+    ListItem(
+        modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(16.dp)).clickable(enabled = !busy) {
+            scope.launch {
+                busy = true
+                val path = runCatching { graph.td.send(TdApi.DownloadFile(document.document.id, 32, 0, 0, true)).local.path }.getOrNull()
+                busy = false
+                if (backup && !path.isNullOrEmpty()) importing = File(path)
             }
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(
-            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (busy) LoadingIndicator(Modifier.size(32.dp), color = MaterialTheme.colorScheme.onPrimary)
-            else Icon(if (backup) Icons.Rounded.Settings else Icons.AutoMirrored.Rounded.InsertDriveFile, null, tint = MaterialTheme.colorScheme.onPrimary)
-        }
-        Column(Modifier.widthIn(max = 220.dp)) {
-            Text(document.fileName.ifBlank { "File" }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                android.text.format.Formatter.formatShortFileSize(context, maxOf(document.document.size, document.document.expectedSize)),
-                style = MaterialTheme.typography.labelMedium,
-                color = tint.copy(alpha = 0.7f),
-            )
-        }
-    }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = tint, supportingColor = tint.copy(alpha = 0.7f)),
+        leadingContent = {
+            Box(
+                Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (busy) LoadingIndicator(Modifier.size(32.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else Icon(if (backup) Icons.Rounded.Settings else Icons.AutoMirrored.Rounded.InsertDriveFile, null, tint = MaterialTheme.colorScheme.onPrimary)
+            }
+        },
+        headlineContent = { Text(document.fileName.ifBlank { "File" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = {
+            Text(android.text.format.Formatter.formatShortFileSize(context, maxOf(document.document.size, document.document.expectedSize)))
+        },
+    )
     importing?.let { file ->
         com.pixelgram.android.ui.components.BackupImportDialog(file) { result ->
             importing = null

@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -83,10 +84,13 @@ fun SessionsScreen(graph: AppGraph, navigator: Navigator) {
         scope.launch { sessions = runCatching { graph.td.send(TdApi.GetActiveSessions()).sessions.toList() }.getOrDefault(emptyList()) }
     }
     LaunchedEffect(Unit) { reload() }
+    val collapse = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(collapse.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_devices), style = MaterialTheme.typography.titleLargeEmphasized) },
+            androidx.compose.material3.MediumFlexibleTopAppBar(
+                scrollBehavior = collapse,
+                title = { Text(stringResource(R.string.settings_devices)) },
                 navigationIcon = { IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) } },
             )
         },
@@ -177,8 +181,9 @@ private fun SessionDetails(session: TdApi.Session, onTerminate: () -> Unit) {
 @Composable
 private fun Detail(label: String, value: String) {
     if (value.isBlank()) return
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
-    }
+    androidx.compose.material3.ListItem(
+        headlineContent = { Text(value) },
+        overlineContent = { Text(label) },
+        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+    )
 }
