@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,26 +58,28 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
     var confirmLogout by remember { mutableStateOf(false) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.titleLargeEmphasized) },
-                navigationIcon = { IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) } },
-            )
-        },
-    ) { padding ->
+    val pickAvatar = com.pixelgram.android.feature.profile.rememberAvatarPicker(graph)
+    Scaffold(contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0)) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-            SettingsGroup {
-                SettingsItem(
-                    title = me?.name.orEmpty(),
-                    position = SegmentPosition.Single,
-                    onClick = { navigator.open(ProfileKey(snapshot.meId)) },
-                    trailing = { Icon(Icons.Rounded.QrCode2, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    subtitle = me?.username?.let { "@$it" },
-                )
-            }
+            com.pixelgram.android.feature.profile.ProfileHeader(
+                graph = graph,
+                userId = snapshot.meId,
+                title = me?.name.orEmpty(),
+                subtitle = me?.username?.let { "@$it" },
+                photoFileId = me?.bigPhotoFileId ?: 0,
+                minithumb = me?.minithumb,
+                verified = me?.verified == true,
+                showCamera = true,
+                onAvatarClick = pickAvatar,
+                topStart = {
+                    IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                },
+                topEnd = {
+                    if (me?.username != null) IconButton(onClick = { navigator.open(ProfileKey(snapshot.meId)) }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
+                },
+            )
             if (me != null) {
-                Row(Modifier.padding(horizontal = 32.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.Center) {
                     HiddenPhone("+" + formatPhone(me.phone), hidden = appearance.hidePhone)
                 }
             }

@@ -63,6 +63,7 @@ import com.pixelgram.android.td.LIST_MAIN
 import com.pixelgram.android.td.PreviewKind
 import com.pixelgram.android.td.folderKey
 import com.pixelgram.android.ui.components.Avatar
+import com.pixelgram.android.ui.components.NameBadges
 import com.pixelgram.android.ui.components.FolderChips
 import com.pixelgram.android.ui.components.FolderTab
 import com.pixelgram.android.settings.FolderTitle
@@ -236,7 +237,7 @@ fun ChatListItem(row: ChatRow, onClick: () -> Unit, onNeedPhoto: () -> Unit, mod
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (row.verified) Icon(Icons.Rounded.Verified, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                NameBadges(row.userId, row.verified, 16.dp)
                 if (row.muted) Icon(Icons.Rounded.VolumeOff, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
                 Box(Modifier.weight(1f))
                 Text(chatListTime(row.date), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

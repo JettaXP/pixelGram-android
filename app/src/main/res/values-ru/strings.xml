@@ -172,4 +172,22 @@
     <string name="pixel_folder_sample_private">Личные</string>
     <string name="pixel_folder_sample_work">Работа</string>
     <string name="pixel_folder_sample_channels">Каналы</string>
+    <string name="badge_main_developer">Главный разработчик pixelGram</string>
+    <string name="badge_developer">Разработчик pixelGram</string>
+    <string name="badge_sponsor">Главный спонсор pixelGram</string>
+    <string name="badge_tester">Тестер pixelGram, ловит баги в клиенте</string>
+    <string name="badge_friend">Друг pixelGram</string>
+    <string name="badge_poop">удали маргит</string>
+    <string name="player_previous">Предыдущий</string>
+    <string name="player_next">Следующий</string>
+    <string name="player_play">Играть</string>
+    <string name="player_pause">Пауза</string>
+    <string name="profile_no_photos">Нет фотографий профиля</string>
+    <string name="profile_set_photo">Фото</string>
+    <string name="profile_edit">Изменить</string>
+    <string name="profile_settings">Настройки</string>
+    <string name="profile_share">Поделиться</string>
+    <string name="profile_birthday">День рождения</string>
+    <string name="profile_music">Музыка профиля</string>
+    <string name="profile_id">ID</string>
 </resources>

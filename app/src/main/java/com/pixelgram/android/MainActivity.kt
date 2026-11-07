@@ -24,7 +24,9 @@ class MainActivity : ComponentActivity() {
             val appearance by graph.appearance.state.collectAsState()
             val auth by graph.auth.state.collectAsState()
             PixelTheme(appearance) {
-                if (auth.step == AuthStep.Ready) AppNavigation(graph) else AuthFlow(graph.auth)
+                androidx.compose.runtime.CompositionLocalProvider(LocalGraph provides graph) {
+                    if (auth.step == AuthStep.Ready) AppNavigation(graph) else AuthFlow(graph.auth)
+                }
             }
         }
     }

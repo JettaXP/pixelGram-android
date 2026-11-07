@@ -70,6 +70,7 @@ import com.pixelgram.android.td.LIST_MAIN
 import com.pixelgram.android.ui.components.Avatar
 import com.pixelgram.android.ui.components.CapsuleBar
 import com.pixelgram.android.ui.components.CapsuleItem
+import com.pixelgram.android.ui.components.MiniPlayer
 import com.pixelgram.android.ui.components.HiddenPhone
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -122,7 +123,10 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     MainTabItem(MainTab.Profile, Icons.Rounded.AccountCircle, Icons.Outlined.AccountCircle, stringResource(R.string.tab_profile)),
                     MainTabItem(MainTab.Settings, Icons.Rounded.Settings, Icons.Outlined.Settings, stringResource(R.string.tab_settings)),
                 )
-                MainNavBar(appearance.navBarStyle, tabs, tab) { tab = it }
+                Column {
+                    MiniPlayer()
+                    MainNavBar(appearance.navBarStyle, tabs, tab) { tab = it }
+                }
             },
         ) { padding ->
             val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
@@ -138,7 +142,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
                     MainTab.Profile -> {
                         val me by graph.store.snapshot.collectAsState()
-                        ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer)
+                        ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { tab = MainTab.Settings })
                     }
                     MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
                 }

@@ -113,6 +113,8 @@ dependencies {
     implementation(libs.qrcodegen)
     implementation(libs.libphonenumber)
     implementation(libs.phonecarrier)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }
