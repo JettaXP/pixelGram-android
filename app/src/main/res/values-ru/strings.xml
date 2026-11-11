@@ -515,4 +515,16 @@
     </plurals>
     <string name="badge_official">Это официальный ресурс pixelGram</string>
     <string name="message_views">Просмотры</string>
+    <plurals name="selected_count">
+        <item quantity="one">Выбрано: %d</item>
+        <item quantity="few">Выбрано: %d</item>
+        <item quantity="many">Выбрано: %d</item>
+        <item quantity="other">Выбрано: %d</item>
+    </plurals>
+    <plurals name="delete_title_many">
+        <item quantity="one">Удалить %d сообщение?</item>
+        <item quantity="few">Удалить %d сообщения?</item>
+        <item quantity="many">Удалить %d сообщений?</item>
+        <item quantity="other">Удалить %d сообщения?</item>
+    </plurals>
 </resources>

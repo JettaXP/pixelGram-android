@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.click
 import androidx.test.core.app.ApplicationProvider
 import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.settings.ThemeMode
@@ -77,6 +78,13 @@ class Screens {
     @Test fun chat() = chatScene("chat")
 
     @Test fun messageMenu() = chatScene("message_menu", popup = true) {
+        val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
+        node.performTouchInput { click(center) }
+        rule.mainClock.advanceTimeBy(900)
+        rule.onAllNodes(androidx.compose.ui.test.hasText("Forward")).fetchSemanticsNodes().let { check(it.isNotEmpty()) { "message menu did not open on tap" } }
+    }
+
+    @Test fun messageSelection() = chatScene("message_selection") {
         val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
         node.performTouchInput { down(center) }
         rule.mainClock.advanceTimeBy(900)

@@ -506,4 +506,12 @@
     </plurals>
     <string name="badge_official">This is an official pixelGram resource</string>
     <string name="message_views">Views</string>
+    <plurals name="selected_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <plurals name="delete_title_many">
+        <item quantity="one">Delete %d message?</item>
+        <item quantity="other">Delete %d messages?</item>
+    </plurals>
 </resources>

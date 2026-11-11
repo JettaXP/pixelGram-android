@@ -252,6 +252,26 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun deleteAll(messages: List<UiMessage>, everyone: Boolean) {
+        val ids = messages.flatMap { m -> m.parts.map { it.id }.ifEmpty { listOf(m.id) } }.distinct().toLongArray()
+        if (ids.isEmpty()) return
+        scope.launch { runCatching { graph.td.send(TdApi.DeleteMessages(chatId, ids, everyone)) } }
+    }
+
+    fun forwardAll(messages: List<UiMessage>, toChatId: Long) {
+        val ids = messages.flatMap { m -> m.parts.map { it.id }.ifEmpty { listOf(m.id) } }.distinct().sorted().toLongArray()
+        if (ids.isEmpty()) return
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.ForwardMessages().apply {
+                    chatId = toChatId
+                    fromChatId = this@ChatController.chatId
+                    messageIds = ids
+                })
+            }
+        }
+    }
+
     fun delete(message: UiMessage, everyone: Boolean) {
         val ids = (message.parts.map { it.id }.ifEmpty { listOf(message.id) }).toLongArray()
         scope.launch { runCatching { graph.td.send(TdApi.DeleteMessages(chatId, ids, everyone)) } }

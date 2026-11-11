@@ -1,6 +1,7 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.automirrored.rounded.Forward
@@ -182,9 +183,13 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var viewer by remember { mutableStateOf<Pair<List<UiMessage>, Int>?>(null) }
     var menuFor by remember { mutableStateOf<UiMessage?>(null) }
     var menuAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var selected by remember(chatId) { mutableStateOf<List<UiMessage>>(emptyList()) }
+    val toggleSelected: (UiMessage) -> Unit = { m -> selected = if (selected.any { it.id == m.id }) selected.filterNot { it.id == m.id } else selected + m }
+    androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptyList() }
     var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
-    var deleting by remember { mutableStateOf<UiMessage?>(null) }
+    var deleting by remember { mutableStateOf<List<UiMessage>?>(null) }
+    var forwardingAll by remember { mutableStateOf<List<UiMessage>?>(null) }
     val appearance by graph.appearance.state.collectAsState()
     val listState = rememberLazyListState()
     val jumpScope = rememberCoroutineScope()
@@ -211,7 +216,21 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (selected.isNotEmpty()) {
+                SelectionTopBar(
+                    count = selected.size,
+                    canEdit = selected.size == 1,
+                    controller = controller,
+                    first = selected.first(),
+                    onClose = { selected = emptyList() },
+                    onEdit = {
+                        controller.startEdit(selected.first())
+                        selected = emptyList()
+                    },
+                    onForward = { forwardingAll = selected },
+                    onDelete = { deleting = selected },
+                )
+            } else TopAppBar(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -279,7 +298,16 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             )
         },
         bottomBar = {
-            if (snapshot.users[privateUserId]?.deleted == true) {
+            if (selected.isNotEmpty()) {
+                SelectionBottomBar(
+                    canReply = selected.size == 1,
+                    onReply = {
+                        controller.reply(selected.first())
+                        selected = emptyList()
+                    },
+                    onForward = { forwardingAll = selected },
+                )
+            } else if (snapshot.users[privateUserId]?.deleted == true) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         stringResource(R.string.chat_deleted_input),
@@ -376,10 +404,17 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                             onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) },
                                         )
                                     },
-                                    onLongPress = { rect ->
-                                        menuAnchor = rect
-                                        menuFor = message
+                                    onTap = { rect ->
+                                        if (selected.isNotEmpty()) {
+                                            toggleSelected(message)
+                                        } else {
+                                            menuAnchor = rect
+                                            menuFor = message
+                                        }
                                     },
+                                    onLongPress = { toggleSelected(message) },
+                                    selected = selected.any { it.id == message.id },
+                                    selecting = selected.isNotEmpty(),
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
                                     onReact = { emoji -> controller.react(message, emoji) },
                                     onPlayAudio = { audio ->
@@ -449,7 +484,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             quick = listOf(appearance.doubleTapEmoji) + QuickReactions.filter { it != appearance.doubleTapEmoji },
             onDismiss = { menuFor = null },
             onForward = { forwarding = message },
-            onDelete = { deleting = message },
+            onDelete = { deleting = listOf(message) },
             onSelect = { selecting = message },
         )
     }
@@ -464,8 +499,22 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             title = stringResource(R.string.forward_to),
         )
     }
-    deleting?.let { message ->
-        DeleteDialog(message, controller, privateUserId, snapshot) { deleting = null }
+    deleting?.let { list ->
+        DeleteDialog(list, controller, privateUserId, snapshot) { done ->
+            deleting = null
+            if (done) selected = emptyList()
+        }
+    }
+    forwardingAll?.let { list ->
+        com.pixelgram.android.ui.components.ChatPickerSheet(
+            onPick = { target ->
+                controller.forwardAll(list, target)
+                forwardingAll = null
+                selected = emptyList()
+            },
+            onDismiss = { forwardingAll = null },
+            title = stringResource(R.string.forward_to),
+        )
     }
 }
 
@@ -590,6 +639,9 @@ internal fun MessageBubble(
     replySender: String?,
     onLongPress: (androidx.compose.ui.geometry.Rect) -> Unit = {},
     onDoubleTap: () -> Unit = {},
+    onTap: (androidx.compose.ui.geometry.Rect) -> Unit = {},
+    selected: Boolean = false,
+    selecting: Boolean = false,
     onPlayAudio: (TdApi.Audio) -> Unit = {},
     onReact: (String) -> Unit = {},
     onReplyClick: () -> Unit = {},
@@ -614,11 +666,36 @@ internal fun MessageBubble(
         label = "highlight",
     )
     val onContainer = if (message.outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val selectionTint by androidx.compose.animation.animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+        MaterialTheme.motionScheme.fastEffectsSpec(),
+        label = "selection",
+    )
     Row(
-        Modifier.fillMaxWidth().padding(top = if (joinsAbove) 2.dp else 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(selectionTint)
+            .then(if (selecting) Modifier.clickable(indication = null, interactionSource = null) { onTap(bounds) } else Modifier)
+            .padding(top = if (joinsAbove) 2.dp else 6.dp),
         horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom,
     ) {
+        androidx.compose.animation.AnimatedVisibility(
+            selecting,
+            enter = androidx.compose.animation.expandHorizontally() + fadeIn(),
+            exit = androidx.compose.animation.shrinkHorizontally() + fadeOut(),
+        ) {
+            Box(Modifier.padding(start = 4.dp, end = 8.dp, bottom = 6.dp).size(24.dp), contentAlignment = Alignment.Center) {
+                if (selected) {
+                    Box(Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                    }
+                } else {
+                    Box(Modifier.size(24.dp).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                }
+            }
+        }
+        if (selecting && message.outgoing) Spacer(Modifier.weight(1f))
         if (senderAvatar != null) {
             Box(Modifier.size(34.dp)) { senderAvatar() }
             Spacer(Modifier.width(6.dp))
@@ -631,7 +708,7 @@ internal fun MessageBubble(
                 .widthIn(max = 320.dp)
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .clip(shape)
-                .combinedClickable(onClick = {}, onLongClick = { onLongPress(bounds) }, onDoubleClick = onDoubleTap),
+                .combinedClickable(onClick = { onTap(bounds) }, onLongClick = { onLongPress(bounds) }, onDoubleClick = if (selecting) null else onDoubleTap),
         ) {
             Column(Modifier.padding(4.dp)) {
                 if (senderName != null) {
@@ -1632,13 +1709,20 @@ private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 }
 
 @Composable
-private fun DeleteDialog(message: UiMessage, controller: ChatController, privateUserId: Long, snapshot: StoreSnapshot, onDone: () -> Unit) {
-    val canEveryone by androidx.compose.runtime.produceState(false, message.id) { value = controller.canDeleteForEveryone(message) }
+private fun DeleteDialog(messages: List<UiMessage>, controller: ChatController, privateUserId: Long, snapshot: StoreSnapshot, onDone: (Boolean) -> Unit) {
+    val canEveryone by androidx.compose.runtime.produceState(false, messages.map { it.id }) {
+        value = messages.isNotEmpty() && messages.all { controller.canDeleteForEveryone(it) }
+    }
     var everyone by remember { mutableStateOf(true) }
     androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDone,
+        onDismissRequest = { onDone(false) },
         icon = { Icon(Icons.Rounded.Delete, null) },
-        title = { Text(stringResource(R.string.delete_title)) },
+        title = {
+            Text(
+                if (messages.size == 1) stringResource(R.string.delete_title)
+                else androidx.compose.ui.res.pluralStringResource(R.plurals.delete_title_many, messages.size, messages.size),
+            )
+        },
         text = {
             if (canEveryone) {
                 Row(
@@ -1655,12 +1739,72 @@ private fun DeleteDialog(message: UiMessage, controller: ChatController, private
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = {
-                controller.delete(message, canEveryone && everyone)
-                onDone()
+                controller.deleteAll(messages, canEveryone && everyone)
+                onDone(true)
             }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDone) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { onDone(false) }) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SelectionTopBar(
+    count: Int,
+    canEdit: Boolean,
+    controller: ChatController,
+    first: UiMessage,
+    onClose: () -> Unit,
+    onEdit: () -> Unit,
+    onForward: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val editable by androidx.compose.runtime.produceState(false, first.id, canEdit) { value = canEdit && controller.canEdit(first) }
+    TopAppBar(
+        navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) } },
+        title = {
+            androidx.compose.animation.AnimatedContent(count, label = "selected-count") { n ->
+                Text(androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, n, n))
+            }
+        },
+        actions = {
+            if (editable) IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, stringResource(R.string.action_edit)) }
+            IconButton(onClick = onForward) { Icon(Icons.AutoMirrored.Rounded.Forward, stringResource(R.string.action_forward)) }
+            IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
+        },
+    )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SelectionBottomBar(canReply: Boolean, onReply: () -> Unit, onForward: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        androidx.compose.material3.FilledTonalButton(
+            onClick = onReply,
+            enabled = canReply,
+            shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+            modifier = Modifier.weight(1f).height(56.dp),
+        ) {
+            Text(stringResource(R.string.action_reply))
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Rounded.Reply, null)
+        }
+        androidx.compose.material3.FilledTonalButton(
+            onClick = onForward,
+            shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+            modifier = Modifier.weight(1f).height(56.dp),
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.Forward, null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_forward))
+        }
+    }
 }
 
 private val BigEmojiSize = 64.dp
@@ -1876,13 +2020,23 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                     SpoilerMode.Only -> addStyle(androidx.compose.ui.text.SpanStyle(color = content), start, end)
                     SpoilerMode.Shown -> addStyle(androidx.compose.ui.text.SpanStyle(background = content.copy(alpha = 0.08f)), start, end)
                 }
-                is TdApi.TextEntityTypeUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
-                is TdApi.TextEntityTypeTextUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeUrl -> if (!com.pixelgram.android.feature.pixel.Credits.handles(text.substring(start, end))) addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeTextUrl -> if (com.pixelgram.android.feature.pixel.Credits.handles(type.url)) addLink(androidx.compose.ui.text.LinkAnnotation.Clickable("tg-credits", androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.feature.pixel.Credits.open = true }, start, end) else addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeCustomEmoji -> addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
                 is TdApi.TextEntityTypeMention, is TdApi.TextEntityTypeMentionName, is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeEmailAddress, is TdApi.TextEntityTypePhoneNumber, is TdApi.TextEntityTypeBotCommand ->
                     addStyle(androidx.compose.ui.text.SpanStyle(color = link), start, end)
                 else -> Unit
             }
+        }
+        com.pixelgram.android.feature.pixel.Credits.LinkPattern.findAll(text).forEach { match ->
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    "tg-credits",
+                    androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)),
+                ) { com.pixelgram.android.feature.pixel.Credits.open = true },
+                match.range.first,
+                match.range.last + 1,
+            )
         }
         com.pixelgram.android.feature.pixel.SupportProject.LinkPattern.findAll(text).forEach { match ->
             addLink(
