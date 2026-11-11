@@ -214,6 +214,14 @@ class Screens {
         shoot("player", withMusic())
     }
 
+    @Test fun playerLyrics() {
+        val text = listOf("Shapes are dancing in the night", "Every corner morphs to light", "Cookie waves and pills that glow", "Expressive hours, soft and slow", "Hold the beat and let it go", "Midnight shapes are all we know")
+        val lines = text.mapIndexed { i, t -> com.pixelgram.android.music.LyricLine(i * 3f - 0.12f, t) }
+        com.pixelgram.android.music.Lyrics.prime("Expressive Hours", "Midnight Shapes", com.pixelgram.android.music.LyricsResult.Synced(lines))
+        com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Lyrics
+        shoot("player_lyrics", withMusic())
+    }
+
     @Test fun playerQueue() {
         com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Queue
         shoot("player_queue", withMusic())

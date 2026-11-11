@@ -21,6 +21,10 @@ object Lyrics {
 
     fun cached(artist: String, title: String): LyricsResult? = cache[key(artist, title)]
 
+    internal fun prime(artist: String, title: String, result: LyricsResult) {
+        cache[key(artist, title)] = result
+    }
+
     fun load(artist: String, title: String, duration: Int): LyricsResult {
         val key = key(artist, title)
         cache[key]?.let { return it }

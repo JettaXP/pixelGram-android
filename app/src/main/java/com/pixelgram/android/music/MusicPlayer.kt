@@ -121,6 +121,10 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
                     }
                 }
             }
+            if (playbackState == Player.STATE_READY && exo.playWhenReady) {
+                stateFlow.update { it.copy(playing = true) }
+                startTicker()
+            }
             if (playbackState == Player.STATE_READY) {
                 val rate = exo.audioFormat?.sampleRate ?: 0
                 stateFlow.update { it.copy(duration = exo.duration.coerceAtLeast(0), sampleRate = rate) }
@@ -339,7 +343,10 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
             exo.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(path))).setMediaMetadata(metadata).build())
             exo.prepare()
             exo.setPlaybackSpeed(stateFlow.value.speed)
+            exo.volume = 1f
             exo.play()
+            stateFlow.update { it.copy(playing = true) }
+            startTicker()
             connect()
         }
     }

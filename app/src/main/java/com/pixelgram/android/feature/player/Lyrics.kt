@@ -48,6 +48,54 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pixelgram.android.music.LyricLine
+import android.graphics.BlurMaskFilter
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.verticalDrag
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -90,108 +138,170 @@ private fun lyricItems(lines: List<LyricLine>): List<LyricItem> {
 internal fun SyncedLyrics(lines: List<LyricLine>, clock: PlayerClock, onSeek: (Long) -> Unit) {
     val now = rememberSmoothPosition(clock)
     val items = remember(lines) { lyricItems(lines) }
-    val current = items.indexOfLast { it.start <= now + 0.15f }
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
-    var placed by remember { mutableStateOf(false) }
-    var pausedUntil by remember { mutableStateOf(0L) }
-    val follow = remember {
-        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) pausedUntil = System.currentTimeMillis() + FollowPauseMs
-                return androidx.compose.ui.geometry.Offset.Zero
-            }
+    val current by remember(items) { derivedStateOf { items.indexOfLast { it.start <= now.value + ActiveLead } } }
+    val active = current.coerceAtLeast(0)
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val heights = remember(items) { mutableStateMapOf<Int, Int>() }
+    var auto by remember { mutableStateOf(true) }
+    var manual by remember { mutableFloatStateOf(0f) }
+    var touched by remember { mutableLongStateOf(0L) }
+    var initial by remember(items) { mutableStateOf(true) }
+    var fling by remember { mutableStateOf<Job?>(null) }
+    val gapPx = with(density) { LineGap.toPx() }
+    val fallback = with(density) { FallbackHeight.toPx() }
+    val tracker = remember { VelocityTracker() }
+    val decay = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
+    val accent = MaterialTheme.colorScheme.onSurface
+
+    LaunchedEffect(items) {
+        snapshotFlow { heights.size >= items.size }.first { it }
+        initial = false
+    }
+    LaunchedEffect(auto, touched) {
+        if (!auto) {
+            delay(PreviewMs)
+            auto = true
         }
     }
-    val viewport = state.layoutInfo.viewportSize.height
-    LaunchedEffect(current, pausedUntil) {
-        val wait = pausedUntil - System.currentTimeMillis()
-        if (wait > 0) kotlinx.coroutines.delay(wait)
-        if (current < 0) return@LaunchedEffect
-        val info = state.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.index == current }
-        val previous = info.visibleItemsInfo.firstOrNull { it.index == current - 1 }?.size ?: 0
-        val desired = (viewport * LyricsTopFade).toInt() + previous + info.mainAxisItemSpacing
-        when {
-            !placed -> {
-                state.scrollToItem(current, -desired + info.beforeContentPadding)
-                placed = true
-            }
-            item != null -> state.animateScrollBy((item.offset - info.viewportStartOffset - desired).toFloat(), tween(LineScrollMs, easing = androidx.compose.animation.core.FastOutSlowInEasing))
-            else -> state.animateScrollToItem(current, -desired + info.beforeContentPadding)
+    LaunchedEffect(auto) {
+        if (auto && abs(manual) >= 1f) {
+            val anim = Animatable(manual)
+            anim.animateTo(0f, tween((abs(manual) / 4f).toInt().coerceIn(200, 600), easing = FastOutSlowInEasing)) { manual = value }
         }
+        if (auto) manual = 0f
     }
-    LazyColumn(
-        state = state,
-        contentPadding = PaddingValues(horizontal = 6.dp + LyricsBleed - LinePad, vertical = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(LineSpacing),
-        modifier = Modifier
-            .fillMaxSize()
-            
-            .layout { measurable, constraints ->
-                val extra = LyricsBleed.roundToPx()
-                val wide = constraints.copy(
-                    minWidth = constraints.minWidth + extra * 2,
-                    maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + extra * 2 else constraints.maxWidth,
-                )
-                val placeable = measurable.measure(wide)
-                layout((placeable.width - extra * 2).coerceIn(constraints.minWidth, constraints.maxWidth), placeable.height) { placeable.place(-extra, 0) }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val viewport = constraints.maxHeight.toFloat()
+        val anchor = viewport * AnchorRatio
+        fun height(i: Int) = heights[i]?.toFloat() ?: fallback
+        fun spacing(i: Int) = if (items[i] is LyricItem.Gap) 0f else gapPx
+        val positions by remember(items, active) {
+            derivedStateOf {
+                val map = HashMap<Int, Float>()
+                if (items.isEmpty()) return@derivedStateOf map
+                map[active] = 0f
+                var y = 0f
+                for (i in active - 1 downTo 0) {
+                    y -= height(i) + spacing(i)
+                    map[i] = y
+                }
+                y = 0f
+                for (i in active until items.size - 1) {
+                    y += height(i) + spacing(i + 1)
+                    map[i + 1] = y
+                }
+                map
             }
-            .nestedScroll(follow)
-            .edgeFade(),
-    ) {
-        itemsIndexed(items) { position, entry ->
-            val ease = androidx.compose.animation.core.FastOutSlowInEasing
-            if (entry is LyricItem.Gap) {
-                GapIndicator(entry, now, Modifier.padding(horizontal = LinePad))
-                return@itemsIndexed
+        }
+        val bounds by remember(items, active, viewport) {
+            derivedStateOf {
+                if (items.isEmpty()) return@derivedStateOf 0f to 0f
+                val below = (active until items.size - 1).sumOf { (height(it) + spacing(it + 1)).toDouble() }.toFloat()
+                val above = (0 until active).sumOf { (height(it) + spacing(it)).toDouble() }.toFloat()
+                val low = with(density) { 100.dp.toPx() } - anchor - below - height(items.size - 1)
+                val high = viewport - with(density) { 150.dp.toPx() } - anchor + above
+                minOf(low, high) to maxOf(low, high)
             }
-            val line = lines[(entry as LyricItem.Line).index]
-            val distance = if (current < 0) position + 1 else abs(position - current)
-            val upcoming = position > current
-            val lineEnd = items.getOrNull(position + 1)?.start ?: (line.time + 5f)
-            val done = distance == 0 && now >= lineEnd - LineSettle
-            val alpha by animateFloatAsState(if (distance == 0) 1f else if (upcoming) 0.5f else 0.4f, tween(LineFadeMs, easing = ease))
-            val blur by animateFloatAsState(if (distance == 0) 0f else (distance * 1.3f).coerceAtMost(5f), tween(LineFadeMs, easing = ease))
-            val scale by animateFloatAsState(
-                when {
-                    done -> 0.97f
-                    distance == 0 -> 1.02f
-                    else -> 0.94f
+        }
+        LaunchedEffect(bounds) { manual = manual.coerceIn(bounds.first, bounds.second) }
+
+        Box(
+            Modifier
+                .fillMaxSize()
+                .edgeFade()
+                .clipToBounds()
+                .pointerInput(items) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        fling?.cancel()
+                        tracker.resetTracking()
+                        tracker.addPosition(down.uptimeMillis, down.position)
+                        val start = awaitVerticalTouchSlopOrCancellation(down.id) { change, over ->
+                            change.consume()
+                            auto = false
+                            touched = System.currentTimeMillis()
+                            manual = (manual + over).coerceIn(bounds.first, bounds.second)
+                        } ?: return@awaitEachGesture
+                        tracker.addPosition(start.uptimeMillis, start.position)
+                        verticalDrag(start.id) { change ->
+                            manual = (manual + change.positionChange().y).coerceIn(bounds.first, bounds.second)
+                            touched = System.currentTimeMillis()
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            change.consume()
+                        }
+                        val velocity = tracker.calculateVelocity().y
+                        fling = scope.launch {
+                            AnimationState(initialValue = manual, initialVelocity = velocity).animateDecay(decay) {
+                                val clamped = value.coerceIn(bounds.first, bounds.second)
+                                manual = clamped
+                                touched = System.currentTimeMillis()
+                                if (value != clamped) cancelAnimation()
+                            }
+                        }
+                    }
                 },
-                spring(dampingRatio = 0.9f, stiffness = 120f),
-            )
-            val style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-            val color = MaterialTheme.colorScheme.onSurface
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        this.alpha = alpha
-                        scaleX = scale
-                        scaleY = scale
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+        ) {
+            items.forEachIndexed { index, item ->
+                key(index) {
+                    val distance = abs(index - active)
+                    val target = anchor + (positions[index] ?: ((index - active) * fallback))
+                    val frozen = remember { mutableFloatStateOf(target) }
+                    LaunchedEffect(auto, target, initial) {
+                        if (auto || initial) frozen.floatValue = target
                     }
-                    .blur(blur.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable {
-                        pausedUntil = 0L
-                        onSeek((line.time * 1000).toLong())
+                    val offset by animateFloatAsState(
+                        if (auto) target else frozen.floatValue,
+                        if (initial || !auto) snap() else tween(ShiftMs, (distance * StaggerMs).coerceAtMost(StaggerMaxMs), FastOutSlowInEasing),
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .layout { measurable, c ->
+                                val placeable = measurable.measure(c.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+                                layout(placeable.width, 0) { placeable.place(0, 0) }
+                            }
+                            .offset { IntOffset(0, (offset + manual).roundToInt()) },
+                    ) {
+                        when (item) {
+                            is LyricItem.Gap -> GapIndicator(
+                                item,
+                                now,
+                                Modifier.onSizeChanged { heights[index] = it.height }.padding(horizontal = LinePad),
+                            )
+                            is LyricItem.Line -> {
+                                val line = lines[item.index]
+                                val end = items.getOrNull(index + 1)?.start ?: (line.time + 5f)
+                                LyricRow(
+                                    line = line,
+                                    end = end,
+                                    active = index == current,
+                                    distance = distance,
+                                    auto = auto,
+                                    now = now,
+                                    accent = accent,
+                                    onSize = { heights[index] = it },
+                                    onClick = {
+                                        fling?.cancel()
+                                        onSeek((line.time * 1000).toLong())
+                                        auto = true
+                                    },
+                                )
+                            }
+                        }
                     }
-                    .padding(horizontal = LinePad, vertical = LinePad * 0.75f),
-            ) {
-                if (distance == 0) {
-                    KaraokeLine(line.text, sungChars(line, now, lineEnd), style, color, MaterialTheme.colorScheme.primary)
-                } else {
-                    Text(line.text, style = style, color = color)
                 }
             }
         }
     }
 }
 
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun GapIndicator(gap: LyricItem.Gap, now: Float, modifier: Modifier) {
+private fun GapIndicator(gap: LyricItem.Gap, position: State<Float>, modifier: Modifier) {
+    val now = position.value
     val end = gap.end - GapLead
     val visible = now >= gap.start && now <= end
     val shown by animateFloatAsState(if (visible) 1f else 0f, tween(GapFadeMs))
@@ -214,30 +324,12 @@ private fun GapIndicator(gap: LyricItem.Gap, now: Float, modifier: Modifier) {
     }
 }
 
-private fun sungChars(line: LyricLine, now: Float, end: Float): Float {
-    val text = line.text
-    return if (line.words.isNotEmpty()) {
-        var chars = 0f
-        var offset = 0
-        line.words.forEachIndexed { i, word ->
-            val wordEnd = line.words.getOrNull(i + 1)?.time ?: end
-            val length = word.text.length
-            val part = ((now - word.time) / (wordEnd - word.time).coerceAtLeast(0.05f)).coerceIn(0f, 1f)
-            if (now >= word.time) chars = offset + part * length
-            offset += length
-        }
-        chars / offset.coerceAtLeast(1) * text.length
-    } else {
-        val span = ((end - line.time) * SpanShare).coerceAtLeast(0.4f)
-        ((now - line.time) / span).coerceIn(0f, 1f) * text.length
-    }
-}
-
 class PlayerClock(val position: () -> Float, val playing: () -> Boolean, val speed: () -> Float)
 
 @Composable
-private fun rememberSmoothPosition(clock: PlayerClock): Float {
-    var shown by remember { mutableFloatStateOf(clock.position()) }
+private fun rememberSmoothPosition(clock: PlayerClock): State<Float> {
+    val state = remember { mutableFloatStateOf(clock.position()) }
+    var shown by state
     LaunchedEffect(clock) {
         var last = -1L
         while (true) {
@@ -254,77 +346,273 @@ private fun rememberSmoothPosition(clock: PlayerClock): Float {
             }
         }
     }
-    return shown
+    return state
 }
 
 private const val ResyncSeconds = 0.35f
 private const val ClockPull = 0.06f
 
-@Composable
-private fun KaraokeLine(
-    text: String,
-    sung: Float,
-    style: androidx.compose.ui.text.TextStyle,
-    color: androidx.compose.ui.graphics.Color,
-    glow: androidx.compose.ui.graphics.Color,
-) {
-    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val width = constraints.maxWidth
-        val layout = remember(text, style, width) {
-            measurer.measure(text, style, constraints = androidx.compose.ui.unit.Constraints(maxWidth = width))
+private class Word(val text: String, val start: Float, val end: Float)
+
+private fun lineWords(line: LyricLine, end: Float): List<Word> =
+    if (line.words.isNotEmpty()) {
+        line.words.mapIndexedNotNull { i, word ->
+            val text = word.text.trim()
+            if (text.isEmpty()) null else Word(text, word.time, line.words.getOrNull(i + 1)?.time ?: end)
         }
-        val letters = remember(text, style) {
-            var i = 0
-            buildList {
-                while (i < text.length) {
-                    val size = Character.charCount(text.codePointAt(i))
-                    val piece = text.substring(i, i + size)
-                    if (!piece.isBlank()) add(i to measurer.measure(piece, style, softWrap = false))
-                    i += size
-                }
+    } else {
+        line.text.split(Regex("\\s+")).filter { it.isNotBlank() }.mapIndexed { i, text ->
+            val start = line.time + i * WordStagger
+            Word(text, start, start + WordDuration)
+        }
+    }
+
+private fun String.clusters(): List<String> {
+    if (isEmpty()) return emptyList()
+    val out = mutableListOf<String>()
+    val it = java.text.BreakIterator.getCharacterInstance()
+    it.setText(this)
+    var start = it.first()
+    var end = it.next()
+    while (end != java.text.BreakIterator.DONE) {
+        out += substring(start, end)
+        start = end
+        end = it.next()
+    }
+    return out
+}
+
+private fun String.wholeLine(): Boolean = any {
+    val d = Character.getDirectionality(it)
+    d == Character.DIRECTIONALITY_RIGHT_TO_LEFT || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC || it in 'ऀ'..'෿'
+}
+
+private class ClusterMap(val word: IntArray, val inWord: IntArray, val length: IntArray)
+
+private fun clusterMap(text: String, words: List<Word>, offsets: IntArray): ClusterMap {
+    val count = offsets.size
+    val word = IntArray(count) { -1 }
+    val inWord = IntArray(count)
+    val length = IntArray(count) { 1 }
+    var pos = 0
+    var cursor = 0
+    words.forEachIndexed { w, item ->
+        val at = text.indexOf(item.text, pos)
+        if (at == -1) return@forEachIndexed
+        val stop = at + item.text.length
+        while (cursor < count && offsets[cursor] < at) cursor++
+        val members = mutableListOf<Int>()
+        while (cursor < count && offsets[cursor] < stop) members += cursor++
+        members.forEachIndexed { k, c ->
+            word[c] = w
+            inWord[c] = k
+            length[c] = members.size
+        }
+        if (cursor < count && offsets[cursor] == stop && stop < text.length && text[stop] == ' ') {
+            word[cursor] = w
+            inWord[cursor] = members.size
+            length[cursor] = members.size + 1
+            cursor++
+        }
+        pos = stop
+    }
+    return ClusterMap(word, inWord, length)
+}
+
+@Composable
+private fun LyricRow(
+    line: LyricLine,
+    end: Float,
+    active: Boolean,
+    distance: Int,
+    auto: Boolean,
+    now: State<Float>,
+    accent: Color,
+    onSize: (Int) -> Unit,
+    onClick: () -> Unit,
+) {
+    val target = when {
+        active -> 1f
+        !auto -> 0.3f
+        else -> when (distance) {
+            0 -> 0.45f
+            1, 2 -> 0.35f
+            3 -> 0.28f
+            4 -> 0.2f
+            else -> 0.15f
+        }
+    }
+    val alpha by animateFloatAsState(target, tween(LineFadeMs))
+    val style = TextStyle(
+        fontSize = LyricSize,
+        fontWeight = FontWeight.Bold,
+        lineHeight = LyricSize * 1.3f,
+        letterSpacing = (-0.5).sp,
+        textAlign = TextAlign.Left,
+        fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+    )
+    val text = line.text
+    val words = remember(line, end) { lineWords(line, end) }
+    val clusters = remember(text) { text.clusters() }
+    val offsets = remember(text) {
+        IntArray(clusters.size).also { out ->
+            var at = 0
+            clusters.forEachIndexed { i, c ->
+                out[i] = at
+                at += c.length
             }
         }
-        val height = with(androidx.compose.ui.platform.LocalDensity.current) { layout.size.height.toDp() }
-        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(height)) {
-            val glowRadius = GlowRadius.toPx()
-            letters.forEach { (index, letter) ->
-                val box = layout.getBoundingBox(index)
-                val line = layout.getLineForOffset(index)
-                val top = layout.getLineBaseline(line) - letter.firstBaseline
-                val lit = (sung - index).coerceIn(0f, 1f)
-                val nudge = if (lit > 0f && lit < 1f) NudgeStrength * kotlin.math.sin(lit * kotlin.math.PI.toFloat()) * kotlin.math.exp(-3f * lit) else 0f
-                val w = letter.size.width.toFloat()
-                val h = letter.size.height.toFloat()
-                translate(box.left, top) {
-                    withTransform({
-                        scale(1f + nudge * 0.3f, 1f + nudge, pivot = androidx.compose.ui.geometry.Offset(w / 2f, h))
-                    }) {
-                        when {
-                            lit >= 1f -> drawText(letter, color = color)
-                            lit <= 0f -> drawText(letter, color = color.copy(alpha = DimAlpha))
-                            else -> {
-                                val filled = (w * lit).coerceIn(0f, w)
-                                val edge = (w * EdgeShare).coerceAtLeast(1f)
-                                val solid = (filled - edge).coerceAtLeast(0f)
-                                val dim = color.copy(alpha = DimAlpha)
-                                val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    0f to color,
-                                    (solid / w).coerceIn(0f, 1f) to color,
-                                    (filled / w).coerceIn(0f, 1f) to dim,
-                                    1f to dim,
-                                    startX = 0f,
-                                    endX = w,
-                                )
-                                drawText(letter, brush = brush)
+    }
+    val map = remember(text, words) { clusterMap(text, words, offsets) }
+    val whole = remember(text) { text.wholeLine() }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val glowPaint = remember { android.graphics.Paint().apply { isAntiAlias = true; typeface = android.graphics.Typeface.DEFAULT_BOLD } }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onSizeChanged { onSize(it.height) }
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = LinePad, vertical = 12.dp),
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val width = constraints.maxWidth
+            val layout = remember(text, width, style) {
+                measurer.measure(text, style, constraints = Constraints(minWidth = width, maxWidth = width))
+            }
+            val letters = remember(text, style) { clusters.map { measurer.measure(it, style, softWrap = false) } }
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(with(density) { layout.size.height.toDp() })
+                    .graphicsLayer(clip = false, compositingStrategy = CompositingStrategy.Offscreen),
+            ) {
+                if (text.isEmpty()) return@Canvas
+                if (!active) {
+                    drawText(layout, color = accent.copy(alpha = alpha))
+                    return@Canvas
+                }
+                val position = now.value
+                val progress = FloatArray(words.size)
+                val sung = BooleanArray(words.size)
+                words.forEachIndexed { w, word ->
+                    sung[w] = position > word.end
+                    progress[w] = when {
+                        sung[w] -> 1f
+                        position >= word.start -> ((position - word.start) / (word.end - word.start).coerceAtLeast(0.001f)).coerceIn(0f, 1f)
+                        else -> 0f
+                    }
+                }
+                if (whole) {
+                    drawText(layout, color = accent.copy(alpha = FocusedAlpha))
+                    words.indices.forEach { w ->
+                        var left = Float.MAX_VALUE
+                        var right = -Float.MAX_VALUE
+                        var top = Float.MAX_VALUE
+                        var bottom = -Float.MAX_VALUE
+                        for (i in clusters.indices) if (map.word[i] == w) {
+                            val b = layout.getBoundingBox(offsets[i])
+                            left = minOf(left, b.left); right = maxOf(right, b.right)
+                            top = minOf(top, b.top); bottom = maxOf(bottom, b.bottom)
+                        }
+                        if (left <= right && progress[w] > 0f) {
+                            clipRect(left, top, right, bottom) {
+                                drawText(layout, color = accent.copy(alpha = if (sung[w]) 1f else FocusedAlpha + (1f - FocusedAlpha) * progress[w]))
                             }
                         }
                     }
+                    return@Canvas
+                }
+                val wobbles = FloatArray(words.size) { w ->
+                    val since = (position - words[w].start) * 1000f
+                    when {
+                        since < 0f || since > 750f -> 0f
+                        since < 125f -> since / 125f
+                        else -> (1f - (since - 125f) / 625f).coerceAtLeast(0f)
+                    }
+                }
+                fun letterProgress(i: Int): Float {
+                    val w = map.word[i]
+                    if (w == -1) return 0f
+                    val word = words[w]
+                    val duration = ((word.end - word.start) * 1000f).coerceAtLeast(100f)
+                    val wordProgress = (position - word.start) * 1000f / duration
+                    val length = map.length[i].toFloat()
+                    return ((wordProgress - map.inWord[i] / length) * length).coerceIn(0f, 1f)
+                }
+                fun nudge(i: Int, lp: Float): Float {
+                    val w = map.word[i]
+                    return if (w != -1 && !sung[w] && progress[w] > 0f) NudgeStrength * sin(lp * PI.toFloat()) * exp(-3f * lp) else 0f
+                }
+                val pushes = FloatArray(layout.lineCount)
+                for (i in clusters.indices) {
+                    val w = map.word[i]
+                    if (w == -1) continue
+                    val scaleX = 1f + wobbles[w] * 0.025f + nudge(i, letterProgress(i)) * 0.3f
+                    pushes[layout.getLineForOffset(offsets[i])] += layout.getBoundingBox(offsets[i]).width * (scaleX - 1f)
+                }
+                val used = FloatArray(layout.lineCount)
+                val glowRadius = GlowRadius.toPx()
+                for (i in clusters.indices) {
+                    val letter = letters[i]
+                    val box = layout.getBoundingBox(offsets[i])
+                    val row = layout.getLineForOffset(offsets[i])
+                    val top = layout.getLineBaseline(row) - letter.firstBaseline
+                    val w = map.word[i]
+                    val lp = letterProgress(i)
+                    val n = nudge(i, lp)
+                    val wobble = if (w != -1) wobbles[w] else 0f
+                    val scaleX = 1f + wobble * 0.025f + n * 0.3f
+                    val scaleY = 1f + wobble * 0.015f + n
+                    val lw = letter.size.width.toFloat()
+                    val lh = letter.size.height.toFloat()
+                    withTransform({
+                        translate(used[row] + box.left, top)
+                        if (w != -1) scale(scaleX, scaleY, pivot = Offset(box.width / 2f, lh))
+                    }) {
+                        if (w != -1 && !sung[w] && progress[w] > 0.001f) {
+                            val word = words[w]
+                            val duration = (word.end - word.start) * 1000f
+                            val perLetter = duration / word.text.length.coerceAtLeast(1)
+                            val fade = (progress[w] * 5f).coerceIn(0f, 1f) * ((1f - progress[w]) * 8f).coerceIn(0f, 1f)
+                            val impact = (((perLetter - 100f) / 250f).coerceIn(0f, 1f) * 0.6f + ((duration - 300f) / 1500f).coerceIn(0f, 1f) * 0.4f).coerceIn(0f, 1f) * fade
+                            if (impact > 0.01f) {
+                                drawIntoCanvas { canvas ->
+                                    glowPaint.maskFilter = BlurMaskFilter(glowRadius * impact, BlurMaskFilter.Blur.NORMAL)
+                                    glowPaint.color = accent.copy(alpha = (0.35f * impact).coerceIn(0f, 0.4f)).toArgb()
+                                    glowPaint.textSize = style.fontSize.toPx()
+                                    canvas.nativeCanvas.drawText(clusters[i], 0f, letter.firstBaseline, glowPaint)
+                                }
+                            }
+                        }
+                        val base = when {
+                            w == -1 -> FocusedAlpha
+                            sung[w] || lp > 0.99f -> 1f
+                            else -> FocusedAlpha + (1f - FocusedAlpha) * progress[w]
+                        }
+                        drawText(letter, color = accent.copy(alpha = base))
+                        if (w != -1 && !sung[w] && lp > 0f && lp < 1f) {
+                            val filled = lw * lp
+                            val edge = (lw * 0.45f).coerceAtLeast(1f)
+                            val solid = (filled - edge).coerceAtLeast(0f)
+                            if (solid > 0f) clipRect(0f, 0f, solid, lh) { drawText(letter, color = accent) }
+                            for (j in 0 until EdgeSlices) {
+                                val from = solid + j * edge / EdgeSlices
+                                val to = (solid + (j + 1) * edge / EdgeSlices + 0.5f).coerceAtMost(filled)
+                                if (to > from) clipRect(from, 0f, to, lh) { drawText(letter, color = accent.copy(alpha = 1f - (j + 0.5f) / EdgeSlices)) }
+                            }
+                        }
+                    }
+                    if (w != -1) used[row] += box.width * (scaleX - 1f)
                 }
             }
         }
     }
 }
+
 
 internal fun Modifier.edgeFade(): Modifier = this
     .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
@@ -341,22 +629,25 @@ internal fun Modifier.edgeFade(): Modifier = this
         )
     }
 
-private val LyricsBleed = 20.dp
-private val LinePad = 10.dp
-private val LineSpacing = 10.dp
+private val LinePad = 11.dp
+private val LineGap = 4.dp
+private val FallbackHeight = 68.dp
 private val GapHeight = 56.dp
 private val GlowRadius = 12.dp
+private val LyricSize = 30.sp
+private const val AnchorRatio = 0.3f
+private const val ActiveLead = 0.1f
 private const val GapSeconds = 4f
 private const val GapLead = 0.65f
 private const val GapFadeMs = 200
-private const val DimAlpha = 0.35f
-private const val GlowAlpha = 0.35f
+private const val FocusedAlpha = 0.3f
 private const val NudgeStrength = 0.038f
-private const val EdgeShare = 0.45f
 private const val EdgeSlices = 12
-private const val LyricsTopFade = 0.1f
-private const val FollowPauseMs = 3_000L
-private const val LineScrollMs = 650
-private const val LineFadeMs = 700
-private const val LineSettle = 0.35f
-private const val SpanShare = 0.92f
+private const val WordDuration = 0.18f
+private const val WordStagger = 0.03f
+private const val PreviewMs = 4_000L
+private const val ShiftMs = 750
+private const val StaggerMs = 20
+private const val StaggerMaxMs = 200
+private const val LineFadeMs = 250
+
