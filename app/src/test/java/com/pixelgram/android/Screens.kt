@@ -111,7 +111,13 @@ class Screens {
         fun emojiMessage(id: Long, text: String, offsets: List<Int>) = message(id, false, "").apply {
             content = TdApi.MessageText(TdApi.FormattedText(text, offsets.map { TdApi.TextEntity(it, 2, TdApi.TextEntityTypeCustomEmoji(42)) }.toTypedArray()), null, null)
         }
+        val quote = message(15, true, "").apply {
+            val t = "Material You is the best\nAgree, and the shapes too"
+            content = TdApi.MessageText(TdApi.FormattedText(t, arrayOf(TdApi.TextEntity(0, 24, TdApi.TextEntityTypeBlockQuote()))), null, null)
+            replyTo = TdApi.MessageReplyToMessage(2, 7, null, 0, null, null, 0, null)
+        }
         val history = listOf(
+            quote,
             emojiMessage(14, "😀😀", listOf(0, 2)),
             emojiMessage(13, "Premium 😀 emoji", listOf(8)),
             doc(12, 801, "pixelGram-0.55.apk"),
@@ -120,7 +126,7 @@ class Screens {
             message(9, false, "See you tomorrow 😀", 8).apply {
                 interactionInfo = TdApi.MessageInteractionInfo().apply {
                     reactions = TdApi.MessageReactions(arrayOf(
-                        TdApi.MessageReaction(TdApi.ReactionTypeEmoji("❤"), 2, true, null, emptyArray()),
+                        TdApi.MessageReaction(TdApi.ReactionTypeEmoji("❤"), 2, true, null, arrayOf(TdApi.MessageSenderUser(1), TdApi.MessageSenderUser(2))),
                         TdApi.MessageReaction(TdApi.ReactionTypeEmoji("🔥"), 1, false, null, emptyArray()),
                     ), false, emptyArray(), false)
                 }

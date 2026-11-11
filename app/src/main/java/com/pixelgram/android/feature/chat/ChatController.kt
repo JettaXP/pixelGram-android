@@ -40,7 +40,7 @@ data class UiMessage(
 )
 
 @Immutable
-data class ReactionUi(val emoji: String, val count: Int, val chosen: Boolean)
+data class ReactionUi(val emoji: String, val count: Int, val chosen: Boolean, val recent: List<Long> = emptyList())
 
 @Immutable
 data class ChatUi(
@@ -183,6 +183,22 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                 publish()
             }
         }
+    }
+
+    suspend fun reveal(id: Long): Boolean = kotlinx.coroutines.withContext(worker) {
+        var pages = 0
+        while (messages.keys.none { it == id } && pages < RevealPages) {
+            val from = messages.keys.minOrNull() ?: 0L
+            val page = runCatching {
+                if (topicId != 0) graph.td.send(TdApi.GetForumTopicHistory(chatId, topicId, from, 0, 100)) else graph.td.send(TdApi.GetChatHistory(chatId, from, 0, 100, false))
+            }.getOrNull()
+            val list = page?.messages.orEmpty()
+            if (list.isEmpty()) break
+            for (message in list) messages[message.id] = message
+            pages++
+        }
+        publish()
+        id in messages
     }
 
     fun loadMore() {
@@ -428,7 +444,9 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         albumId = if (photo != null) mediaAlbumId else 0L,
         localPath = size?.photo?.local?.takeIf { it.isDownloadingCompleted }?.path,
         reactions = interactionInfo?.reactions?.reactions.orEmpty().mapNotNull { reaction ->
-            (reaction.type as? TdApi.ReactionTypeEmoji)?.let { ReactionUi(it.emoji, reaction.totalCount, reaction.isChosen) }
+            (reaction.type as? TdApi.ReactionTypeEmoji)?.let {
+                ReactionUi(it.emoji, reaction.totalCount, reaction.isChosen, reaction.recentSenderIds.orEmpty().mapNotNull { sender -> (sender as? TdApi.MessageSenderUser)?.userId })
+            }
         },
     )
 }
@@ -440,3 +458,5 @@ private fun isService(content: TdApi.MessageContent): Boolean = when (content) {
     is TdApi.MessageUnsupported -> false
     else -> true
 }
+
+private const val RevealPages = 30

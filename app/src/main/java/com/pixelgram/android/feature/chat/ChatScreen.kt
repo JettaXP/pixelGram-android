@@ -8,6 +8,11 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -163,6 +168,23 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var deleting by remember { mutableStateOf<UiMessage?>(null) }
     val appearance by graph.appearance.state.collectAsState()
     val listState = rememberLazyListState()
+    val jumpScope = rememberCoroutineScope()
+    var highlighted by remember { mutableStateOf<Long?>(null) }
+    val jumpTo: (Long) -> Unit = { id ->
+        jumpScope.launch {
+            fun position() = ui.messages.indexOfFirst { it.id == id || it.parts.any { p -> p.id == id } }
+            if (position() < 0) controller.reveal(id)
+            kotlinx.coroutines.delay(50)
+            val index = controller.state.value.messages.indexOfFirst { it.id == id || it.parts.any { p -> p.id == id } }
+            if (index >= 0) {
+                val shift = if (appearance.typingBubble) 1 else 0
+                listState.animateScrollToItem(index + shift, -listState.layoutInfo.viewportSize.height / 3)
+                highlighted = controller.state.value.messages[index].id
+                kotlinx.coroutines.delay(HighlightMs)
+                highlighted = null
+            }
+        }
+    }
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
     val newest = ui.messages.firstOrNull()?.id
@@ -320,6 +342,19 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     onOpenPhoto = { list, index -> viewer = list to index },
                                     reply = reply,
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
+                                    onReplyClick = { jumpTo(message.replyToId) },
+                                    highlighted = highlighted == message.id,
+                                    reactor = { userId, size ->
+                                        val user = snapshot.users[userId]
+                                        Avatar(
+                                            title = user?.name.orEmpty(),
+                                            seed = userId,
+                                            path = user?.localPhoto ?: user?.photoFileId?.let { snapshot.files[it] },
+                                            minithumb = user?.minithumb,
+                                            size = size,
+                                            onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) },
+                                        )
+                                    },
                                     onLongPress = { menuFor = message },
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
                                     onReact = { emoji -> controller.react(message, emoji) },
@@ -490,6 +525,9 @@ internal fun MessageBubble(
     onDoubleTap: () -> Unit = {},
     onPlayAudio: (TdApi.Audio) -> Unit = {},
     onReact: (String) -> Unit = {},
+    onReplyClick: () -> Unit = {},
+    highlighted: Boolean = false,
+    reactor: (@Composable (Long, androidx.compose.ui.unit.Dp) -> Unit)? = null,
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     val big = prefs.bubbleRadius.dp
@@ -499,7 +537,12 @@ internal fun MessageBubble(
     } else {
         RoundedCornerShape(if (joinsAbove) small else big, big, big, if (joinsBelow) small else big)
     }
-    val container = if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val baseContainer = if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val container by androidx.compose.animation.animateColorAsState(
+        if (highlighted) androidx.compose.ui.graphics.lerp(baseContainer, MaterialTheme.colorScheme.tertiary, 0.35f) else baseContainer,
+        MaterialTheme.motionScheme.slowEffectsSpec(),
+        label = "highlight",
+    )
     val onContainer = if (message.outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier.fillMaxWidth().padding(top = if (joinsAbove) 2.dp else 6.dp),
@@ -527,31 +570,12 @@ internal fun MessageBubble(
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
                     )
                 }
-                if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files)
+                if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick)
                 val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
-                Row(
-                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
-                    if (bigEmoji != null && !prefs.zalgoFilter) {
-                        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            bigEmoji.forEach { (id, alt) -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = BigEmojiSize) }
-                        }
-                    } else if (message.text.isNotBlank()) {
-                        val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
-                        val entities = if (prefs.zalgoFilter) emptyList() else message.entities
-                        Text(
-                            formatted(text, entities, MaterialTheme.colorScheme.primary, onContainer),
-                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
-                            inlineContent = remember(text, entities, prefs.messageFontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (prefs.messageFontSize * 1.25f).sp) },
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
+                val meta: @Composable () -> Unit = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
                         Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
@@ -570,12 +594,33 @@ internal fun MessageBubble(
                         }
                     }
                 }
+                Row(
+                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
+                    if (bigEmoji != null && !prefs.zalgoFilter) {
+                        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            bigEmoji.forEach { (id, alt) -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = BigEmojiSize) }
+                        }
+                    } else if (message.text.isNotBlank()) {
+                        val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
+                        val entities = if (prefs.zalgoFilter) emptyList() else message.entities
+                        MessageText(
+                            text,
+                            entities,
+                            MaterialTheme.colorScheme.primary,
+                            onContainer,
+                            MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
+                            prefs.messageFontSize.toFloat(),
+                            Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    if (message.reactions.isEmpty()) meta()
+                }
                 if (message.reactions.isNotEmpty()) {
-                    androidx.compose.foundation.layout.FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 4.dp),
-                    ) {
+                    ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
                         message.reactions.forEach { reaction ->
                             val chosen = reaction.chosen
                             Surface(
@@ -590,10 +635,25 @@ internal fun MessageBubble(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 ) {
                                     Text(reaction.emoji, style = MaterialTheme.typography.bodyMedium)
-                                    Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
+                                    if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                                            reaction.recent.forEach { id ->
+                                                Box(
+                                                    Modifier
+                                                        .size(ReactorSize + 2.dp)
+                                                        .clip(CircleShape)
+                                                        .background(if (chosen) MaterialTheme.colorScheme.primary else container)
+                                                        .padding(1.dp),
+                                                ) { reactor(id, ReactorSize) }
+                                            }
+                                        }
+                                    } else {
+                                        Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
+                                    }
                                 }
                             }
                         }
+                        meta()
                     }
                 }
             }
@@ -756,13 +816,14 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
 }
 
 @Composable
-private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>) {
+private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}) {
     val scheme = MaterialTheme.colorScheme
     val thumb = reply.parts.firstOrNull() ?: reply.takeIf { it.mediaFileId != 0 }
     Row(
         Modifier
             .padding(4.dp)
             .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .background(scheme.primary.copy(alpha = 0.12f))
             .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically,
@@ -1090,6 +1151,163 @@ private fun DeleteDialog(message: UiMessage, controller: ChatController, private
 }
 
 private val BigEmojiSize = 64.dp
+private val ReactorSize = 18.dp
+private const val ReactorAvatars = 4
+private const val HighlightMs = 1_400L
+private const val QuoteLines = 3
+
+@Composable
+private fun ReactionFlow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
+        val gap = 4.dp.roundToPx()
+        val metaGap = 8.dp.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val placeables = measurables.map { it.measure(loose) }
+        val chips = placeables.dropLast(1)
+        val meta = placeables.last()
+        val maxWidth = constraints.maxWidth
+        val positions = mutableListOf<androidx.compose.ui.unit.IntOffset>()
+        val lines = mutableListOf<Pair<Int, Int>>()
+        var x = 0
+        var y = 0
+        var lineHeight = 0
+        var widest = 0
+        chips.forEach { chip ->
+            if (x > 0 && x + chip.width > maxWidth) {
+                lines += x - gap to lineHeight
+                widest = maxOf(widest, x - gap)
+                y += lineHeight + gap
+                x = 0
+                lineHeight = 0
+            }
+            positions += androidx.compose.ui.unit.IntOffset(x, y)
+            x += chip.width + gap
+            lineHeight = maxOf(lineHeight, chip.height)
+        }
+        val lastWidth = (x - gap).coerceAtLeast(0)
+        val inline = lastWidth + metaGap + meta.width <= maxWidth
+        val width: Int
+        val height: Int
+        val metaPos: androidx.compose.ui.unit.IntOffset
+        if (inline) {
+            width = maxOf(widest, lastWidth + metaGap + meta.width).coerceAtLeast(constraints.minWidth)
+            height = y + maxOf(lineHeight, meta.height)
+            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + maxOf(lineHeight, meta.height) - meta.height)
+        } else {
+            width = maxOf(widest, lastWidth, meta.width).coerceAtLeast(constraints.minWidth)
+            height = y + lineHeight + gap + meta.height
+            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + lineHeight + gap)
+        }
+        layout(width, height) {
+            chips.forEachIndexed { i, chip -> chip.place(positions[i].x, positions[i].y) }
+            meta.place(metaPos)
+        }
+    }
+}
+
+private class TextPart(val start: Int, val end: Int, val quote: TdApi.TextEntityType?)
+
+private fun splitQuotes(text: String, entities: List<TdApi.TextEntity>): List<TextPart> {
+    val quotes = entities.filter { it.type is TdApi.TextEntityTypeBlockQuote || it.type is TdApi.TextEntityTypeExpandableBlockQuote }.sortedBy { it.offset }
+    if (quotes.isEmpty()) return listOf(TextPart(0, text.length, null))
+    val parts = mutableListOf<TextPart>()
+    var at = 0
+    for (q in quotes) {
+        val start = q.offset.coerceIn(at, text.length)
+        val end = (q.offset + q.length).coerceIn(start, text.length)
+        if (start > at) parts += TextPart(at, start, null)
+        if (end > start) parts += TextPart(start, end, q.type)
+        at = end
+    }
+    if (at < text.length) parts += TextPart(at, text.length, null)
+    return parts
+}
+
+private fun slice(entities: List<TdApi.TextEntity>, start: Int, end: Int): List<TdApi.TextEntity> = entities.mapNotNull { e ->
+    if (e.type is TdApi.TextEntityTypeBlockQuote || e.type is TdApi.TextEntityTypeExpandableBlockQuote) return@mapNotNull null
+    val s = maxOf(e.offset, start)
+    val t = minOf(e.offset + e.length, end)
+    if (t <= s) null else TdApi.TextEntity(s - start, t - s, e.type)
+}
+
+@Composable
+private fun MessageText(
+    text: String,
+    entities: List<TdApi.TextEntity>,
+    link: Color,
+    content: Color,
+    style: androidx.compose.ui.text.TextStyle,
+    fontSize: Float,
+    modifier: Modifier = Modifier,
+) {
+    val parts = remember(text, entities) { splitQuotes(text, entities) }
+    if (parts.size == 1 && parts[0].quote == null) {
+        PlainText(text, entities, link, content, style, fontSize, modifier)
+        return
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        parts.forEach { part ->
+            val raw = text.substring(part.start, part.end)
+            val trimStart = raw.length - raw.trimStart('\n').length
+            val piece = raw.trim('\n')
+            if (piece.isEmpty()) return@forEach
+            val local = slice(entities, part.start + trimStart, part.start + trimStart + piece.length)
+            if (part.quote == null) {
+                PlainText(piece, local, link, content, style, fontSize)
+            } else {
+                QuoteBlock(part.quote is TdApi.TextEntityTypeExpandableBlockQuote, content) { lines ->
+                    PlainText(piece, local, link, content, style, fontSize, maxLines = lines)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlainText(
+    text: String,
+    entities: List<TdApi.TextEntity>,
+    link: Color,
+    content: Color,
+    style: androidx.compose.ui.text.TextStyle,
+    fontSize: Float,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    Text(
+        formatted(text, entities, link, content),
+        style = style,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        inlineContent = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) },
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun QuoteBlock(expandable: Boolean, content: Color, body: @Composable (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(!expandable) }
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(accent.copy(alpha = 0.12f))
+            .then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier)
+            .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
+            .padding(start = 11.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
+            .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.weight(1f, fill = false)) { body(if (expanded) Int.MAX_VALUE else QuoteLines) }
+            Icon(
+                if (expandable) (if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore) else Icons.Rounded.FormatQuote,
+                null,
+                tint = accent,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
 
 private fun bigCustomEmoji(text: String, entities: List<TdApi.TextEntity>): List<Pair<Long, String>>? {
     val emoji = entities.filter { it.type is TdApi.TextEntityTypeCustomEmoji }.sortedBy { it.offset }
