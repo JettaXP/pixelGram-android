@@ -228,7 +228,7 @@ private fun sungChars(line: LyricLine, now: Float, end: Float): Float {
         }
         chars / offset.coerceAtLeast(1) * text.length
     } else {
-        val span = (end - line.time).coerceIn(0.4f, text.length * 0.09f + 0.6f)
+        val span = ((end - line.time) * SpanShare).coerceAtLeast(0.4f)
         ((now - line.time) / span).coerceIn(0f, 1f) * text.length
     }
 }
@@ -364,3 +364,4 @@ private const val FollowPauseMs = 3_000L
 private const val LineScrollMs = 650
 private const val LineFadeMs = 700
 private const val LineSettle = 0.35f
+private const val SpanShare = 0.92f

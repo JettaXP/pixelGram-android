@@ -181,7 +181,10 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        if (!saved) com.pixelgram.android.ui.components.NameBadges(privateUserId, snapshot.users[privateUserId]?.verified == true, 20.dp)
+                        if (!saved) {
+                            val row = snapshot.lists.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == chatId } }
+                            com.pixelgram.android.ui.components.NameBadges(privateUserId, snapshot.users[privateUserId]?.verified == true || row?.verified == true, 20.dp, row?.scam == true, row?.fake == true)
+                        }
                     }
                 },
                 subtitle = {

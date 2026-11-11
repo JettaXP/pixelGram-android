@@ -363,4 +363,7 @@
     <string name="username_fragment">Открыть на Fragment</string>
     <string name="profile_set_photo_for">Поставить фото</string>
     <string name="profile_remove_photo">Убрать фото</string>
+    <string name="profile_join">Вступить</string>
+    <string name="profile_description">Описание</string>
+    <string name="profile_link">Ссылка</string>
 </resources>

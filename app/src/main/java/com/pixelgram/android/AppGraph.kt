@@ -16,7 +16,7 @@ class AppGraph(context: Context, offline: Boolean = false) {
     val auth = com.pixelgram.android.feature.auth.AuthController(td, scope)
     val remote = com.pixelgram.android.pixel.PixelRemote(context.applicationContext, scope)
     val music = com.pixelgram.android.music.MusicPlayer(context.applicationContext, td)
-    val covers = com.pixelgram.android.music.CoverArt(context.applicationContext)
+    val covers = com.pixelgram.android.music.CoverArt(context.applicationContext).also { music.covers = it }
 }
 
 val LocalGraph = androidx.compose.runtime.staticCompositionLocalOf<AppGraph> { error("No AppGraph") }

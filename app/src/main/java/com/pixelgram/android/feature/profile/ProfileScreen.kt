@@ -78,6 +78,8 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -117,11 +119,24 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val pickAvatar = rememberAvatarPicker(graph)
     val title = user?.name ?: chat?.title.orEmpty()
     val username = user?.username
+    val group = (chat?.type as? TdApi.ChatTypeSupergroup)?.takeIf { userId == 0L }
+    val supergroup by produceState<TdApi.Supergroup?>(null, group?.supergroupId) {
+        value = group?.let { runCatching { graph.td.send(TdApi.GetSupergroup(it.supergroupId)) }.getOrNull() }
+    }
+    val groupFull by produceState<TdApi.SupergroupFullInfo?>(null, group?.supergroupId) {
+        value = group?.let { runCatching { graph.td.send(TdApi.GetSupergroupFullInfo(it.supergroupId)) }.getOrNull() }
+    }
+    val channelMembers = groupFull?.memberCount ?: supergroup?.memberCount ?: 0
+    val channelSubtitle = if (group != null && channelMembers > 0) {
+        androidx.compose.ui.res.pluralStringResource(if (group.isChannel) R.plurals.chat_subscribers else R.plurals.chat_members, channelMembers, channelMembers)
+    } else {
+        null
+    }
     Scaffold(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) }
+            val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) } ?: channelSubtitle
             ProfileHeader(
                 graph = graph,
                 userId = if (userId != 0L) userId else chatId,
@@ -129,7 +144,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 subtitle = status,
                 photoFileId = user?.bigPhotoFileId ?: chat?.photo?.big?.id ?: 0,
                 minithumb = user?.minithumb ?: chat?.photo?.minithumbnail?.data,
-                verified = user?.verified == true,
+                verified = user?.verified == true || supergroup?.verificationStatus?.isVerified == true,
                 showCamera = false,
                 onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) },
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
@@ -180,6 +195,67 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                                     useDefaultDisableMentionNotifications = true
                                 }))
                             }
+                        }
+                    }
+                }
+            }
+            if (group != null && chat != null) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) { navigator.open(ChatKey(chatId)) }
+                    val muted = chat.notificationSettings.muteFor > 0
+                    ProfileAction(if (muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff, stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute)) {
+                        scope.launch {
+                            runCatching {
+                                graph.td.send(TdApi.SetChatNotificationSettings(chatId, TdApi.ChatNotificationSettings().apply {
+                                    useDefaultMuteFor = false
+                                    muteFor = if (muted) 0 else Int.MAX_VALUE
+                                    useDefaultSound = true
+                                    useDefaultShowPreview = true
+                                    useDefaultMuteStories = true
+                                    useDefaultShowStoryPoster = true
+                                    useDefaultDisablePinnedMessageNotifications = true
+                                    useDefaultDisableMentionNotifications = true
+                                }))
+                            }
+                        }
+                    }
+                    val member = supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true
+                    ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
+                        scope.launch {
+                            runCatching { graph.td.send(if (member) TdApi.LeaveChat(chatId) else TdApi.JoinChat(chatId)) }
+                            navigator.back()
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                val context = LocalContext.current
+                val copiedText = stringResource(R.string.profile_copied)
+                val copy: (String) -> Unit = { value ->
+                    context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText(null, value))
+                    android.widget.Toast.makeText(context, copiedText, android.widget.Toast.LENGTH_SHORT).show()
+                }
+                val about = groupFull?.description.orEmpty()
+                val names = supergroup?.usernames?.activeUsernames?.toList().orEmpty()
+                val rows = buildList {
+                    if (about.isNotBlank()) add("about")
+                    names.forEach { add("u:$it") }
+                    groupFull?.inviteLink?.inviteLink?.takeIf { names.isEmpty() }?.let { add("link:$it") }
+                    add("id")
+                }
+                SettingsGroup {
+                    rows.forEachIndexed { index, row ->
+                        val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
+                        when {
+                            row == "about" -> SettingsItem(about, position, stringResource(R.string.profile_description), Icons.Rounded.Info, onLongClick = { copy(about) })
+                            row.startsWith("u:") -> {
+                                val name = row.removePrefix("u:")
+                                SettingsItem("t.me/$name", position, stringResource(R.string.profile_link), Icons.Rounded.Link, onClick = { collectible = name }, onLongClick = { copy("https://t.me/$name") })
+                            }
+                            row.startsWith("link:") -> {
+                                val link = row.removePrefix("link:")
+                                SettingsItem(link, position, stringResource(R.string.profile_link), Icons.Rounded.Link, onLongClick = { copy(link) })
+                            }
+                            row == "id" -> SettingsItem(chatId.toString(), position, "ID", Icons.Rounded.Tag, onLongClick = { copy(chatId.toString()) })
                         }
                     }
                 }

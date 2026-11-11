@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.pixel
 
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -347,7 +348,7 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
         }
     }
     SettingsGroup(stringResource(R.string.pixel_nav_tabs)) {
-        NavTabsEditor(settings.navTabs) { tabs -> update { it.copy(navTabs = tabs) } }
+        NavTabsEditor(settings.navTabs, settings.navOrder) { tabs, order -> update { it.copy(navTabs = tabs, navOrder = order) } }
     }
     androidx.compose.animation.AnimatedVisibility(settings.navBarStyle == NavBarStyle.Expressive) {
         SettingsGroup(stringResource(R.string.pixel_capsule)) {
@@ -530,80 +531,89 @@ private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NavTabsEditor(enabled: List<MainTab>, onChange: (List<MainTab>) -> Unit) {
-    val order = remember { androidx.compose.runtime.mutableStateListOf<MainTab>() }
-    LaunchedEffect(enabled) {
-        val full = enabled + MainTab.entries.filterNot { it in enabled }
-        if (order.toList() != full && order.filter { it in enabled } != enabled || order.isEmpty()) {
-            order.clear()
-            order.addAll(full)
-        }
-    }
+private fun NavTabsEditor(enabled: List<MainTab>, saved: List<MainTab>, onChange: (List<MainTab>, List<MainTab>) -> Unit) {
+    val order = remember { androidx.compose.runtime.mutableStateListOf<MainTab>().apply { addAll(saved) } }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val gap = with(density) { androidx.compose.material3.ListItemDefaults.SegmentedGap.toPx() }
     var rowHeight by remember { mutableStateOf(with(density) { 72.dp.toPx() }) }
     var dragging by remember { mutableStateOf<MainTab?>(null) }
     var offset by remember { mutableStateOf(0f) }
-    val commit = { onChange(order.filter { it in enabled || it == MainTab.Chats }) }
+    val latestEnabled by androidx.compose.runtime.rememberUpdatedState(enabled)
+    val commit = { onChange(order.filter { it in latestEnabled || it == MainTab.Chats }, order.toList()) }
+    val spring = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
     Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
         order.forEachIndexed { index, item ->
-            val isDragged = dragging == item
-            val on = item in enabled
-            androidx.compose.material3.SegmentedListItem(
-                shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, order.size),
-                colors = if (isDragged) {
-                    com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHighest)
-                } else {
-                    com.pixelgram.android.ui.components.segmentedColors()
-                },
-                modifier = Modifier
-                    .zIndex(if (isDragged) 1f else 0f)
-                    .graphicsLayer {
-                        translationY = if (isDragged) offset else 0f
-                        shadowElevation = if (isDragged) 12f else 0f
-                    }
-                    .pointerInput(item) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                dragging = item
-                                offset = 0f
-                            },
-                            onDragEnd = {
-                                dragging = null
-                                offset = 0f
-                                commit()
-                            },
-                            onDragCancel = {
-                                dragging = null
-                                offset = 0f
-                            },
-                        ) { change, amount ->
-                            change.consume()
-                            offset += amount.y
-                            val from = order.indexOf(item)
-                            if (offset > rowHeight / 2 && from < order.lastIndex) {
-                                order.add(from + 1, order.removeAt(from))
-                                offset -= rowHeight
-                            } else if (offset < -rowHeight / 2 && from > 0) {
-                                order.add(from - 1, order.removeAt(from))
-                                offset += rowHeight
-                            }
+            androidx.compose.runtime.key(item) {
+                val isDragged = dragging == item
+                val on = item in enabled
+                val lift by androidx.compose.animation.core.animateFloatAsState(if (isDragged) 1f else 0f, label = "lift")
+                androidx.compose.material3.SegmentedListItem(
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, order.size),
+                    colors = if (isDragged) {
+                        com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    } else {
+                        com.pixelgram.android.ui.components.segmentedColors()
+                    },
+                    modifier = Modifier
+                        .zIndex(if (isDragged) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (isDragged) offset else 0f
+                            shadowElevation = lift * 12f
+                            scaleX = 1f + lift * 0.02f
+                            scaleY = 1f + lift * 0.02f
                         }
-                    }
-                    .onSizeChanged { rowHeight = it.height.toFloat() + gap },
-                leadingContent = { Icon(Icons.Rounded.DragHandle, stringResource(R.string.pixel_nav_drag)) },
-                trailingContent = {
-                    PixelSwitch(
-                        checked = on,
-                        enabled = item != MainTab.Chats,
-                        onCheckedChange = { value ->
-                            val next = if (value) enabled + item else enabled - item
-                            onChange(order.filter { it in next })
-                        },
-                    )
-                },
-            ) {
-                Text(stringResource(item.label))
+                        .onSizeChanged { rowHeight = it.height.toFloat() + gap },
+                    leadingContent = {
+                        Icon(
+                            Icons.Rounded.DragHandle,
+                            stringResource(R.string.pixel_nav_drag),
+                            Modifier
+                                .size(40.dp)
+                                .padding(8.dp)
+                                .pointerInput(item) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = {
+                                            dragging = item
+                                            offset = 0f
+                                        },
+                                        onDragEnd = {
+                                            dragging = null
+                                            offset = 0f
+                                            commit()
+                                        },
+                                        onDragCancel = {
+                                            dragging = null
+                                            offset = 0f
+                                            commit()
+                                        },
+                                    ) { change, amount ->
+                                        change.consume()
+                                        offset += amount
+                                        val from = order.indexOf(item)
+                                        if (offset > rowHeight / 2 && from < order.lastIndex) {
+                                            order.add(from + 1, order.removeAt(from))
+                                            offset -= rowHeight
+                                        } else if (offset < -rowHeight / 2 && from > 0) {
+                                            order.add(from - 1, order.removeAt(from))
+                                            offset += rowHeight
+                                        }
+                                    }
+                                },
+                        )
+                    },
+                    trailingContent = {
+                        PixelSwitch(
+                            checked = on,
+                            enabled = item != MainTab.Chats,
+                            onCheckedChange = { value ->
+                                val next = if (value) enabled + item else enabled - item
+                                onChange(order.filter { it in next }, order.toList())
+                            },
+                        )
+                    },
+                ) {
+                    Text(stringResource(item.label))
+                }
             }
         }
     }

@@ -364,4 +364,7 @@
     <string name="username_fragment">Open on Fragment</string>
     <string name="profile_set_photo_for">Set photo</string>
     <string name="profile_remove_photo">Remove photo</string>
+    <string name="profile_join">Join</string>
+    <string name="profile_description">Description</string>
+    <string name="profile_link">Link</string>
 </resources>

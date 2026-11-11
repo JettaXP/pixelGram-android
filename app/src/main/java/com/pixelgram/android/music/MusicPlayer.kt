@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import org.drinkless.tdlib.TdApi
 import java.io.File
 
@@ -53,6 +55,7 @@ data class PlayerState(
 )
 
 class MusicPlayer(private val context: Context, private val td: TdClient) {
+    var covers: CoverArt? = null
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val stateFlow = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = stateFlow.asStateFlow()
@@ -308,8 +311,18 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         }
         publishQueue()
         loadJob = main.launch {
+            val coverJob = main.async {
+                cover?.let { runCatching { td.send(TdApi.DownloadFile(it.id, 32, 0, 0, true)).local.path }.getOrNull() }
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.also { found -> stateFlow.update { s -> if (s.audio?.audio?.id == audio.audio.id) s.copy(track = s.track?.copy(cover = found)) else s } }
+            }
+            val external = covers?.let { art ->
+                art.key(audio, large = true)?.let { key ->
+                    kotlinx.coroutines.withTimeoutOrNull(ArtworkWaitMs) { art.found.first { key in it }[key] }
+                }
+            }
             val path = runCatching { td.send(TdApi.DownloadFile(audio.audio.id, 32, 0, 0, true)).local.path }.getOrNull()
-            val coverPath = cover?.let { runCatching { td.send(TdApi.DownloadFile(it.id, 16, 0, 0, true)).local.path }.getOrNull() }
+            val coverPath = external ?: kotlinx.coroutines.withTimeoutOrNull(ArtworkWaitMs) { coverJob.await() }
             if (path.isNullOrEmpty()) {
                 stateFlow.update { it.copy(loading = false) }
                 return@launch
@@ -348,6 +361,7 @@ private const val ScrubForwardStepMs = 400L
 private const val ScrubBackStepMs = 300L
 private const val ScrubTickMs = 100L
 private const val FadeMs = 240
+private const val ArtworkWaitMs = 3_000L
 private const val FadeTickMs = 16
 
 fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(

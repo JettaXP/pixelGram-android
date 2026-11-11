@@ -43,6 +43,7 @@ data class AppearanceSettings(
     val capsuleSpacing: Int = 4,
     val capsuleHeight: Int = 64,
     val navTabs: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
+    val navOrder: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
     val messageSeconds: Boolean = false,
     val exactNumbers: Boolean = false,
     val zalgoFilter: Boolean = false,
@@ -72,6 +73,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val CapsuleSpacing = intPreferencesKey("capsule_spacing")
         val CapsuleHeight = intPreferencesKey("capsule_height")
         val NavTabs = stringPreferencesKey("nav_tabs")
+        val NavOrder = stringPreferencesKey("nav_order")
         val K_messageSeconds = booleanPreferencesKey("message_seconds")
         val K_exactNumbers = booleanPreferencesKey("exact_numbers")
         val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
@@ -82,7 +84,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
         val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats)
         val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
-        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, K_doubleTapEmoji)
+        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, K_doubleTapEmoji)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -121,6 +123,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         navTabs = p[Keys.NavTabs]?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
             ?.let { if (com.pixelgram.android.feature.main.MainTab.Chats in it) it else listOf(com.pixelgram.android.feature.main.MainTab.Chats) + it }
             ?: com.pixelgram.android.feature.main.MainTab.entries,
+        navOrder = (p[Keys.NavOrder] ?: p[Keys.NavTabs])?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
+            ?.let { saved -> saved + com.pixelgram.android.feature.main.MainTab.entries.filterNot { it in saved } } ?: com.pixelgram.android.feature.main.MainTab.entries,
         messageSeconds = p[Keys.K_messageSeconds] ?: false,
         exactNumbers = p[Keys.K_exactNumbers] ?: false,
         zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
@@ -150,6 +154,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.CapsuleSpacing] = next.capsuleSpacing
                 p[Keys.CapsuleHeight] = next.capsuleHeight
                 p[Keys.NavTabs] = next.navTabs.joinToString(",") { it.name }
+                p[Keys.NavOrder] = next.navOrder.joinToString(",") { it.name }
                 p[Keys.K_messageSeconds] = next.messageSeconds
                 p[Keys.K_exactNumbers] = next.exactNumbers
                 p[Keys.K_zalgoFilter] = next.zalgoFilter
