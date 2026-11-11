@@ -55,6 +55,19 @@ class Screens {
 
     @Test fun chats() = shoot("chats")
 
+    @Test fun keys() {
+        val graph = AppGraph(ApplicationProvider.getApplicationContext(), offline = true)
+        graph.appearance.update { it.copy(themeMode = ThemeMode.Dark, dynamicColor = false) }
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            val appearance by graph.appearance.state.collectAsState()
+            PixelTheme(appearance) { com.pixelgram.android.feature.auth.AuthFlow(graph.auth) }
+        }
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        File(dir, "keys.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
     @Test fun chat() {
         val graph = graph()
         val now = (System.currentTimeMillis() / 1000).toInt()

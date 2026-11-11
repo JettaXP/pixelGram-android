@@ -13,6 +13,7 @@ import org.drinkless.tdlib.TdApi
 sealed interface AuthStep {
     data object Loading : AuthStep
     data object Phone : AuthStep
+    data object Keys : AuthStep
     @Immutable
     data class Code(val phone: String, val type: CodeType, val length: Int, val nextType: CodeType?, val timeout: Int, val details: String = "") : AuthStep
     data class Password(val hint: String) : AuthStep
@@ -27,13 +28,13 @@ enum class CodeType { App, Sms, Call, FlashCall, MissedCall, Fragment, Firebase,
 data class AuthUi(val step: AuthStep = AuthStep.Loading, val busy: Boolean = false, val error: String? = null, val wantQr: Boolean = false)
 
 class AuthController(private val td: TdClient, private val scope: CoroutineScope) {
-    private val ui = MutableStateFlow(if (com.pixelgram.android.BuildConfig.API_ID == 0) AuthUi(step = AuthStep.Unsupported("keys")) else AuthUi())
+    private val ui = MutableStateFlow(if (!td.hasKeys.value) AuthUi(step = AuthStep.Keys) else AuthUi())
     val state: StateFlow<AuthUi> = ui.asStateFlow()
 
     init {
         scope.launch {
             td.authorizationState.collect { state ->
-                if (com.pixelgram.android.BuildConfig.API_ID == 0) return@collect
+                if (!td.hasKeys.value) return@collect
                 val step = map(state)
                 ui.value = ui.value.copy(step = step, busy = false)
             }
@@ -93,6 +94,11 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
 
     fun backToPhone() {
         ui.value = ui.value.copy(step = AuthStep.Phone, wantQr = false, error = null, busy = false)
+    }
+
+    fun submitKeys(id: Int, hash: String) {
+        td.setKeys(id, hash)
+        ui.value = ui.value.copy(step = map(td.authorizationState.value))
     }
 
     fun clearError() {

@@ -299,5 +299,7 @@
     <string name="stories_post">Post story</string>
     <string name="new_message">New message</string>
     <string name="pixel_icon_pack">Icon pack</string>
-    <string name="auth_no_keys">This build has no Telegram API keys, so it can\'t connect. Install a build made with the API_ID and API_HASH secrets.</string>
+    <string name="auth_keys_title">Telegram API keys</string>
+    <string name="auth_keys_text">This build has no API keys. Enter your API ID and API hash from my.telegram.org, they stay on this device.</string>
+    <string name="auth_keys_save">Continue</string>
 </resources>

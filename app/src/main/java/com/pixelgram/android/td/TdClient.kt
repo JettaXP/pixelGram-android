@@ -28,6 +28,15 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
     private val authFlow = MutableStateFlow<TdApi.AuthorizationState?>(null)
     val authorizationState: StateFlow<TdApi.AuthorizationState?> = authFlow.asStateFlow()
 
+    private val keys = context.getSharedPreferences("tdlib_keys", Context.MODE_PRIVATE)
+    private val keysFlow = MutableStateFlow(apiId() != 0 && apiHash().isNotBlank())
+    val hasKeys: StateFlow<Boolean> = keysFlow.asStateFlow()
+    private var waitingForKeys = false
+
+    private fun apiId(): Int = BuildConfig.API_ID.takeIf { it != 0 } ?: keys.getInt("api_id", 0)
+
+    private fun apiHash(): String = BuildConfig.API_HASH.ifBlank { keys.getString("api_hash", "").orEmpty() }
+
     private val client: Client? = if (offline) {
         null
     } else {
@@ -39,11 +48,21 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
 
     fun emit(update: TdApi.Object) = onUpdate(update)
 
+    fun setKeys(id: Int, hash: String) {
+        keys.edit().putInt("api_id", id).putString("api_hash", hash).apply()
+        val send = synchronized(this) {
+            keysFlow.value = true
+            waitingForKeys.also { waitingForKeys = false }
+        }
+        if (send) scope.launch { runCatching { send(parameters()) } }
+    }
+
     private fun onUpdate(update: TdApi.Object) {
         if (update is TdApi.UpdateAuthorizationState) {
             authFlow.value = update.authorizationState
             if (update.authorizationState is TdApi.AuthorizationStateWaitTdlibParameters) {
-                scope.launch { runCatching { send(parameters()) } }
+                val ready = synchronized(this) { keysFlow.value.also { if (!it) waitingForKeys = true } }
+                if (ready) scope.launch { runCatching { send(parameters()) } }
             }
         }
         updateFlow.tryEmit(update)
@@ -59,8 +78,8 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
         useChatInfoDatabase = true
         useMessageDatabase = true
         useSecretChats = true
-        apiId = BuildConfig.API_ID
-        apiHash = BuildConfig.API_HASH
+        apiId = apiId()
+        apiHash = apiHash()
         systemLanguageCode = Locale.getDefault().language.ifBlank { "en" }
         deviceModel = "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}"
         systemVersion = "Android ${Build.VERSION.RELEASE}"

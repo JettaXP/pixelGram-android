@@ -84,6 +84,7 @@ fun AuthFlow(controller: AuthController) {
     ) { _ ->
         when (val step = ui.step) {
             AuthStep.Loading, AuthStep.Ready -> LoadingScreen()
+            AuthStep.Keys -> KeysScreen(controller::submitKeys)
             AuthStep.Phone -> PhoneScreen(ui, controller::submitPhone, controller::requestQr, controller::clearError)
             is AuthStep.Code -> CodeScreen(step, ui, controller)
             is AuthStep.Password -> PasswordScreen(step, ui, controller)
@@ -417,7 +418,6 @@ private fun UnsupportedScreen(step: AuthStep.Unsupported, controller: AuthContro
             stringResource(
                 when (step.reason) {
                     "registration" -> R.string.auth_unsupported_registration
-                    "keys" -> R.string.auth_no_keys
                     else -> R.string.auth_unsupported_email
                 },
             ),
@@ -425,5 +425,53 @@ private fun UnsupportedScreen(step: AuthStep.Unsupported, controller: AuthContro
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun KeysScreen(onSubmit: (Int, String) -> Unit) {
+    var id by rememberSaveable { mutableStateOf("") }
+    var hash by rememberSaveable { mutableStateOf("") }
+    val valid = id.toIntOrNull()?.let { it > 0 } == true && hash.trim().length == 32
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    AuthScaffold(onBack = null) {
+        Text(stringResource(R.string.auth_keys_title), style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.auth_keys_text),
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(24.dp))
+        androidx.compose.material3.OutlinedTextField(
+            value = id,
+            onValueChange = { id = it.filter(Char::isDigit).take(12) },
+            label = { Text("API ID") },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(12.dp))
+        androidx.compose.material3.OutlinedTextField(
+            value = hash,
+            onValueChange = { hash = it.trim().take(32) },
+            label = { Text("API hash") },
+            singleLine = true,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+        androidx.compose.material3.Button(
+            onClick = { onSubmit(id.toInt(), hash.trim()) },
+            enabled = valid,
+            shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        ) { Text(stringResource(R.string.auth_keys_save)) }
+        androidx.compose.material3.TextButton(onClick = { uri.openUri("https://my.telegram.org/apps") }) {
+            Text("my.telegram.org")
+        }
     }
 }
