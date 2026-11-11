@@ -9,6 +9,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        setMediaNotificationProvider(
+            androidx.media3.session.DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(com.pixelgram.android.R.drawable.ic_pixelgram) },
+        )
         session = MediaSession.Builder(this, (application as PixelApp).graph.music.player).build()
     }
 

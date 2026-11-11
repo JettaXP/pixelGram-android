@@ -52,6 +52,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Favorite
@@ -584,6 +586,7 @@ private fun QueuePane(graph: AppGraph, state: PlayerState) {
     val latest by rememberUpdatedState(state.queue)
     val rowPx = with(androidx.compose.ui.platform.LocalDensity.current) { QueueRow.toPx() }
     val covers by graph.covers.found.collectAsState()
+    val files = graph.store.snapshot.collectAsState().value.files
     LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(state.queue, key = { _, audio -> audio.audio.id }) { position, audio ->
             val lifted = audio.audio.id == dragging
@@ -614,12 +617,21 @@ private fun QueuePane(graph: AppGraph, state: PlayerState) {
                     .fillMaxWidth()
                     .height(QueueRow)
                     .background(rowColor)
-                    .clickable(enabled = dragging == null) { graph.music.playAt(position) }
+                    .clickable(enabled = dragging == null) { if (position == state.index) graph.music.toggle() else graph.music.playAt(position) }
                     .padding(horizontal = 8.dp),
             ) {
+                val thumbId = audio.albumCoverThumbnail?.file?.id ?: 0
+                LaunchedEffect(thumbId) { if (thumbId != 0) graph.store.requestFileAsync(thumbId) }
                 val key = graph.covers.key(audio)
-                val path = key?.let { covers[it] } ?: audio.albumCoverThumbnail?.file?.local?.path?.takeIf { it.isNotEmpty() }
-                SmallCover(path, audio.albumCoverMinithumbnail?.data, 48.dp)
+                val path = files[thumbId] ?: key?.let { covers[it] }
+                Box(contentAlignment = Alignment.Center) {
+                    SmallCover(path, audio.albumCoverMinithumbnail?.data, 48.dp)
+                    if (playing) {
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
+                            PlayPauseMorph(state.playing, 24.dp, Color.White)
+                        }
+                    }
+                }
                 Column(Modifier.weight(1f)) {
                     Text(audio.title.ifBlank { audio.fileName }, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (audio.performer.isNotBlank()) Text(audio.performer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -671,6 +683,7 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
     var open by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
     var forwarding by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val path = audio.audio.local.path.takeIf { audio.audio.local.isDownloadingCompleted && it.isNotEmpty() }
@@ -685,15 +698,9 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
                     open = false
                     forwarding = true
                 }
-                MenuRow(Icons.Rounded.Download, stringResource(R.string.player_save_music), 1, 2, enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MenuRow(Icons.Rounded.Download, stringResource(R.string.player_save_to), 1, 2, trailing = true) {
                     open = false
-                    scope.launch {
-                        val file = withContext(Dispatchers.IO) {
-                            path ?: runCatching { graph.td.send(TdApi.DownloadFile(audio.audio.id, 32, 0, 0, true)).local.path }.getOrNull()
-                        } ?: return@launch
-                        val ok = withContext(Dispatchers.IO) { saveToMusic(context, File(file), name, audio.mimeType) }
-                        if (ok) android.widget.Toast.makeText(context, savedText, android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    saving = true
                 }
             }
             Spacer(Modifier.height(MenuDefaults.GroupSpacing))
@@ -739,19 +746,84 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
         )
     }
     if (details) TrackDetails(audio, path, name, state.sampleRate) { details = false }
+    if (saving) {
+        SaveToSheet(
+            canMusic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
+            inProfile = saved,
+            onDismiss = { saving = false },
+            onMusic = {
+                saving = false
+                scope.launch {
+                    val file = withContext(Dispatchers.IO) {
+                        path ?: runCatching { graph.td.send(TdApi.DownloadFile(audio.audio.id, 32, 0, 0, true)).local.path }.getOrNull()
+                    } ?: return@launch
+                    val ok = withContext(Dispatchers.IO) { saveToMusic(context, File(file), name, audio.mimeType) }
+                    if (ok) android.widget.Toast.makeText(context, savedText, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSaved = {
+                saving = false
+                scope.launch {
+                    val me = graph.store.snapshot.value.meId.takeIf { it != 0L } ?: runCatching { graph.td.send(TdApi.GetMe()).id }.getOrNull() ?: return@launch
+                    runCatching {
+                        graph.td.send(TdApi.SendMessage().apply {
+                            chatId = me
+                            inputMessageContent = TdApi.InputMessageAudio().apply {
+                                this.audio = audio.toInput()
+                                caption = TdApi.FormattedText("", emptyArray())
+                            }
+                        })
+                    }
+                }
+            },
+            onProfile = {
+                saving = false
+                if (!saved) graph.music.toggleProfile(audio)
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, index: Int, count: Int, enabled: Boolean = true, error: Boolean = false, onClick: () -> Unit) {
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, index: Int, count: Int, enabled: Boolean = true, error: Boolean = false, trailing: Boolean = false, onClick: () -> Unit) {
     val tint = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     DropdownMenuItem(
-        text = { Text(label, color = tint) },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = tint, modifier = Modifier.weight(1f))
+                if (trailing) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
         leadingIcon = { Icon(icon, null, tint = tint) },
         enabled = enabled,
         shape = MenuDefaults.itemShape(index, count).shape,
         onClick = onClick,
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SaveToSheet(canMusic: Boolean, inProfile: Boolean, onDismiss: () -> Unit, onMusic: () -> Unit, onSaved: () -> Unit, onProfile: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(stringResource(R.string.player_save_to), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        val rows = listOf(
+            Triple(Icons.Rounded.Download, R.string.player_save_music_folder, onMusic.takeIf { canMusic }),
+            Triple(Icons.Rounded.Bookmark, R.string.player_save_saved, onSaved),
+            Triple(Icons.Rounded.Favorite, R.string.player_add_profile, onProfile.takeIf { !inProfile }),
+        )
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+            rows.forEachIndexed { index, (icon, label, action) ->
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { action?.invoke() },
+                    enabled = action != null,
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, rows.size),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    leadingContent = { Icon(icon, null) },
+                ) { Text(stringResource(label)) }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

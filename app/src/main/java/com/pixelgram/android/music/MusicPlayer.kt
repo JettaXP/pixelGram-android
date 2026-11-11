@@ -209,13 +209,34 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         }
     }
 
+    private var fadeJob: Job? = null
+
     fun toggle() {
         if (stateFlow.value.track == null) return
-        if (exo.isPlaying) exo.pause() else {
+        fadeJob?.cancel()
+        if (exo.playWhenReady && exo.playbackState != Player.STATE_ENDED) {
+            fadeJob = main.launch {
+                fade(exo.volume, 0f)
+                exo.pause()
+                exo.volume = 1f
+            }
+        } else {
             if (exo.playbackState == Player.STATE_ENDED) exo.seekTo(0)
+            exo.volume = 0f
             exo.play()
+            fadeJob = main.launch { fade(0f, 1f) }
         }
     }
+
+    private suspend fun fade(from: Float, to: Float) {
+        val steps = FadeMs / FadeTickMs
+        for (i in 1..steps) {
+            exo.volume = from + (to - from) * i / steps
+            delay(FadeTickMs.toLong())
+        }
+        exo.volume = to
+    }
+
 
     fun next() {
         when {
@@ -323,6 +344,8 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 private const val ScrubForwardStepMs = 400L
 private const val ScrubBackStepMs = 300L
 private const val ScrubTickMs = 100L
+private const val FadeMs = 240
+private const val FadeTickMs = 16
 
 fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(
     audio.remote?.uniqueId?.takeIf { it.isNotBlank() }?.let { "u:$it" },

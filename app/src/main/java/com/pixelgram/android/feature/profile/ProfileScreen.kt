@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.ui.graphics.toArgb
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -143,10 +144,18 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             }
             full?.firstProfileAudio?.let { audio ->
                 Spacer(Modifier.height(16.dp))
+                val playlist = stringResource(R.string.player_playlist_of, playlistName(user))
                 ProfileMusicCard(audio) {
-                    scope.launch {
-                        val all = runCatching { graph.td.send(TdApi.GetUserProfileAudios(userId, 0, 100)).audios.toList() }.getOrNull()
-                        graph.music.play(all?.takeIf { it.isNotEmpty() } ?: listOf(audio), 0, user?.name)
+                    com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Queue
+                    val current = graph.music.state.value
+                    if (current.source == playlist && current.track != null) {
+                        com.pixelgram.android.feature.player.FullPlayer.open = true
+                    } else {
+                        scope.launch {
+                            val all = runCatching { graph.td.send(TdApi.GetUserProfileAudios(userId, 0, 100)).audios.toList() }.getOrNull()
+                            graph.music.play(all?.takeIf { it.isNotEmpty() } ?: listOf(audio), 0, playlist)
+                            com.pixelgram.android.feature.player.FullPlayer.open = true
+                        }
                     }
                 }
             }
@@ -231,27 +240,42 @@ private fun RowScope.ProfileAction(icon: androidx.compose.ui.graphics.vector.Ima
 private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
     val graph = com.pixelgram.android.LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
-    val coverId = audio.albumCoverThumbnail?.file?.id ?: 0
+    val covers by graph.covers.found.collectAsState()
+    val coverId = audio.albumCoverThumbnail?.file?.id ?: audio.externalAlbumCovers?.maxByOrNull { it.width }?.file?.id ?: 0
     LaunchedEffect(coverId) { if (coverId != 0) graph.store.requestFileAsync(coverId) }
-    val cover: Any? = snapshot.files[coverId]?.let { java.io.File(it) } ?: audio.albumCoverMinithumbnail?.data
+    val path = snapshot.files[coverId] ?: graph.covers.key(audio)?.let { covers[it] }
+    val cover: Any? = path?.let { java.io.File(it) } ?: audio.albumCoverMinithumbnail?.data
+    val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+    val scheme by androidx.compose.runtime.produceState<androidx.compose.material3.ColorScheme?>(null, path, dark) {
+        value = path?.let {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.pixelgram.android.feature.player.coverPalette(it) }.getOrNull()
+                    ?.let { palette -> (palette.getOrNull(3) ?: palette.first()).let { seed -> com.pixelgram.android.feature.player.schemeFromSeed(seed.toArgb(), dark) } }
+            }
+        }
+    }
+    val container by androidx.compose.animation.animateColorAsState(scheme?.primaryContainer ?: MaterialTheme.colorScheme.primaryContainer, label = "card")
+    val content by androidx.compose.animation.animateColorAsState(scheme?.onPrimaryContainer ?: MaterialTheme.colorScheme.onPrimaryContainer, label = "card-content")
     androidx.compose.material3.Card(
         onClick = onClick,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = container, contentColor = content),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
         androidx.compose.material3.ListItem(
-            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            colors = androidx.compose.material3.ListItemDefaults.colors(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                headlineColor = content,
+                supportingColor = content.copy(alpha = 0.8f),
+                overlineColor = content.copy(alpha = 0.8f),
+            ),
             leadingContent = {
                 Box(
-                    Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(content.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center,
                 ) {
+                    Icon(Icons.Rounded.MusicNote, null, tint = content)
                     if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp))
-                    else Icon(Icons.Rounded.MusicNote, null)
                 }
             },
             overlineContent = { Text(stringResource(R.string.profile_music)) },
@@ -261,7 +285,12 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
             } else {
                 null
             },
-            trailingContent = { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(32.dp)) },
         )
     }
+}
+
+internal fun playlistName(user: com.pixelgram.android.td.UserInfo?): String {
+    if (user == null) return ""
+    val words = (user.firstName.split(' ') + user.lastName.split(' ')).map { it.trim() }.filter { word -> word.any { it.isLetterOrDigit() } }
+    return words.firstOrNull() ?: user.name
 }

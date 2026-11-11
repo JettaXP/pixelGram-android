@@ -307,4 +307,8 @@
     <string name="new_channel_name">Название канала</string>
     <string name="new_chat_description">Описание (необязательно)</string>
     <string name="new_chat_create">Создать</string>
+    <string name="player_playlist_of">Плейлист %1$s</string>
+    <string name="player_save_to">Сохранить в</string>
+    <string name="player_save_music_folder">Папку «Музыка»</string>
+    <string name="player_save_saved">Избранное</string>
 </resources>

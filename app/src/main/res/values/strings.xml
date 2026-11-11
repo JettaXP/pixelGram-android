@@ -308,4 +308,8 @@
     <string name="new_channel_name">Channel name</string>
     <string name="new_chat_description">Description (optional)</string>
     <string name="new_chat_create">Create</string>
+    <string name="player_playlist_of">%1$s\'s Playlist</string>
+    <string name="player_save_to">Save to</string>
+    <string name="player_save_music_folder">Music folder</string>
+    <string name="player_save_saved">Saved Messages</string>
 </resources>
