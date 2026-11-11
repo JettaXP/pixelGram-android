@@ -8,6 +8,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -44,6 +49,7 @@ class Navigator(private val stack: MutableList<NavKey>) {
 fun AppNavigation(graph: AppGraph) {
     val stack = rememberNavBackStack(MainKey)
     val navigator = Navigator(stack)
+    val gesture = rememberBackGesture()
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
     NavDisplay(
         backStack = stack,
@@ -54,9 +60,14 @@ fun AppNavigation(graph: AppGraph) {
         popTransitionSpec = {
             fadeIn(tween(200)) togetherWith slideOutHorizontally(tween(320)) { it }
         },
-        predictivePopTransitionSpec = {
-            fadeIn(tween(200)) togetherWith (scaleOut(targetScale = 0.9f) + slideOutHorizontally { it / 2 } + fadeOut())
+        predictivePopTransitionSpec = { edge ->
+            val sign = if (edge == androidx.navigationevent.NavigationEvent.EDGE_RIGHT) -1 else 1
+            fadeIn(tween(200)) togetherWith (scaleOut(targetScale = BackScale) + slideOutHorizontally { it / 5 * sign } + fadeOut(tween(220, delayMillis = 80)))
         },
+        entryDecorators = listOf(
+            androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator(),
+            remember(gesture) { BackFollowDecorator(gesture) { stack.lastOrNull() } },
+        ),
         entryProvider = entryProvider {
             entry<MainKey> { MainShell(graph, navigator) }
             entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator) }
@@ -72,3 +83,52 @@ fun AppNavigation(graph: AppGraph) {
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
     }
 }
+
+class BackGesture {
+    var progress by androidx.compose.runtime.mutableFloatStateOf(0f)
+    var startY by androidx.compose.runtime.mutableFloatStateOf(Float.NaN)
+    var touchY by androidx.compose.runtime.mutableFloatStateOf(Float.NaN)
+    val active: Boolean get() = progress > 0f && !startY.isNaN()
+}
+
+@Composable
+private fun rememberBackGesture(): BackGesture {
+    val gesture = remember { BackGesture() }
+    val dispatcher = androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
+    androidx.compose.runtime.LaunchedEffect(dispatcher) {
+        dispatcher?.transitionState?.collect { state ->
+            if (state is androidx.navigationevent.NavigationEventTransitionState.InProgress) {
+                val event = state.latestEvent
+                if (gesture.startY.isNaN()) gesture.startY = event.touchY
+                gesture.touchY = event.touchY
+                gesture.progress = event.progress
+            } else {
+                gesture.progress = 0f
+                gesture.startY = Float.NaN
+                gesture.touchY = Float.NaN
+            }
+        }
+    }
+    return gesture
+}
+
+private class BackFollowDecorator(private val gesture: BackGesture, private val top: () -> NavKey?) : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
+    decorate = { entry ->
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.graphicsLayer {
+                if (entry.contentKey == top()?.toString() && gesture.active) {
+                    val shift = (gesture.touchY - gesture.startY) * FollowShare
+                    val limit = size.height * FollowLimit
+                    translationY = shift.coerceIn(-limit, limit) * (gesture.progress * 4f).coerceAtMost(1f)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape((CornerMax * (gesture.progress * 3f).coerceAtMost(1f)).dp)
+                    clip = true
+                }
+            },
+        ) { entry.Content() }
+    },
+)
+
+private const val BackScale = 0.88f
+private const val FollowShare = 0.35f
+private const val FollowLimit = 0.08f
+private const val CornerMax = 28f
