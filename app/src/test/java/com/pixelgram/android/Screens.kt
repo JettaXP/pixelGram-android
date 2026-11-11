@@ -10,6 +10,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.settings.ThemeMode
@@ -36,7 +39,7 @@ class Screens {
         return graph
     }
 
-    private fun shoot(name: String, graph: AppGraph = graph(), start: List<androidx.navigation3.runtime.NavKey> = listOf(com.pixelgram.android.nav.MainKey), before: (() -> Unit)? = null) {
+    private fun shoot(name: String, graph: AppGraph = graph(), start: List<androidx.navigation3.runtime.NavKey> = listOf(com.pixelgram.android.nav.MainKey), popup: Boolean = false, before: (() -> Unit)? = null) {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             val appearance by graph.appearance.state.collectAsState()
@@ -49,7 +52,8 @@ class Screens {
         repeat(30) { rule.mainClock.advanceTimeBy(50) }
         val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use {
-            rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+            val node = if (popup) rule.onNode(androidx.compose.ui.test.isRoot() and androidx.compose.ui.test.hasAnyDescendant(androidx.compose.ui.test.hasText("Reply"))) else rule.onRoot()
+            node.captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
 
@@ -70,7 +74,16 @@ class Screens {
         File(dir, "keys.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    @Test fun chat() {
+    @Test fun chat() = chatScene("chat")
+
+    @Test fun messageMenu() = chatScene("message_menu", popup = true) {
+        val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
+        node.performTouchInput { down(center) }
+        rule.mainClock.advanceTimeBy(900)
+        node.performTouchInput { up() }
+    }
+
+    private fun chatScene(name: String, popup: Boolean = false, action: (() -> Unit)? = null) {
         val graph = graph()
         val now = (System.currentTimeMillis() / 1000).toInt()
         fun message(id: Long, out: Boolean, text: String, reply: Long = 0) = TdApi.Message().apply {
@@ -149,7 +162,7 @@ class Screens {
             local = TdApi.LocalFile().apply { isDownloadingActive = true; downloadedSize = 21_000_000 }
             remote = TdApi.RemoteFile()
         }))
-        shoot("chat", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2))) { repeat(10) { Thread.sleep(300); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); rule.mainClock.advanceTimeBy(50) } }
+        shoot(name, graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2)), popup) { action?.invoke(); repeat(10) { Thread.sleep(300); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); rule.mainClock.advanceTimeBy(50) } }
     }
 
     @Test fun settingsTab() = shoot("settings_tab") { rule.onNodeWithContentDescription("Settings").performClick() }

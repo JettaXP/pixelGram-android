@@ -8,6 +8,20 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.ui.draw.blur
+import androidx.compose.material.icons.rounded.FormatClear
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.FormatStrikethrough
+import androidx.compose.material.icons.rounded.FormatUnderlined
+import androidx.compose.material.icons.rounded.FormatItalic
+import androidx.compose.material.icons.rounded.FormatBold
+import androidx.compose.material.icons.rounded.TextFormat
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material.icons.rounded.FormatQuote
@@ -164,6 +178,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     val saved = privateUserId != 0L && privateUserId == snapshot.meId
     var viewer by remember { mutableStateOf<Pair<List<UiMessage>, Int>?>(null) }
     var menuFor by remember { mutableStateOf<UiMessage?>(null) }
+    var menuAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
     var deleting by remember { mutableStateOf<UiMessage?>(null) }
     val appearance by graph.appearance.state.collectAsState()
@@ -355,7 +371,10 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                             onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) },
                                         )
                                     },
-                                    onLongPress = { menuFor = message },
+                                    onLongPress = { rect ->
+                                        menuAnchor = rect
+                                        menuFor = message
+                                    },
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
                                     onReact = { emoji -> controller.react(message, emoji) },
                                     onPlayAudio = { audio ->
@@ -381,14 +400,18 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         PhotoViewer(list, index, snapshot.files, graph.store::requestFileAsync) { viewer = null }
     }
     menuFor?.let { message ->
-        MessageActions(
+        MessageMenu(
             message = message,
+            anchor = menuAnchor,
             controller = controller,
+            quick = listOf(appearance.doubleTapEmoji) + QuickReactions.filter { it != appearance.doubleTapEmoji },
             onDismiss = { menuFor = null },
             onForward = { forwarding = message },
             onDelete = { deleting = message },
+            onSelect = { selecting = message },
         )
     }
+    selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
     forwarding?.let { message ->
         com.pixelgram.android.ui.components.ChatPickerSheet(
             onPick = { target ->
@@ -521,7 +544,7 @@ internal fun MessageBubble(
     onOpenPhoto: (List<UiMessage>, Int) -> Unit,
     reply: UiMessage?,
     replySender: String?,
-    onLongPress: () -> Unit = {},
+    onLongPress: (androidx.compose.ui.geometry.Rect) -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onPlayAudio: (TdApi.Audio) -> Unit = {},
     onReact: (String) -> Unit = {},
@@ -530,6 +553,7 @@ internal fun MessageBubble(
     reactor: (@Composable (Long, androidx.compose.ui.unit.Dp) -> Unit)? = null,
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
+    var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val big = prefs.bubbleRadius.dp
     val small = prefs.bubbleTailRadius.dp
     val shape = if (message.outgoing) {
@@ -557,7 +581,11 @@ internal fun MessageBubble(
             shape = shape,
             color = container,
             contentColor = onContainer,
-            modifier = Modifier.widthIn(max = 320.dp).clip(shape).combinedClickable(onClick = {}, onLongClick = onLongPress, onDoubleClick = onDoubleTap),
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .onGloballyPositioned { bounds = it.boundsInWindow() }
+                .clip(shape)
+                .combinedClickable(onClick = {}, onLongClick = { onLongPress(bounds) }, onDoubleClick = onDoubleTap),
         ) {
             Column(Modifier.padding(4.dp)) {
                 if (senderName != null) {
@@ -951,7 +979,11 @@ private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, Str
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController) {
-    var text by rememberSaveable { mutableStateOf("") }
+    var draft by remember { mutableStateOf(RichDraft()) }
+    val text = draft.text
+    var selectionMenu by remember { mutableStateOf<SelectionMenu?>(null) }
+    var linking by remember { mutableStateOf(false) }
+    val toolbar = remember { SelectionToolbar { selectionMenu = it } }
     var attach by remember { mutableStateOf(false) }
     var emoji by remember { mutableStateOf(false) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -960,7 +992,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     if (attach) AttachSheet(controller, onPhotos = {
         attach = false
     }) { attach = false }
-    LaunchedEffect(editing?.id) { if (editing != null) text = editing.text }
+    LaunchedEffect(editing?.id) { if (editing != null) draft = RichDraft.of(editing.text, editing.entities) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -968,7 +1000,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         val caption = text
-        text = ""
+        draft = RichDraft()
         scope.launch {
             val paths = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 uris.mapIndexedNotNull { index, uri ->
@@ -995,7 +1027,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         IconButton(onClick = {
                             if (editing != null) {
                                 controller.startEdit(null)
-                                text = ""
+                                draft = RichDraft()
                             } else {
                                 controller.reply(null)
                             }
@@ -1013,9 +1045,13 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
                         }
+                        val accent = MaterialTheme.colorScheme.primary
+                        val onSurface = MaterialTheme.colorScheme.onSurface
+                        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalTextToolbar provides toolbar) {
                         androidx.compose.foundation.text.BasicTextField(
-                            value = text,
-                            onValueChange = { text = it },
+                            value = draft.value,
+                            onValueChange = { draft = draft.edit(it) },
+                            visualTransformation = remember(draft.entities, accent, onSurface) { DraftStyles(draft.entities, accent, onSurface) },
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                             maxLines = 6,
@@ -1030,6 +1066,24 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                 }
                             },
                         )
+                        }
+                        selectionMenu?.let { menu ->
+                            FormatPopup(
+                                menu = menu,
+                                draft = draft,
+                                onFormat = { format ->
+                                    if (format == Format.Link) linking = true else draft = draft.toggle(format)
+                                },
+                                onClear = { draft = draft.clearFormatting() },
+                                onDismiss = { selectionMenu = null },
+                            )
+                        }
+                        if (linking) {
+                            LinkDialog(onDismiss = { linking = false }) { url ->
+                                linking = false
+                                draft = draft.toggle(Format.Link, url)
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 if (emoji) {
@@ -1057,8 +1111,9 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 val corner by androidx.compose.animation.core.animateDpAsState(if (ready) 18.dp else 28.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "send")
                 FilledIconButton(
                     onClick = {
-                        if (editing != null) controller.submitEdit(text) else controller.send(text)
-                        text = ""
+                        val formatted = draft.formatted()
+                        if (editing != null) controller.submitEdit(formatted) else controller.send(formatted)
+                        draft = RichDraft()
                     },
                     enabled = ready,
                     shape = RoundedCornerShape(corner),
@@ -1074,7 +1129,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         val themed = android.view.ContextThemeWrapper(context, if (dark) com.google.android.material.R.style.Theme_Material3_Dark_NoActionBar else com.google.android.material.R.style.Theme_Material3_Light_NoActionBar)
                         androidx.emoji2.emojipicker.EmojiPickerView(themed).apply {
                             emojiGridColumns = 8
-                            setOnEmojiPickedListener { item -> text += item.emoji }
+                            setOnEmojiPickedListener { item -> draft = draft.insert(item.emoji) }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(EmojiPanelHeight),
@@ -1083,6 +1138,291 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
         }
     }
 }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun FormatPopup(menu: SelectionMenu, draft: RichDraft, onFormat: (Format) -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
+    var formatting by remember(menu) { mutableStateOf(false) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val gap = with(density) { 8.dp.roundToPx() }
+    val provider = remember(menu.rect) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): androidx.compose.ui.unit.IntOffset {
+                val x = (menu.rect.center.x - popupContentSize.width / 2f).toInt().coerceIn(gap, (windowSize.width - popupContentSize.width - gap).coerceAtLeast(gap))
+                val above = menu.rect.top.toInt() - popupContentSize.height - gap
+                val y = if (above >= gap) above else menu.rect.bottom.toInt() + gap
+                return androidx.compose.ui.unit.IntOffset(x, y)
+            }
+        }
+    }
+    androidx.compose.ui.window.Popup(popupPositionProvider = provider, onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shadowElevation = 6.dp,
+            tonalElevation = 2.dp,
+        ) {
+            val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+            androidx.compose.animation.AnimatedContent(
+                formatting,
+                transitionSpec = {
+                    (fadeIn(fade) togetherWith fadeOut(fade))
+                        .using(androidx.compose.animation.SizeTransform(clip = false))
+                },
+                label = "format-menu",
+            ) { open ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                    if (!open) {
+                        menu.cut?.let { cut -> MenuText(stringResource(R.string.action_cut)) { cut(); onDismiss() } }
+                        menu.copy?.let { copy -> MenuText(stringResource(R.string.action_copy)) { copy(); onDismiss() } }
+                        menu.paste?.let { paste -> MenuText(stringResource(R.string.action_paste)) { paste(); onDismiss() } }
+                        if (!draft.value.selection.collapsed) {
+                            IconButton(onClick = { formatting = true }) { Icon(Icons.Rounded.TextFormat, stringResource(R.string.format_title)) }
+                        }
+                        menu.selectAll?.let { all -> MenuText(stringResource(R.string.action_select_all)) { all() } }
+                    } else {
+                        IconButton(onClick = { formatting = false }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
+                        val items = listOf(
+                            Format.Bold to Icons.Rounded.FormatBold,
+                            Format.Italic to Icons.Rounded.FormatItalic,
+                            Format.Underline to Icons.Rounded.FormatUnderlined,
+                            Format.Strike to Icons.Rounded.FormatStrikethrough,
+                            Format.Mono to Icons.Rounded.Code,
+                            Format.Spoiler to Icons.Rounded.BlurOn,
+                            Format.Quote to Icons.Rounded.FormatQuote,
+                            Format.Link to Icons.Rounded.Link,
+                        )
+                        items.forEach { (format, icon) ->
+                            androidx.compose.material3.IconToggleButton(
+                                checked = draft.has(format),
+                                onCheckedChange = { onFormat(format) },
+                                shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
+                                colors = androidx.compose.material3.IconButtonDefaults.iconToggleButtonColors(
+                                    checkedContainerColor = MaterialTheme.colorScheme.primary,
+                                    checkedContentColor = MaterialTheme.colorScheme.onPrimary,
+                                ),
+                                modifier = Modifier.size(40.dp),
+                            ) { Icon(icon, format.name) }
+                        }
+                        IconButton(onClick = onClear) { Icon(Icons.Rounded.FormatClear, stringResource(R.string.format_clear)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuText(label: String, onClick: () -> Unit) {
+    androidx.compose.material3.TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 12.dp)) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun LinkDialog(onDismiss: () -> Unit, onDone: (String) -> Unit) {
+    var url by remember { mutableStateOf("https://") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Link, null) },
+        title = { Text(stringResource(R.string.format_link)) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
+            )
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onDone(url.trim()) }, enabled = url.trim().length > 8) { Text(stringResource(R.string.action_done)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
+
+private val QuickReactions = listOf("❤", "👍", "👎", "🔥", "🥰", "👏", "😁", "🤔", "😢")
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun MessageMenu(
+    message: UiMessage,
+    anchor: androidx.compose.ui.geometry.Rect,
+    controller: ChatController,
+    quick: List<String>,
+    onDismiss: () -> Unit,
+    onForward: () -> Unit,
+    onDelete: () -> Unit,
+    onSelect: () -> Unit,
+) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val canEdit by androidx.compose.runtime.produceState(false, message.id) { value = controller.canEdit(message) }
+    val link by androidx.compose.runtime.produceState<String?>(null, message.id) { value = controller.link(message) }
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+    var closing by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val close: (() -> Unit) -> Unit = { action ->
+        closing = action
+        shown.targetState = false
+    }
+    LaunchedEffect(shown.currentState, shown.targetState) {
+        if (!shown.targetState && !shown.currentState) {
+            closing?.invoke()
+            onDismiss()
+        }
+    }
+    val copied = stringResource(R.string.profile_copied)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = remember {
+            object : androidx.compose.ui.window.PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: androidx.compose.ui.unit.IntRect,
+                    windowSize: androidx.compose.ui.unit.IntSize,
+                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                    popupContentSize: androidx.compose.ui.unit.IntSize,
+                ) = androidx.compose.ui.unit.IntOffset.Zero
+            }
+        },
+        onDismissRequest = { close {} },
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true, clippingEnabled = false),
+    ) {
+        val scrim by androidx.compose.animation.core.animateFloatAsState(if (shown.targetState) 0.4f else 0f, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "scrim")
+        androidx.compose.ui.layout.Layout(
+            content = {
+                Box(Modifier.background(Color.Black.copy(alpha = scrim)).clickable(indication = null, interactionSource = null) { close {} })
+                androidx.compose.animation.AnimatedVisibility(
+                    shown,
+                    enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.6f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (message.outgoing) 1f else 0f, 1f)),
+                    exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f),
+                ) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.widthIn(max = 320.dp),
+                        ) {
+                            items(quick.size) { i ->
+                                val emoji = quick[i]
+                                val chosen = message.reactions.any { it.emoji == emoji && it.chosen }
+                                Box(
+                                    Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(if (chosen) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                        .clickable { close { controller.react(message, emoji) } },
+                                    contentAlignment = Alignment.Center,
+                                ) { Text(emoji, fontSize = 24.sp) }
+                            }
+                        }
+                    }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    shown,
+                    enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.7f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (message.outgoing) 1f else 0f, 0f)),
+                    exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f),
+                ) {
+                    val rows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
+                        add(Triple(Icons.AutoMirrored.Rounded.Reply, context.getString(R.string.action_reply)) { close { controller.reply(message) } })
+                        if (message.text.isNotBlank()) {
+                            add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
+                            add(Triple(Icons.Rounded.SelectAll, context.getString(R.string.action_select_text)) { close(onSelect) })
+                        }
+                        link?.let { url ->
+                            add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) {
+                                close {
+                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
+                                    android.widget.Toast.makeText(context, copied, android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            })
+                        }
+                        if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
+                        add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
+                        add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
+                    }
+                    Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
+                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                            Column(Modifier.padding(vertical = 6.dp)) {
+                                rows.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                            }
+                        }
+                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                            Column(Modifier.padding(vertical = 6.dp)) {
+                                MenuEntry(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error) { close(onDelete) }
+                            }
+                        }
+                    }
+                }
+            },
+        ) { measurables, constraints ->
+            val loose = constraints.copy(minWidth = 0, minHeight = 0)
+            val full = measurables[0].measure(androidx.compose.ui.unit.Constraints.fixed(constraints.maxWidth, constraints.maxHeight))
+            val bar = measurables[1].measure(loose)
+            val menu = measurables[2].measure(loose)
+            val margin = with(density) { 12.dp.roundToPx() }
+            val gap = with(density) { 8.dp.roundToPx() }
+            val top = with(density) { 40.dp.roundToPx() }
+            val bottomLimit = constraints.maxHeight - margin
+            fun x(width: Int): Int {
+                val raw = if (message.outgoing) anchor.right.toInt() - width else anchor.left.toInt()
+                return raw.coerceIn(margin, (constraints.maxWidth - width - margin).coerceAtLeast(margin))
+            }
+            val menuBelow = anchor.bottom.toInt() + gap
+            val menuY: Int
+            val barY: Int
+            if (menuBelow + menu.height <= bottomLimit) {
+                menuY = menuBelow
+                barY = (anchor.top.toInt() - gap - bar.height).coerceAtLeast(top)
+            } else {
+                menuY = (minOf(anchor.top.toInt(), bottomLimit) - gap - menu.height).coerceAtLeast(top + bar.height + gap)
+                barY = menuY - gap - bar.height
+            }
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                full.place(0, 0)
+                bar.place(x(bar.width), barY)
+                menu.place(x(menu.width), menuY)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuEntry(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        Text(label, color = tint, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Composable
+private fun SelectTextDialog(message: UiMessage, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.action_select_text)) },
+        text = {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(message.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.verticalScroll(rememberScrollState()))
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } },
+    )
+}
+
+private val MenuWidth = 220.dp
+private val MenuGap = 8.dp
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -1152,6 +1492,7 @@ private fun DeleteDialog(message: UiMessage, controller: ChatController, private
 
 private val BigEmojiSize = 64.dp
 private val ReactorSize = 18.dp
+private val SpoilerBlur = 7.dp
 private const val ReactorAvatars = 4
 private const val HighlightMs = 1_400L
 private const val QuoteLines = 3
@@ -1274,14 +1615,31 @@ private fun PlainText(
     modifier: Modifier = Modifier,
     maxLines: Int = Int.MAX_VALUE,
 ) {
-    Text(
-        formatted(text, entities, link, content),
-        style = style,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        inlineContent = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) },
-        modifier = modifier,
-    )
+    val inline = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) }
+    val hasSpoiler = remember(entities) { entities.any { it.type is TdApi.TextEntityTypeSpoiler } }
+    if (!hasSpoiler) {
+        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, modifier = modifier)
+        return
+    }
+    var revealed by remember(text) { mutableStateOf(false) }
+    val blurSupported = android.os.Build.VERSION.SDK_INT >= 31
+    val radius by androidx.compose.animation.core.animateDpAsState(if (revealed) 0.dp else SpoilerBlur, MaterialTheme.motionScheme.slowEffectsSpec(), label = "spoiler")
+    Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
+        when {
+            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
+            !blurSupported -> Text(formatted(text, entities, link, content, SpoilerMode.Block), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
+            else -> {
+                Text(formatted(text, entities, link, content, SpoilerMode.Hidden), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
+                Text(
+                    formatted(text, entities, link, content, SpoilerMode.Only),
+                    style = style,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.blur(radius, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -1321,9 +1679,12 @@ private fun bigCustomEmoji(text: String, entities: List<TdApi.TextEntity>): List
     return emoji.map { e -> (e.type as TdApi.TextEntityTypeCustomEmoji).customEmojiId to text.substring(e.offset.coerceIn(0, text.length), (e.offset + e.length).coerceIn(0, text.length)) }
 }
 
-private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Color, content: Color): androidx.compose.ui.text.AnnotatedString =
+private enum class SpoilerMode { Block, Hidden, Only, Shown }
+
+private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Color, content: Color, spoiler: SpoilerMode = SpoilerMode.Block): androidx.compose.ui.text.AnnotatedString =
     androidx.compose.ui.text.buildAnnotatedString {
         append(text)
+        if (spoiler == SpoilerMode.Only) addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent), 0, text.length)
         for (entity in entities) {
             val start = entity.offset.coerceIn(0, text.length)
             val end = (entity.offset + entity.length).coerceIn(start, text.length)
@@ -1335,7 +1696,12 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 is TdApi.TextEntityTypeStrikethrough -> addStyle(androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough), start, end)
                 is TdApi.TextEntityTypeCode, is TdApi.TextEntityTypePre, is TdApi.TextEntityTypePreCode ->
                     addStyle(androidx.compose.ui.text.SpanStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, background = content.copy(alpha = 0.1f)), start, end)
-                is TdApi.TextEntityTypeSpoiler -> addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent, background = content.copy(alpha = 0.35f)), start, end)
+                is TdApi.TextEntityTypeSpoiler -> when (spoiler) {
+                    SpoilerMode.Block -> addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent, background = content.copy(alpha = 0.35f)), start, end)
+                    SpoilerMode.Hidden -> addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent), start, end)
+                    SpoilerMode.Only -> addStyle(androidx.compose.ui.text.SpanStyle(color = content), start, end)
+                    SpoilerMode.Shown -> addStyle(androidx.compose.ui.text.SpanStyle(background = content.copy(alpha = 0.08f)), start, end)
+                }
                 is TdApi.TextEntityTypeUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeTextUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeCustomEmoji -> addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)

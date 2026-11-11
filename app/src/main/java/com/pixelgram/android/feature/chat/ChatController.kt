@@ -228,24 +228,23 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         ui.value = ui.value.copy(editing = message, replyTo = null)
     }
 
-    fun submitEdit(text: String) {
+    fun submitEdit(formatted: TdApi.FormattedText) {
         val target = ui.value.editing ?: return
         ui.value = ui.value.copy(editing = null)
-        val body = text.trim()
-        if (body.isEmpty()) return
+        if (formatted.text.isEmpty()) return
         scope.launch {
             runCatching {
                 if (target.content is TdApi.MessageText) {
                     graph.td.send(TdApi.EditMessageText().apply {
                         chatId = this@ChatController.chatId
                         messageId = target.id
-                        inputMessageContent = TdApi.InputMessageText().apply { this.text = TdApi.FormattedText(body, emptyArray()) }
+                        inputMessageContent = TdApi.InputMessageText().apply { this.text = formatted }
                     })
                 } else {
                     graph.td.send(TdApi.EditMessageCaption().apply {
                         chatId = this@ChatController.chatId
                         messageId = target.id
-                        caption = TdApi.FormattedText(body, emptyArray())
+                        caption = formatted
                     })
                 }
             }
@@ -288,6 +287,14 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             }
         }
     }
+
+    suspend fun link(message: UiMessage): String? = runCatching {
+        graph.td.send(TdApi.GetMessageLink().apply {
+            chatId = this@ChatController.chatId
+            messageId = message.id
+            forAlbum = message.parts.size > 1
+        }).link
+    }.getOrNull()
 
     fun pin(message: UiMessage) {
         scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, true, false)) } }
@@ -338,9 +345,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
-    fun send(text: String) {
-        val body = text.trim()
-        if (body.isEmpty()) return
+    fun send(text: String) = send(TdApi.FormattedText(text.trim(), emptyArray()))
+
+    fun send(formatted: TdApi.FormattedText) {
+        if (formatted.text.isEmpty()) return
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
         scope.launch {
@@ -350,7 +358,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
                     inputMessageContent = TdApi.InputMessageText().apply {
-                        this.text = TdApi.FormattedText(body, emptyArray())
+                        this.text = formatted
                         clearDraft = true
                     }
                 })

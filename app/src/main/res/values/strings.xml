@@ -397,4 +397,13 @@
     <string name="cast_searching">Searching for devices…</string>
     <string name="cast_connected">Connected</string>
     <string name="cast_disconnect">Stop casting</string>
+    <string name="action_cut">Cut</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_select_all">Select all</string>
+    <string name="format_title">Formatting</string>
+    <string name="format_clear">Clear formatting</string>
+    <string name="format_link">Add link</string>
+    <string name="action_done">Done</string>
+    <string name="action_select_text">Select text</string>
+    <string name="action_copy_link">Copy link</string>
 </resources>
