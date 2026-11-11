@@ -504,6 +504,4 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
-    <string name="crash_title">pixelGram crashed last time</string>
-    <string name="crash_text">Here is what happened. Send it to the developer so the bug can be fixed.</string>
 </resources>

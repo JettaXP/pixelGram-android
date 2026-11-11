@@ -45,19 +45,22 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
         if (now - lastRefresh < RefreshMs) return
         lastRefresh = now
         scope.launch(Dispatchers.IO) {
-            runCatching { fetch("$Base/index.json") }.getOrNull()?.let { text ->
-                indexFile.writeText(text)
-                parseIndex(text)
-            }
-            for (url in SupporterUrls) {
-                val text = runCatching { fetch(url) }.getOrNull()?.takeIf { it.contains("\"supporters\"") } ?: continue
-                supportersFile.writeText(text)
-                supporterFlow.value = parseSupporters(text)
-                break
-            }
-            runCatching { fetch("$Base/badges.tsv") }.getOrNull()?.let { text ->
-                badgesFile.writeText(text)
-                badgeFlow.value = parseBadges(text)
+            runCatching {
+                runCatching { fetch("$Base/index.json") }.getOrNull()?.let { text ->
+                    indexFile.writeText(text)
+                    parseIndex(text)
+                }
+                for (url in SupporterUrls) {
+                    val text = runCatching { fetch(url) }.getOrNull()?.takeIf { it.contains("\"supporters\"") } ?: continue
+                    val parsed = runCatching { parseSupporters(text) }.getOrNull() ?: continue
+                    runCatching { supportersFile.writeText(text) }
+                    supporterFlow.value = parsed
+                    break
+                }
+                runCatching { fetch("$Base/badges.tsv") }.getOrNull()?.let { text ->
+                    badgesFile.writeText(text)
+                    badgeFlow.value = parseBadges(text)
+                }
             }
         }
     }
@@ -101,9 +104,9 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
     }.toMap()
 
     private fun parseSupporters(text: String): Supporters {
-        val block = Regex("\"supporters\"\\s*:\\s*\\{([^}]*)}").find(text)?.groupValues?.get(1).orEmpty()
+        val block = Regex("\"supporters\"\\s*:\\s*\\{([^\\}]*)\\}").find(text)?.groupValues?.get(1).orEmpty()
         val numbers = Regex("\"(\\d+)\"\\s*:\\s*(\\d+)").findAll(block).associate { it.groupValues[1].toLong() to it.groupValues[2].toInt() }
-        val list = Regex("\"custom\"\\s*:\\s*\\[([^]]*)]").find(text)?.groupValues?.get(1).orEmpty()
+        val list = Regex("\"custom\"\\s*:\\s*\\[([^\\]]*)\\]").find(text)?.groupValues?.get(1).orEmpty()
         val custom = Regex("(\\d+)").findAll(list).map { it.groupValues[1].toLong() }.toSet()
         return Supporters(numbers, custom)
     }
