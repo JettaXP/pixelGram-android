@@ -49,6 +49,7 @@ data class PlayerState(
     val direction: Int = 1,
     val source: String? = null,
     val sampleRate: Int = 0,
+    val scrubbing: Int = 0,
 )
 
 class MusicPlayer(private val context: Context, private val td: TdClient) {
@@ -61,8 +62,8 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     private var loadJob: Job? = null
     private var ticker: Job? = null
     private var controller: ListenableFuture<MediaController>? = null
-    private val profileFlow = MutableStateFlow<Set<Int>>(emptySet())
-    val profile: StateFlow<Set<Int>> = profileFlow.asStateFlow()
+    private val profileFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val profile: StateFlow<Map<String, Int>> = profileFlow.asStateFlow()
     private var meId = 0L
 
     private val exo: ExoPlayer by lazy {
@@ -174,21 +175,25 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     }
 
     fun loadProfile(me: Long) {
-        if (me == 0L) return
-        meId = me
         main.launch {
-            val list = runCatching { td.send(TdApi.GetUserProfileAudios(me, 0, 100)).audios.toList() }.getOrNull() ?: return@launch
-            profileFlow.value = list.map { it.audio.id }.toSet()
+            val id = me.takeIf { it != 0L } ?: runCatching { td.send(TdApi.GetMe()).id }.getOrNull() ?: return@launch
+            meId = id
+            val list = runCatching { td.send(TdApi.GetUserProfileAudios(id, 0, 100)).audios.toList() }.getOrNull() ?: return@launch
+            profileFlow.value = list.flatMap { audio -> audio.profileKeys().map { it to audio.audio.id } }.toMap()
         }
     }
 
+    fun isSaved(audio: TdApi.Audio?, profile: Map<String, Int> = profileFlow.value): Boolean =
+        audio != null && audio.profileKeys().any { it in profile }
+
     fun toggleProfile(audio: TdApi.Audio) {
-        val id = audio.audio.id
-        val saved = id in profileFlow.value
-        profileFlow.update { if (saved) it - id else it + id }
+        val keys = audio.profileKeys()
+        val before = profileFlow.value
+        val savedId = keys.firstNotNullOfOrNull { before[it] }
+        profileFlow.value = if (savedId != null) before - keys.toSet() else before + keys.map { it to audio.audio.id }
         main.launch {
-            runCatching { td.send(if (saved) TdApi.RemoveProfileAudio(id) else TdApi.AddProfileAudio(audio.toInput())) }
-                .onFailure { profileFlow.update { if (saved) it + id else it - id } }
+            runCatching { td.send(if (savedId != null) TdApi.RemoveProfileAudio(savedId) else TdApi.AddProfileAudio(audio.toInput())) }
+                .onFailure { profileFlow.value = before }
         }
     }
 
@@ -232,19 +237,20 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
     fun scrub(direction: Int) {
         scrubJob?.cancel()
-        when {
-            direction > 0 -> exo.setPlaybackSpeed(ScrubForward)
-            direction < 0 -> scrubJob = main.launch {
-                while (isActive) {
-                    val target = (exo.currentPosition - ScrubBackStepMs).coerceAtLeast(0)
-                    exo.seekTo(target)
-                    stateFlow.update { it.copy(position = target) }
-                    delay(ScrubTickMs)
-                }
+        stateFlow.update { it.copy(scrubbing = direction) }
+        if (direction == 0) return
+        scrubJob = main.launch {
+            while (isActive) {
+                val duration = exo.duration.takeIf { it > 0 } ?: stateFlow.value.duration
+                val step = if (direction > 0) ScrubForwardStepMs else -ScrubBackStepMs
+                val target = (exo.currentPosition + step).coerceIn(0, duration.coerceAtLeast(0))
+                exo.seekTo(target)
+                stateFlow.update { it.copy(position = target) }
+                delay(ScrubTickMs)
             }
-            else -> exo.setPlaybackSpeed(stateFlow.value.speed)
         }
     }
+
 
     fun stop() {
         loadJob?.cancel()
@@ -260,6 +266,10 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         index = target
         val audio = queue[target]
         loadJob?.cancel()
+        scrub(0)
+        ticker?.cancel()
+        exo.stop()
+        exo.clearMediaItems()
         val cover = audio.albumCoverThumbnail?.file
         stateFlow.update {
             it.copy(
@@ -310,9 +320,14 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     }
 }
 
-private const val ScrubForward = 4f
+private const val ScrubForwardStepMs = 400L
 private const val ScrubBackStepMs = 300L
 private const val ScrubTickMs = 100L
+
+fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(
+    audio.remote?.uniqueId?.takeIf { it.isNotBlank() }?.let { "u:$it" },
+    "m:${performer.trim().lowercase()}|${title.trim().lowercase()}|$duration".takeIf { title.isNotBlank() },
+)
 
 fun TdApi.Audio.toInput(): TdApi.InputAudio = TdApi.InputAudio().also {
     it.audio = TdApi.InputFileRemote(audio.remote.id)

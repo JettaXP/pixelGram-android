@@ -92,7 +92,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = music::previous) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_previous)) }
-                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                                 if (state.loading) {
                                     LoadingIndicator(Modifier.size(48.dp))
                                 } else {
@@ -100,11 +100,11 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
                                     val amplitude by androidx.compose.animation.core.animateFloatAsState(if (state.playing) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "wave")
                                     CircularWavyProgressIndicator(
                                         progress = { progress },
-                                        modifier = Modifier.size(48.dp),
+                                        modifier = Modifier.size(56.dp),
                                         amplitude = { amplitude },
                                         waveSpeed = if (state.playing) androidx.compose.material3.WavyProgressIndicatorDefaults.CircularWavelength else 0.dp,
                                     )
-                                    FilledTonalIconButton(onClick = music::toggle, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(38.dp)) {
+                                    FilledTonalIconButton(onClick = music::toggle, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(36.dp)) {
                                         Icon(
                                             if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                             stringResource(if (state.playing) R.string.player_pause else R.string.player_play),

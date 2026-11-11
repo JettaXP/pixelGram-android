@@ -195,6 +195,7 @@ internal fun PlayPauseMorph(playing: Boolean, size: Dp, tint: Color = LocalConte
 @Composable
 internal fun WavySeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modifier, playing: Boolean = true, durationMs: Long = 0) {
     var drag by remember { mutableStateOf<Float?>(null) }
+    val seek by androidx.compose.runtime.rememberUpdatedState(onSeek)
     val amplitude = remember { Animatable(if (playing) 1f else 0f) }
     var phase by remember { mutableFloatStateOf(0f) }
     val active = playing && drag == null
@@ -232,7 +233,7 @@ internal fun WavySeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Mod
                                 change.consume()
                                 if (!change.pressed) break
                             }
-                            onSeek(at)
+                            seek(at)
                             drag = null
                         }
                     }

@@ -116,6 +116,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.pixelgram.android.AppGraph
@@ -228,6 +230,8 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
         Surface(color = colors.surfaceContainerLow, modifier = Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
                 AmbientBackdrop(palette?.take(3), state.playing, Modifier.fillMaxSize())
+                androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) {
+                val shared = this
                 Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { FullPlayer.open = false }) {
@@ -253,7 +257,7 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
                                 }
                             }
                         }
-                        PlayerMenu(graph, state, audio?.audio?.id?.let { it in profile } == true)
+                        PlayerMenu(graph, state, music.isSaved(audio, profile))
                     }
                     val enterFade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
                     val enterScale = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
@@ -270,6 +274,7 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
                     ) { view ->
                         when (view) {
                             PlayerView.Cover -> AnimatedContent(
+                                modifier = with(shared) { Modifier.sharedBounds(rememberSharedContentState(CoverKey), this@AnimatedContent, boundsTransform = { _, _ -> spring(dampingRatio = 0.68f, stiffness = 260f) }, resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.RemeasureToBounds) },
                                 targetState = audio,
                                 contentKey = { it?.audio?.id },
                                 transitionSpec = {
@@ -292,7 +297,12 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
                         val slot by animateDpAsState(if (FullPlayer.view != PlayerView.Cover) 68.dp else 0.dp, spring(dampingRatio = 0.68f, stiffness = 260f), label = "slot")
                         Box(Modifier.width(slot).height(56.dp)) {
                             androidx.compose.animation.AnimatedVisibility(FullPlayer.view != PlayerView.Cover, enter = fadeIn(), exit = fadeOut()) {
-                                SmallCover(coverPath, state.track?.minithumb, 56.dp)
+                                SmallCover(
+                                    coverPath,
+                                    state.track?.minithumb,
+                                    56.dp,
+                                    with(shared) { Modifier.sharedBounds(rememberSharedContentState(CoverKey), this@AnimatedVisibility, boundsTransform = { _, _ -> spring(dampingRatio = 0.68f, stiffness = 260f) }, resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.RemeasureToBounds) },
+                                )
                             }
                         }
                         AnimatedContent(
@@ -314,7 +324,7 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
                             }
                         }
                         if (audio != null) {
-                            val saved = audio.audio.id in profile
+                            val saved = music.isSaved(audio, profile)
                             val pop by animateFloatAsState(if (saved) 1f else 0.85f, spring(dampingRatio = 0.4f, stiffness = 600f), label = "heart")
                             IconToggleButton(checked = saved, onCheckedChange = { music.toggleProfile(audio) }) {
                                 Icon(
@@ -358,15 +368,26 @@ private fun PlayerScreen(graph: AppGraph, state: PlayerState) {
                         )
                         IconButton(onClick = music::cycleRepeat) {
                             AnimatedContent(state.repeat, transitionSpec = { scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut() }, label = "repeat") { mode ->
-                                Icon(
-                                    if (mode == RepeatMode.One) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                                    stringResource(R.string.player_repeat),
-                                    tint = if (mode == RepeatMode.Off) colors.onSurfaceVariant else colors.primary,
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.Repeat,
+                                        stringResource(R.string.player_repeat),
+                                        tint = if (mode == RepeatMode.Off) colors.onSurfaceVariant else colors.primary,
+                                    )
+                                    if (mode == RepeatMode.One) {
+                                        Text(
+                                            "1",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black, fontSize = 9.sp),
+                                            color = colors.primary,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                     BottomRow(state, music::setSpeed)
+                }
+                ScrubPill(state.scrubbing, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 64.dp))
                 }
             }
         }
@@ -466,10 +487,10 @@ private val BlobSpots = listOf(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SmallCover(path: String?, mini: ByteArray?, size: androidx.compose.ui.unit.Dp) {
+private fun SmallCover(path: String?, mini: ByteArray?, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     val image: Any? = path?.let(::File) ?: mini
     Box(
-        Modifier.size(size).clip(if (image != null) RoundedCornerShape(16.dp) else MaterialShapes.Cookie12Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
+        modifier.size(size).clip(if (image != null) RoundedCornerShape(16.dp) else MaterialShapes.Cookie12Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(size / 2.4f))
@@ -798,6 +819,59 @@ private fun animatedScheme(target: ColorScheme): ColorScheme {
     )
 }
 
+@Composable
+private fun ScrubPill(direction: Int, modifier: Modifier) {
+    var shown by remember { mutableStateOf(1) }
+    if (direction != 0) shown = direction
+    AnimatedVisibility(
+        visible = direction != 0,
+        enter = scaleIn(spring(dampingRatio = 0.6f, stiffness = 500f), initialScale = 0.6f) + fadeIn(),
+        exit = scaleOut(targetScale = 0.8f) + fadeOut(),
+        modifier = modifier,
+    ) {
+        val colors = MaterialTheme.colorScheme
+        Surface(shape = androidx.compose.foundation.shape.CircleShape, color = colors.primary, contentColor = colors.onPrimary, shadowElevation = 6.dp) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                val backward = shown < 0
+                if (backward) Chevrons(true, colors.onPrimary)
+                Text(if (backward) "3x" else "4x", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                if (!backward) Chevrons(false, colors.onPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Chevrons(backward: Boolean, color: Color) {
+    val flow = androidx.compose.animation.core.rememberInfiniteTransition(label = "chevrons")
+    val phase by flow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(ChevronMs, easing = LinearEasing)), label = "phase")
+    androidx.compose.foundation.Canvas(Modifier.size(width = 26.dp, height = 18.dp)) {
+        val stroke = 2.6.dp.toPx()
+        val h = size.height
+        val step = size.width / 2.6f
+        for (k in 0..1) {
+            val order = if (backward) 1 - k else k
+            val wave = ((phase - order * 0.35f) % 1f + 1f) % 1f
+            val alpha = 0.3f + 0.7f * (1f - kotlin.math.abs(wave * 2f - 1f))
+            val x = step * 0.4f + k * step
+            val tip = if (backward) x else x + step * 0.8f
+            val tail = if (backward) x + step * 0.8f else x
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(tail, h * 0.15f)
+                lineTo(tip, h / 2f)
+                lineTo(tail, h * 0.85f)
+            }
+            drawPath(path, color.copy(alpha = alpha), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+    }
+}
+
+private const val ChevronMs = 700
+private const val CoverKey = "player-cover"
 private val QueueRow = 64.dp
 private const val GroupIdleAlpha = 0.55f
 private const val DismissShare = 0.2f
