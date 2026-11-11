@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.pixel
 
+import com.pixelgram.android.settings.DrawerEntry
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -356,6 +357,11 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
     SettingsGroup(stringResource(R.string.pixel_nav_tabs)) {
         NavTabsEditor(settings.navTabs, settings.navOrder) { tabs, order -> update { it.copy(navTabs = tabs, navOrder = order) } }
     }
+    androidx.compose.animation.AnimatedVisibility(settings.showDrawer) {
+        SettingsGroup(stringResource(R.string.pixel_drawer_items)) {
+            DrawerEditor(settings.drawerItems, settings.drawerOrder) { items, order -> update { it.copy(drawerItems = items, drawerOrder = order) } }
+        }
+    }
     androidx.compose.animation.AnimatedVisibility(settings.navBarStyle == NavBarStyle.Expressive) {
         SettingsGroup(stringResource(R.string.pixel_capsule)) {
             CapsuleSlider(stringResource(R.string.pixel_capsule_inset), settings.capsuleInset, 4..20, SegmentPosition.Top) { v -> update { it.copy(capsuleInset = v) } }
@@ -540,15 +546,21 @@ private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun NavTabsEditor(enabled: List<MainTab>, saved: List<MainTab>, onChange: (List<MainTab>, List<MainTab>) -> Unit) {
-    val order = remember { androidx.compose.runtime.mutableStateListOf<MainTab>().apply { addAll(saved) } }
+private fun <T : Any> ReorderEditor(
+    enabled: List<T>,
+    saved: List<T>,
+    locked: T,
+    label: @Composable (T) -> String,
+    onChange: (List<T>, List<T>) -> Unit,
+) {
+    val order = remember { androidx.compose.runtime.mutableStateListOf<T>().apply { addAll(saved) } }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val gap = with(density) { androidx.compose.material3.ListItemDefaults.SegmentedGap.toPx() }
     var rowHeight by remember { mutableStateOf(with(density) { 72.dp.toPx() }) }
-    var dragging by remember { mutableStateOf<MainTab?>(null) }
+    var dragging by remember { mutableStateOf<T?>(null) }
     var offset by remember { mutableStateOf(0f) }
     val latestEnabled by androidx.compose.runtime.rememberUpdatedState(enabled)
-    val commit = { onChange(order.filter { it in latestEnabled || it == MainTab.Chats }, order.toList()) }
+    val commit = { onChange(order.filter { it in latestEnabled || it == locked }, order.toList()) }
     val spring = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
     Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
         order.forEachIndexed { index, item ->
@@ -613,7 +625,7 @@ private fun NavTabsEditor(enabled: List<MainTab>, saved: List<MainTab>, onChange
                     trailingContent = {
                         PixelSwitch(
                             checked = on,
-                            enabled = item != MainTab.Chats,
+                            enabled = item != locked,
                             onCheckedChange = { value ->
                                 val next = if (value) enabled + item else enabled - item
                                 onChange(order.filter { it in next }, order.toList())
@@ -621,12 +633,30 @@ private fun NavTabsEditor(enabled: List<MainTab>, saved: List<MainTab>, onChange
                         )
                     },
                 ) {
-                    Text(stringResource(item.label))
+                    Text(label(item))
                 }
             }
         }
     }
 }
+
+@Composable
+private fun NavTabsEditor(enabled: List<MainTab>, saved: List<MainTab>, onChange: (List<MainTab>, List<MainTab>) -> Unit) =
+    ReorderEditor(enabled, saved, MainTab.Chats, { stringResource(it.label) }, onChange)
+
+@Composable
+private fun DrawerEditor(enabled: List<DrawerEntry>, saved: List<DrawerEntry>, onChange: (List<DrawerEntry>, List<DrawerEntry>) -> Unit) =
+    ReorderEditor(enabled, saved, DrawerEntry.Settings, { stringResource(it.label) }, onChange)
+
+private val DrawerEntry.label: Int
+    get() = when (this) {
+        DrawerEntry.Saved -> R.string.drawer_saved
+        DrawerEntry.Archive -> R.string.drawer_archive
+        DrawerEntry.Contacts -> R.string.tab_contacts
+        DrawerEntry.Pixel -> R.string.pixel_settings
+        DrawerEntry.Settings -> R.string.tab_settings
+        DrawerEntry.Theme -> R.string.drawer_theme
+    }
 
 private val MainTab.label: Int
     get() = when (this) {

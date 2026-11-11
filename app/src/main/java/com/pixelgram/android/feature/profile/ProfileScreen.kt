@@ -115,6 +115,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
         if (userId != 0L) full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull()
     }
     val bio = full?.bio?.text.orEmpty()
+    val opener = com.pixelgram.android.nav.rememberLinkOpener(graph, navigator)
     val self = userId != 0L && userId == snapshot.meId
     val pickAvatar = rememberAvatarPicker(graph)
     val title = user?.name ?: chat?.title.orEmpty()
@@ -337,7 +338,19 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                                 },
                             )
                         }
-                        row == "bio" -> SettingsItem(bio, position, stringResource(R.string.profile_bio), Icons.Rounded.Info, pill = true, onLongClick = { copy(bio) })
+                        row == "bio" -> {
+                            val linkColor = MaterialTheme.colorScheme.primary
+                            val bioText = remember(full, linkColor) { full?.bio?.let { com.pixelgram.android.nav.linkedText(it, linkColor, opener) } }
+                            SettingsItem(
+                                bio,
+                                position,
+                                stringResource(R.string.profile_bio),
+                                Icons.Rounded.Info,
+                                pill = true,
+                                onLongClick = { copy(bio) },
+                                headlineContent = bioText?.let { { Text(it, color = MaterialTheme.colorScheme.onSurface) } },
+                            )
+                        }
                         row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, pill = true, onLongClick = { copy(userId.toString()) })
                         row == "birthday" -> SettingsItem(
                             listOfNotNull(birthday!!.day.toString(), java.text.DateFormatSymbols.getInstance().months[birthday.month - 1], birthday.year.takeIf { it > 0 }?.toString()).joinToString(" "),

@@ -83,10 +83,13 @@ import kotlin.math.tanh
 fun MiniPlayer(modifier: Modifier = Modifier) {
     val graph = LocalGraph.current
     val music = graph.music
-    val state by music.state.collectAsState()
+    val live by music.state.collectAsState()
+    val held = remember { arrayOf(live) }
+    if (live.track != null) held[0] = live
+    val state = if (live.track != null) live else held[0]
     val track = state.track
     AnimatedVisibility(
-        visible = track != null,
+        visible = live.track != null,
         enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
         exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
         modifier = modifier,

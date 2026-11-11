@@ -194,6 +194,8 @@
     <string name="pixel_capsule_inset">Отступ от края</string>
     <string name="pixel_capsule_spacing">Расстояние между вкладками</string>
     <string name="pixel_capsule_height">Высота</string>
+    <string name="pixel_drawer_items">Пункты бокового меню</string>
+    <string name="drawer_theme">Дневной / ночной режим</string>
     <string name="pixel_nav_tabs">Вкладки нижней панели</string>
     <string name="pixel_nav_drag">Зажмите и перетащите, чтобы изменить порядок</string>
     <string name="chat_attach_photo">Прикрепить фото</string>

@@ -23,6 +23,8 @@ enum class ThemeMode { System, Light, Dark }
 
 enum class NavBarStyle { Expressive, Classic }
 
+enum class DrawerEntry { Saved, Archive, Contacts, Pixel, Settings, Theme }
+
 enum class IconPack { Material, Telegram, Solar, Remix }
 
 enum class FolderTitle { NamesAndIcons, Names, Icons, ActiveName }
@@ -44,6 +46,8 @@ data class AppearanceSettings(
     val capsuleHeight: Int = 64,
     val navTabs: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
     val navOrder: List<com.pixelgram.android.feature.main.MainTab> = com.pixelgram.android.feature.main.MainTab.entries,
+    val drawerItems: List<DrawerEntry> = DrawerEntry.entries,
+    val drawerOrder: List<DrawerEntry> = DrawerEntry.entries,
     val messageSeconds: Boolean = false,
     val exactNumbers: Boolean = false,
     val zalgoFilter: Boolean = false,
@@ -77,6 +81,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val CapsuleHeight = intPreferencesKey("capsule_height")
         val NavTabs = stringPreferencesKey("nav_tabs")
         val NavOrder = stringPreferencesKey("nav_order")
+        val DrawerItems = stringPreferencesKey("drawer_items")
+        val DrawerOrder = stringPreferencesKey("drawer_order")
         val K_messageSeconds = booleanPreferencesKey("message_seconds")
         val K_exactNumbers = booleanPreferencesKey("exact_numbers")
         val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
@@ -90,7 +96,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
         val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble)
         val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
-        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, K_doubleTapEmoji)
+        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -131,6 +137,10 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
             ?: com.pixelgram.android.feature.main.MainTab.entries,
         navOrder = (p[Keys.NavOrder] ?: p[Keys.NavTabs])?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
             ?.let { saved -> saved + com.pixelgram.android.feature.main.MainTab.entries.filterNot { it in saved } } ?: com.pixelgram.android.feature.main.MainTab.entries,
+        drawerItems = p[Keys.DrawerItems]?.split(',')?.mapNotNull { name -> DrawerEntry.entries.firstOrNull { it.name == name } }
+            ?.let { if (DrawerEntry.Settings in it) it else it + DrawerEntry.Settings } ?: DrawerEntry.entries,
+        drawerOrder = p[Keys.DrawerOrder]?.split(',')?.mapNotNull { name -> DrawerEntry.entries.firstOrNull { it.name == name } }
+            ?.let { saved -> saved + DrawerEntry.entries.filterNot { it in saved } } ?: DrawerEntry.entries,
         messageSeconds = p[Keys.K_messageSeconds] ?: false,
         exactNumbers = p[Keys.K_exactNumbers] ?: false,
         zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
@@ -164,6 +174,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.CapsuleHeight] = next.capsuleHeight
                 p[Keys.NavTabs] = next.navTabs.joinToString(",") { it.name }
                 p[Keys.NavOrder] = next.navOrder.joinToString(",") { it.name }
+                p[Keys.DrawerItems] = next.drawerItems.joinToString(",") { it.name }
+                p[Keys.DrawerOrder] = next.drawerOrder.joinToString(",") { it.name }
                 p[Keys.K_messageSeconds] = next.messageSeconds
                 p[Keys.K_exactNumbers] = next.exactNumbers
                 p[Keys.K_zalgoFilter] = next.zalgoFilter

@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.animation.animateContentSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -217,7 +218,7 @@ internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: M
     }
 }
 
-private enum class DrawerItem { Saved, Archive, Contacts, Pixel, Settings, Theme }
+private typealias DrawerItem = com.pixelgram.android.settings.DrawerEntry
 
 @Composable
 private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
@@ -286,31 +287,29 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
             }
         }
         val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
-        val groups = listOf(
-            listOf(
-                Triple(Icons.Outlined.BookmarkBorder, stringResource(R.string.drawer_saved), DrawerItem.Saved),
-                Triple(Icons.Outlined.Archive, stringResource(R.string.drawer_archive), DrawerItem.Archive),
-            ),
-            listOf(Triple(Icons.Outlined.People, stringResource(R.string.tab_contacts), DrawerItem.Contacts)),
-            listOf(
-                Triple(null, stringResource(R.string.pixel_settings), DrawerItem.Pixel),
-                Triple(Icons.Outlined.Settings, stringResource(R.string.tab_settings), DrawerItem.Settings),
-            ),
-            listOf(Triple(if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, stringResource(if (dark) R.string.drawer_day else R.string.drawer_night), DrawerItem.Theme)),
-        )
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            groups.forEach { group ->
-                Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
-                    group.forEachIndexed { index, (icon, label, item) ->
-                        androidx.compose.material3.SegmentedListItem(
-                            onClick = { onItem(item) },
-                            shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, group.size),
-                            colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                            leadingContent = {
-                                if (icon != null) Icon(icon, null) else Icon(painterResource(R.drawable.ic_pixelgram), null)
-                            },
-                        ) { Text(label) }
-                    }
+        val entries = appearance.drawerOrder.filter { it in appearance.drawerItems }
+        Column(
+            Modifier.padding(horizontal = 12.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+            verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
+        ) {
+            entries.forEachIndexed { index, item ->
+                val (icon, label) = when (item) {
+                    DrawerItem.Saved -> Icons.Outlined.BookmarkBorder to stringResource(R.string.drawer_saved)
+                    DrawerItem.Archive -> Icons.Outlined.Archive to stringResource(R.string.drawer_archive)
+                    DrawerItem.Contacts -> Icons.Outlined.People to stringResource(R.string.tab_contacts)
+                    DrawerItem.Pixel -> null to stringResource(R.string.pixel_settings)
+                    DrawerItem.Settings -> Icons.Outlined.Settings to stringResource(R.string.tab_settings)
+                    DrawerItem.Theme -> (if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode) to stringResource(if (dark) R.string.drawer_day else R.string.drawer_night)
+                }
+                androidx.compose.runtime.key(item) {
+                    androidx.compose.material3.SegmentedListItem(
+                        onClick = { onItem(item) },
+                        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, entries.size),
+                        colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        leadingContent = {
+                            if (icon != null) Icon(icon, null) else Icon(painterResource(R.drawable.ic_pixelgram), null)
+                        },
+                    ) { Text(label) }
                 }
             }
         }

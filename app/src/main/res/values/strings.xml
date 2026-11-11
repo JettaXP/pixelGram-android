@@ -195,6 +195,8 @@
     <string name="pixel_capsule_inset">Edge padding</string>
     <string name="pixel_capsule_spacing">Spacing</string>
     <string name="pixel_capsule_height">Height</string>
+    <string name="pixel_drawer_items">Side menu items</string>
+    <string name="drawer_theme">Day / night mode</string>
     <string name="pixel_nav_tabs">Navigation bar tabs</string>
     <string name="pixel_nav_drag">Hold and drag to reorder</string>
     <string name="chat_attach_photo">Attach photo</string>

@@ -25,6 +25,7 @@ class CastOptionsProvider : OptionsProvider {
     override fun getCastOptions(context: Context): CastOptions = CastOptions.Builder()
         .setReceiverApplicationId(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
         .setStopReceiverApplicationWhenEndingSession(true)
+        .setRemoteToLocalEnabled(true)
         .build()
 
     override fun getAdditionalSessionProviders(context: Context): List<SessionProvider>? = null
@@ -118,6 +119,26 @@ class CastLink(private val context: Context) {
                 }
                 .addOnFailureListener { e -> stateFlow.value = stateFlow.value.copy(available = false, error = e.message ?: e.javaClass.simpleName) }
         }.onFailure { e -> stateFlow.value = stateFlow.value.copy(available = false, error = e.message ?: e.javaClass.simpleName) }
+    }
+
+    fun openDialog(activity: Context) {
+        init()
+        runCatching {
+            router.setRouterParams(
+                androidx.mediarouter.media.MediaRouterParams.Builder()
+                    .setOutputSwitcherEnabled(true)
+                    .setTransferToLocalEnabled(true)
+                    .build(),
+            )
+        }
+        if (runCatching { androidx.mediarouter.app.SystemOutputSwitcherDialogController.showDialog(activity) }.getOrDefault(false)) return
+        runCatching {
+            if (active) {
+                androidx.mediarouter.app.MediaRouteControllerDialog(activity).show()
+            } else {
+                androidx.mediarouter.app.MediaRouteChooserDialog(activity).apply { routeSelector = selector }.show()
+            }
+        }
     }
 
     fun scan(on: Boolean) {
