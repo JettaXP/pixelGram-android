@@ -92,7 +92,16 @@ class Screens {
                 audio = TdApi.File().apply { id = 700; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() }
             }, TdApi.FormattedText("", emptyArray()))
         }
+        fun doc(id: Long, fileId: Int, name: String) = message(id, false, "").apply {
+            content = TdApi.MessageDocument(TdApi.Document().apply {
+                fileName = name
+                mimeType = "application/octet-stream"
+                document = TdApi.File().apply { this.id = fileId; size = 52_000_000; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() }
+            }, TdApi.FormattedText("", emptyArray()))
+        }
         val history = listOf(
+            doc(12, 801, "pixelGram-0.55.apk"),
+            doc(11, 800, "Expressive Shapes.pdf"),
             track,
             message(9, false, "See you tomorrow 😀", 8).apply {
                 interactionInfo = TdApi.MessageInteractionInfo().apply {
@@ -114,6 +123,11 @@ class Screens {
                 else -> null
             }
         }
+        graph.td.emit(TdApi.UpdateFile(TdApi.File().apply {
+            id = 801; size = 52_000_000
+            local = TdApi.LocalFile().apply { isDownloadingActive = true; downloadedSize = 21_000_000 }
+            remote = TdApi.RemoteFile()
+        }))
         shoot("chat", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2)))
     }
 

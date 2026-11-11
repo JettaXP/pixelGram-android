@@ -82,11 +82,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -675,39 +677,59 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = tint, supportingColor = tint.copy(alpha = 0.7f)),
         leadingContent = {
-            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                val corner by androidx.compose.animation.core.animateDpAsState(if (downloading) 24.dp else 14.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "file-corner")
-                Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary),
+            Box(Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                val onPrimary = MaterialTheme.colorScheme.onPrimary
+                val swapFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                val swapScale = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+                androidx.compose.animation.AnimatedContent(
+                    targetState = when {
+                        downloading -> 1
+                        path == null -> 0
+                        else -> 2
+                    },
+                    transitionSpec = {
+                        (fadeIn(swapFade) + androidx.compose.animation.scaleIn(swapScale, initialScale = 0.6f)) togetherWith
+                            (fadeOut(swapFade) + androidx.compose.animation.scaleOut(swapScale, targetScale = 0.6f))
+                    },
                     contentAlignment = Alignment.Center,
-                ) {
-                    androidx.compose.animation.AnimatedContent(
-                        targetState = when {
-                            downloading -> 1
-                            path == null -> 0
-                            else -> 2
-                        },
-                        transitionSpec = { (fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f)) togetherWith (fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.6f)) },
-                        label = "file-icon",
-                    ) { stage ->
-                        Icon(
-                            when (stage) {
-                                1 -> Icons.Rounded.Close
-                                0 -> Icons.Rounded.Download
-                                else -> when {
-                                    backup -> Icons.Rounded.Settings
-                                    apk -> Icons.Rounded.Android
-                                    else -> Icons.AutoMirrored.Rounded.InsertDriveFile
-                                }
+                    label = "file-icon",
+                ) { stage ->
+                    when (stage) {
+                        1 -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                            val shown by androidx.compose.animation.core.animateFloatAsState(
+                                (if (total > 0) done.toFloat() / total else 0f).coerceIn(0.02f, 1f),
+                                MaterialTheme.motionScheme.defaultEffectsSpec(),
+                                label = "file-progress",
+                            )
+                            CircularWavyProgressIndicator(
+                                progress = { shown },
+                                modifier = Modifier.size(40.dp),
+                                color = onPrimary,
+                                trackColor = onPrimary.copy(alpha = 0.25f),
+                                amplitude = { value -> if (value < 0.8f) 1f else ((1f - value) / 0.2f).coerceIn(0f, 1f) },
+                            )
+                            Icon(Icons.Rounded.Close, null, tint = onPrimary, modifier = Modifier.size(17.dp))
+                        }
+                        0 -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                            CircularWavyProgressIndicator(
+                                progress = { 0f },
+                                modifier = Modifier.size(40.dp),
+                                color = onPrimary,
+                                trackColor = onPrimary.copy(alpha = 0.45f),
+                                waveSpeed = 0.dp,
+                            )
+                            Icon(Icons.Rounded.ArrowDownward, null, tint = onPrimary, modifier = Modifier.size(20.dp))
+                        }
+                        else -> Icon(
+                            when {
+                                backup -> Icons.Rounded.Settings
+                                apk -> Icons.Rounded.Android
+                                else -> Icons.AutoMirrored.Rounded.InsertDriveFile
                             },
                             null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = onPrimary,
                         )
                     }
-                }
-                if (downloading) {
-                    val shown by androidx.compose.animation.core.animateFloatAsState(if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f, label = "file-progress")
-                    CircularWavyProgressIndicator(progress = { shown }, modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
                 }
             }
         },
