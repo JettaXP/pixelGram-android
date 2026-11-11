@@ -43,7 +43,6 @@ data class AppearanceSettings(
     val messageSeconds: Boolean = false,
     val exactNumbers: Boolean = false,
     val zalgoFilter: Boolean = false,
-    val autoCapitalize: Boolean = true,
     val hideAllChats: Boolean = false,
     val bubbleRadius: Int = 18,
     val bubbleTailRadius: Int = 4,
@@ -72,13 +71,12 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_messageSeconds = booleanPreferencesKey("message_seconds")
         val K_exactNumbers = booleanPreferencesKey("exact_numbers")
         val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
-        val K_autoCapitalize = booleanPreferencesKey("auto_capitalize")
         val K_hideAllChats = booleanPreferencesKey("hide_all_chats")
         val K_bubbleRadius = intPreferencesKey("bubble_radius")
         val K_bubbleTailRadius = intPreferencesKey("bubble_tail")
         val K_messageFontSize = intPreferencesKey("message_font_size")
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
-        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_autoCapitalize, K_hideAllChats)
+        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats)
         val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
         val strings = listOf(Theme, Shape, NavBar, FolderTitleMode, NavTabs, K_doubleTapEmoji)
     }
@@ -121,7 +119,6 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         messageSeconds = p[Keys.K_messageSeconds] ?: false,
         exactNumbers = p[Keys.K_exactNumbers] ?: false,
         zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
-        autoCapitalize = p[Keys.K_autoCapitalize] ?: true,
         hideAllChats = p[Keys.K_hideAllChats] ?: false,
         bubbleRadius = p[Keys.K_bubbleRadius] ?: 18,
         bubbleTailRadius = p[Keys.K_bubbleTailRadius] ?: 4,
@@ -150,7 +147,6 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.K_messageSeconds] = next.messageSeconds
                 p[Keys.K_exactNumbers] = next.exactNumbers
                 p[Keys.K_zalgoFilter] = next.zalgoFilter
-                p[Keys.K_autoCapitalize] = next.autoCapitalize
                 p[Keys.K_hideAllChats] = next.hideAllChats
                 p[Keys.K_bubbleRadius] = next.bubbleRadius
                 p[Keys.K_bubbleTailRadius] = next.bubbleTailRadius

@@ -256,8 +256,6 @@
     <string name="pixel_seconds">Время с секундами</string>
     <string name="pixel_zalgo">Фильтр «Zalgo»</string>
     <string name="pixel_zalgo_sub">Убирает нагромождения диакритики, ломающие текст</string>
-    <string name="pixel_capitalize">Заглавная буква</string>
-    <string name="pixel_capitalize_sub">Начинать сообщения с заглавной буквы</string>
     <string name="pixel_double_tap">Реакция двойным нажатием</string>
     <string name="pixel_double_tap_sub">Эмодзи, который ставится по двойному нажатию</string>
     <string name="pixel_chat_list">Список чатов</string>

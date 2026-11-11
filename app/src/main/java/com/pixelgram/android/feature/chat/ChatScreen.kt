@@ -668,7 +668,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     ),
                     maxLines = 6,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        capitalization = if (com.pixelgram.android.ui.theme.LocalAppearance.current.autoCapitalize) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                     ),
                     modifier = Modifier.weight(1f),
                 )

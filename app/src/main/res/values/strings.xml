@@ -257,8 +257,6 @@
     <string name="pixel_seconds">Time with seconds</string>
     <string name="pixel_zalgo">Filter \"Zalgo\"</string>
     <string name="pixel_zalgo_sub">Removes stacked combining marks that break text layout</string>
-    <string name="pixel_capitalize">Capitalize sentences</string>
-    <string name="pixel_capitalize_sub">Start messages with a capital letter</string>
     <string name="pixel_double_tap">Double tap reaction</string>
     <string name="pixel_double_tap_sub">Emoji sent when you double tap a message</string>
     <string name="pixel_chat_list">Chat list</string>
