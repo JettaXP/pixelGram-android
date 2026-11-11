@@ -333,6 +333,45 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
         }
     }
 
+    fun sendContent(content: TdApi.InputMessageContent) {
+        val reply = ui.value.replyTo
+        ui.value = ui.value.copy(replyTo = null)
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.SendMessage().apply {
+                    chatId = this@ChatController.chatId
+                    replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
+                    inputMessageContent = content
+                })
+            }
+        }
+    }
+
+    fun sendDocuments(paths: List<String>) {
+        paths.forEach { path ->
+            sendContent(TdApi.InputMessageDocument().apply {
+                document = TdApi.InputDocument().apply { document = TdApi.InputFileLocal(path) }
+                caption = TdApi.FormattedText("", emptyArray())
+            })
+        }
+    }
+
+    fun sendPoll(question: String, options: List<String>, anonymous: Boolean, multiple: Boolean) {
+        sendContent(TdApi.InputMessagePoll().apply {
+            this.question = TdApi.FormattedText(question.trim(), emptyArray())
+            this.options = options.map { TdApi.InputPollOption().apply { text = TdApi.FormattedText(it.trim(), emptyArray()) } }.toTypedArray()
+            isAnonymous = anonymous
+            allowsMultipleAnswers = multiple
+            allowsRevoting = true
+            countryCodes = emptyArray()
+            type = TdApi.InputPollTypeRegular()
+        })
+    }
+
+    fun sendContact(user: com.pixelgram.android.td.UserInfo) {
+        sendContent(TdApi.InputMessageContact(TdApi.Contact(user.phone, user.firstName, user.lastName, "", user.id)))
+    }
+
     fun close() {
         graph.td.fire(TdApi.CloseChat(chatId))
         scope.cancel()

@@ -63,6 +63,7 @@ data class UserInfo(
     val verified: Boolean,
     val bot: Boolean,
     val localPhoto: String? = null,
+    val contact: Boolean = false,
     val deleted: Boolean = false,
     val support: Boolean = false,
     val seen: Seen = Seen.Recently,
@@ -318,6 +319,7 @@ private fun TdApi.User.info() = UserInfo(
     verified = verificationStatus?.isVerified == true,
     bot = type is TdApi.UserTypeBot,
     deleted = type is TdApi.UserTypeDeleted,
+    contact = isContact,
     support = isSupport,
     seen = when (status) {
         is TdApi.UserStatusOnline -> Seen.Online

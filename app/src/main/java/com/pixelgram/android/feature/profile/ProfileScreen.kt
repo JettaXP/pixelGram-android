@@ -78,6 +78,16 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -126,7 +136,15 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                     else IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 },
-                topEnd = {},
+                topEnd = {
+                    if (!self && userId != 0L && user?.deleted != true) {
+                        Box {
+                            var more by remember { mutableStateOf(false) }
+                            IconButton(onClick = { more = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.profile_more)) }
+                            ProfileMoreMenu(graph, navigator, userId, username, full, more, onDismiss = { more = false }, onQr = { showQr = true })
+                        }
+                    }
+                },
             )
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (self) {
@@ -140,6 +158,10 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                             created?.let { navigator.open(ChatKey(it.id)) }
                         }
                     }
+                    val context = LocalContext.current
+                    val soon = stringResource(R.string.profile_calls_soon)
+                    ProfileAction(Icons.Rounded.Call, stringResource(R.string.profile_call)) { android.widget.Toast.makeText(context, soon, android.widget.Toast.LENGTH_SHORT).show() }
+                    ProfileAction(Icons.Rounded.Videocam, stringResource(R.string.profile_video)) { android.widget.Toast.makeText(context, soon, android.widget.Toast.LENGTH_SHORT).show() }
                     val privateChat = graph.store.chat(userId)
                     val muted = (privateChat?.notificationSettings?.muteFor ?: 0) > 0
                     ProfileAction(if (muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff, stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute)) {
@@ -157,11 +179,6 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                                 }))
                             }
                         }
-                    }
-                    Box(Modifier.weight(1f)) {
-                        var more by remember { mutableStateOf(false) }
-                        Row { ProfileAction(Icons.Rounded.MoreHoriz, stringResource(R.string.profile_more)) { more = true } }
-                        ProfileMoreMenu(graph, userId, username, full, more, onDismiss = { more = false }, onQr = { showQr = true })
                     }
                 }
             }
@@ -323,7 +340,7 @@ internal fun playlistName(user: com.pixelgram.android.td.UserInfo?): String {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ProfileMoreMenu(graph: AppGraph, userId: Long, username: String?, full: TdApi.UserFullInfo?, expanded: Boolean, onDismiss: () -> Unit, onQr: () -> Unit) {
+private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long, username: String?, full: TdApi.UserFullInfo?, expanded: Boolean, onDismiss: () -> Unit, onQr: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var renaming by remember { mutableStateOf(false) }
@@ -340,7 +357,46 @@ private fun ProfileMoreMenu(graph: AppGraph, userId: Long, username: String?, fu
         }
     }
     val blocked = full?.blockList != null
+    val user = graph.store.snapshot.collectAsState().value.users[userId]
+    var autoDelete by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var folders by remember { mutableStateOf(false) }
     androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.profile_auto_delete)) },
+            leadingIcon = { Icon(Icons.Rounded.Timer, null) },
+            trailingIcon = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
+            onClick = { onDismiss(); autoDelete = true },
+        )
+        if (user?.contact == true) {
+            androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_edit_contact)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); editing = true })
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(stringResource(R.string.profile_delete_contact)) },
+                leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+                onClick = {
+                    onDismiss()
+                    scope.launch { runCatching { graph.td.send(TdApi.RemoveContacts(longArrayOf(userId))) } }
+                },
+            )
+        } else if (user != null && !user.bot) {
+            androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_add_contact)) }, leadingIcon = { Icon(Icons.Rounded.PersonAdd, null) }, onClick = { onDismiss(); editing = true })
+        }
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.profile_secret_chat)) },
+            leadingIcon = { Icon(Icons.Rounded.Lock, null) },
+            onClick = {
+                onDismiss()
+                scope.launch {
+                    runCatching { graph.td.send(TdApi.CreateNewSecretChat(userId)) }.getOrNull()?.let { navigator.open(ChatKey(it.id)) }
+                }
+            },
+        )
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.profile_add_folder)) },
+            leadingIcon = { Icon(Icons.Rounded.Folder, null) },
+            trailingIcon = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
+            onClick = { onDismiss(); folders = true },
+        )
         if (username != null) androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_share)) }, leadingIcon = { Icon(Icons.Rounded.QrCode2, null) }, onClick = { onDismiss(); onQr() })
         androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); renaming = true })
         androidx.compose.material3.DropdownMenuItem(
@@ -369,6 +425,93 @@ private fun ProfileMoreMenu(graph: AppGraph, userId: Long, username: String?, fu
                 onDismiss()
                 scope.launch { runCatching { graph.td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(userId), if (blocked) null else TdApi.BlockListMain())) } }
             },
+        )
+    }
+    if (autoDelete) {
+        val options = listOf(0 to R.string.auto_delete_off, 86_400 to R.string.auto_delete_day, 604_800 to R.string.auto_delete_week, 2_592_000 to R.string.auto_delete_month)
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { autoDelete = false },
+            title = { Text(stringResource(R.string.profile_auto_delete)) },
+            text = {
+                Column {
+                    options.forEach { (seconds, label) ->
+                        androidx.compose.material3.ListItem(
+                            modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).clickable {
+                                autoDelete = false
+                                scope.launch { runCatching { graph.td.send(TdApi.SetChatMessageAutoDeleteTime(userId, seconds)) } }
+                            },
+                            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                            headlineContent = { Text(stringResource(label)) },
+                        )
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { autoDelete = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+    if (editing && user != null) {
+        var first by remember { mutableStateOf(user.firstName) }
+        var last by remember { mutableStateOf(user.lastName) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(if (user.contact) R.string.profile_edit_contact else R.string.profile_add_contact)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.contact_first_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.contact_last_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(enabled = first.isNotBlank(), onClick = {
+                    editing = false
+                    scope.launch {
+                        runCatching {
+                            graph.td.send(TdApi.AddContact().apply {
+                                this.userId = userId
+                                contact = TdApi.ImportedContact().apply {
+                                    phoneNumber = user.phone
+                                    firstName = first.trim()
+                                    lastName = last.trim()
+                                }
+                                sharePhoneNumber = false
+                            })
+                        }
+                    }
+                }) { Text(stringResource(R.string.action_save)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { editing = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+    if (folders) {
+        val list = graph.store.snapshot.collectAsState().value.folders
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { folders = false },
+            title = { Text(stringResource(R.string.profile_add_folder)) },
+            text = {
+                Column {
+                    list.forEach { folder ->
+                        androidx.compose.material3.ListItem(
+                            modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).clickable {
+                                folders = false
+                                scope.launch {
+                                    runCatching {
+                                        val current = graph.td.send(TdApi.GetChatFolder(folder.id))
+                                        if (userId !in current.includedChatIds) {
+                                            current.includedChatIds = current.includedChatIds + userId
+                                            current.excludedChatIds = current.excludedChatIds.filter { it != userId }.toLongArray()
+                                            graph.td.send(TdApi.EditChatFolder(folder.id, current))
+                                        }
+                                    }
+                                }
+                            },
+                            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                            leadingContent = { Icon(Icons.Rounded.Folder, null) },
+                            headlineContent = { Text(folder.title) },
+                        )
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { folders = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     if (renaming) {

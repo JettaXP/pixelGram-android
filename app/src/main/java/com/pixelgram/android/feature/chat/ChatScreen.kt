@@ -17,6 +17,15 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.material3.toShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Poll
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.aspectRatio
@@ -252,8 +261,28 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                 val reply = message.replyToId.takeIf { it != 0L }?.let { id ->
                                     ui.messages.firstOrNull { it.id == id || it.parts.any { p -> p.id == id } } ?: ui.replies[id]
                                 }
+                                val group = privateUserId == 0L && !ui.channel && !saved
+                                val sender = if (group && !message.outgoing) snapshot.users[message.senderId] else null
                                 MessageBubble(
                                     message = message,
+                                    senderName = sender?.name?.takeIf { !joinsAbove },
+                                    senderAvatar = if (group && !message.outgoing) {
+                                        {
+                                            if (!joinsBelow) {
+                                                Avatar(
+                                                    title = sender?.name.orEmpty(),
+                                                    seed = message.senderId,
+                                                    path = sender?.localPhoto ?: sender?.photoFileId?.let { snapshot.files[it] },
+                                                    minithumb = sender?.minithumb,
+                                                    size = 34.dp,
+                                                    onNeedFile = { sender?.photoFileId?.let(graph.store::requestFileAsync) },
+                                                    modifier = Modifier.clickable { navigator.open(ProfileKey(message.senderId)) },
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        null
+                                    },
                                     joinsAbove = joinsAbove,
                                     joinsBelow = joinsBelow,
                                     files = snapshot.files,
@@ -363,41 +392,62 @@ private fun ServiceMessage(message: UiMessage) {
 private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val state = rememberSwipeToDismissBoxState()
+    val offset = remember { androidx.compose.animation.core.Animatable(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val trigger = with(density) { ReplyTrigger.toPx() }
+    val limit = with(density) { ReplyLimit.toPx() }
     var armed by remember { mutableStateOf(false) }
-    val progress = if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) state.progress else 0f
-    LaunchedEffect(progress >= 1f) {
-        if (progress >= 1f && !armed) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-        armed = progress >= 1f
-    }
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        onDismiss = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onReply()
-            }
-            scope.launch { state.reset() }
-        },
-        backgroundContent = {
-            Box(Modifier.fillMaxSize().padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                if (progress > 0f) {
-                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                        CircularWavyProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.size(40.dp))
-                        Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+    val progress = (-offset.value / trigger).coerceIn(0f, 1f)
+    Box(
+        Modifier.pointerInput(Unit) {
+            detectHorizontalDragGestures(
+                onDragEnd = {
+                    if (armed) {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onReply()
                     }
-                }
+                    armed = false
+                    scope.launch { offset.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 400f)) }
+                },
+                onDragCancel = {
+                    armed = false
+                    scope.launch { offset.animateTo(0f) }
+                },
+            ) { change, amount ->
+                val current = -offset.value
+                val resist = 1f - (current / limit).coerceIn(0f, 0.85f)
+                val next = (current - amount * resist).coerceIn(0f, limit)
+                if (next != current) change.consume()
+                scope.launch { offset.snapTo(-next) }
+                val reached = next >= trigger
+                if (reached && !armed) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                armed = reached
             }
         },
     ) {
-        content()
+        if (progress > 0f) {
+            Box(
+                Modifier.matchParentSize().padding(end = 12.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Box(Modifier.size(40.dp).graphicsLayer { scaleX = 0.6f + 0.4f * progress; scaleY = 0.6f + 0.4f * progress; alpha = progress }, contentAlignment = Alignment.Center) {
+                    CircularWavyProgressIndicator(progress = { progress }, modifier = Modifier.size(40.dp))
+                    Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+        Box(Modifier.graphicsLayer { translationX = offset.value }) { content() }
     }
 }
+
+private val ReplyTrigger = 64.dp
+private val ReplyLimit = 110.dp
 
 @Composable
 internal fun MessageBubble(
     message: UiMessage,
+    senderName: String? = null,
+    senderAvatar: (@Composable () -> Unit)? = null,
     joinsAbove: Boolean,
     joinsBelow: Boolean,
     files: Map<Int, String>,
@@ -423,7 +473,12 @@ internal fun MessageBubble(
     Row(
         Modifier.fillMaxWidth().padding(top = if (joinsAbove) 2.dp else 6.dp),
         horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
     ) {
+        if (senderAvatar != null) {
+            Box(Modifier.size(34.dp)) { senderAvatar() }
+            Spacer(Modifier.width(6.dp))
+        }
         Surface(
             shape = shape,
             color = container,
@@ -431,6 +486,16 @@ internal fun MessageBubble(
             modifier = Modifier.widthIn(max = 320.dp).clip(shape).combinedClickable(onClick = {}, onLongClick = onLongPress, onDoubleClick = onDoubleTap),
         ) {
             Column(Modifier.padding(4.dp)) {
+                if (senderName != null) {
+                    Text(
+                        senderName,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = com.pixelgram.android.ui.components.avatarColor(message.senderId),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
+                    )
+                }
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files)
                 val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
@@ -721,6 +786,10 @@ private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, Str
 @Composable
 private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController) {
     var text by rememberSaveable { mutableStateOf("") }
+    var attach by remember { mutableStateOf(false) }
+    if (attach) AttachSheet(controller, onPhotos = {
+        attach = false
+    }) { attach = false }
     LaunchedEffect(editing?.id) { if (editing != null) text = editing.text }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -765,44 +834,51 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 )
             }
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalIconButton(
-                    onClick = {
-                        picker.launch(
-                            androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly),
-                        )
-                    },
-                    shapes = IconButtonDefaults.shapes(),
-                    modifier = Modifier.size(56.dp),
-                ) {
-                    Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.chat_attach_photo))
-                }
-                TextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+                Surface(
                     shape = RoundedCornerShape(28.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    ),
-                    maxLines = 6,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        IconButton(onClick = { attach = true }, modifier = Modifier.padding(4.dp)) {
+                            Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
+                        }
+                        TextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                            ),
+                            maxLines = 6,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                        androidx.compose.animation.AnimatedVisibility(text.isEmpty(), enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
+                            IconButton(
+                                onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                modifier = Modifier.padding(4.dp),
+                            ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
+                        }
+                    }
+                }
+                val ready = text.isNotBlank()
+                val corner by androidx.compose.animation.core.animateDpAsState(if (ready) 18.dp else 28.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "send")
                 FilledIconButton(
                     onClick = {
                         if (editing != null) controller.submitEdit(text) else controller.send(text)
                         text = ""
                     },
-                    enabled = text.isNotBlank(),
-                    shapes = IconButtonDefaults.shapes(),
+                    enabled = ready,
+                    shape = RoundedCornerShape(corner),
                     modifier = Modifier.size(56.dp),
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
+                    Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
                 }
             }
         }
@@ -898,3 +974,124 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
             }
         }
     }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AttachSheet(controller: ChatController, onPhotos: () -> Unit, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var poll by remember { mutableStateOf(false) }
+    var contact by remember { mutableStateOf(false) }
+    fun copy(uris: List<android.net.Uri>, send: (List<String>) -> Unit) {
+        scope.launch {
+            val paths = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                uris.mapIndexedNotNull { index, uri ->
+                    runCatching {
+                        val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                            ?: "file-$index"
+                        val dir = java.io.File(context.cacheDir, "send-${System.currentTimeMillis()}-$index").apply { mkdirs() }
+                        val target = java.io.File(dir, name)
+                        context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                        target.absolutePath
+                    }.getOrNull()
+                }
+            }
+            send(paths)
+        }
+    }
+    val gallery = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
+        if (uris.isNotEmpty()) copy(uris) { controller.sendPhotos(it, "") }
+        onDismiss()
+    }
+    val files = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) copy(uris) { controller.sendDocuments(it) }
+        onDismiss()
+    }
+    if (poll) {
+        PollDialog(onDismiss = { poll = false; onDismiss() }) { question, options, anonymous, multiple ->
+            controller.sendPoll(question, options, anonymous, multiple)
+            poll = false
+            onDismiss()
+        }
+        return
+    }
+    if (contact) {
+        com.pixelgram.android.ui.components.ContactPickerSheet(onDismiss = { contact = false; onDismiss() }) { user ->
+            controller.sendContact(user)
+            contact = false
+            onDismiss()
+        }
+        return
+    }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        val items = listOf(
+            Triple(Icons.Rounded.Image, R.string.attach_gallery) { gallery.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+            Triple(Icons.Rounded.Description, R.string.attach_file) { files.launch(arrayOf("*/*")) },
+            Triple(Icons.Rounded.Poll, R.string.attach_poll) { poll = true },
+            Triple(Icons.Rounded.Person, R.string.attach_contact) { contact = true },
+        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            items.forEachIndexed { index, (icon, label, action) ->
+                val shape = when (index) {
+                    0 -> androidx.compose.material3.MaterialShapes.Cookie9Sided
+                    1 -> androidx.compose.material3.MaterialShapes.Clover4Leaf
+                    2 -> androidx.compose.material3.MaterialShapes.Sunny
+                    else -> androidx.compose.material3.MaterialShapes.Pentagon
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = action).padding(8.dp)) {
+                    Box(
+                        Modifier.size(60.dp).clip(shape.toShape()).background(
+                            when (index % 3) {
+                                0 -> MaterialTheme.colorScheme.primaryContainer
+                                1 -> MaterialTheme.colorScheme.secondaryContainer
+                                else -> MaterialTheme.colorScheme.tertiaryContainer
+                            },
+                        ),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(icon, null) }
+                    Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PollDialog(onDismiss: () -> Unit, onSend: (String, List<String>, Boolean, Boolean) -> Unit) {
+    var question by remember { mutableStateOf("") }
+    val options = remember { androidx.compose.runtime.mutableStateListOf("", "") }
+    var anonymous by remember { mutableStateOf(true) }
+    var multiple by remember { mutableStateOf(false) }
+    val filled = options.map { it.trim() }.filter { it.isNotEmpty() }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.attach_poll)) },
+        text = {
+            Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(question, { question = it.take(255) }, label = { Text(stringResource(R.string.poll_question)) }, modifier = Modifier.fillMaxWidth())
+                options.forEachIndexed { index, value ->
+                    androidx.compose.material3.OutlinedTextField(
+                        value,
+                        {
+                            options[index] = it.take(100)
+                            if (index == options.lastIndex && it.isNotBlank() && options.size < 10) options.add("")
+                        },
+                        label = { Text(stringResource(R.string.poll_option, index + 1)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.poll_anonymous), Modifier.weight(1f))
+                    com.pixelgram.android.ui.components.PixelSwitch(anonymous, { anonymous = it })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.poll_multiple), Modifier.weight(1f))
+                    com.pixelgram.android.ui.components.PixelSwitch(multiple, { multiple = it })
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = question.isNotBlank() && filled.size >= 2, onClick = { onSend(question, filled, anonymous, multiple) }) { Text(stringResource(R.string.action_send)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
+}
