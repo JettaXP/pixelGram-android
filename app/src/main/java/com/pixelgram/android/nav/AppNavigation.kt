@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -43,6 +44,7 @@ class Navigator(private val stack: MutableList<NavKey>) {
 fun AppNavigation(graph: AppGraph) {
     val stack = rememberNavBackStack(MainKey)
     val navigator = Navigator(stack)
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
     NavDisplay(
         backStack = stack,
         onBack = { navigator.back() },
@@ -66,4 +68,6 @@ fun AppNavigation(graph: AppGraph) {
             entry<SettingsSectionKey> { key -> com.pixelgram.android.feature.settings.SettingsSectionScreen(graph, key.section, navigator) }
         },
     )
+    com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
+    }
 }

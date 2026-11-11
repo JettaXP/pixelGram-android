@@ -84,6 +84,7 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all { test ->
+            test.maxHeapSize = "3g"
             providers.gradleProperty("robolectricRepo").orNull?.let { test.systemProperty("robolectric.dependency.repo.url", it) }
             test.jvmArgs(
                 "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
@@ -129,6 +130,7 @@ dependencies {
     implementation(libs.phonecarrier)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    implementation(libs.material)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

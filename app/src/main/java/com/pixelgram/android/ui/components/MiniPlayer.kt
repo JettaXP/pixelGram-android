@@ -67,7 +67,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
         val dismiss = rememberSwipeToDismissBoxState()
         LaunchedEffect(dismiss.currentValue) { if (dismiss.currentValue != SwipeToDismissBoxValue.Settled) music.stop() }
         SwipeToDismissBox(state = dismiss, backgroundContent = {}, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-            ElevatedCard(shape = RoundedCornerShape(28.dp)) {
+            ElevatedCard(onClick = { com.pixelgram.android.feature.player.FullPlayer.open = true }, shape = RoundedCornerShape(28.dp)) {
                 ListItem(
                     colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                     leadingContent = {

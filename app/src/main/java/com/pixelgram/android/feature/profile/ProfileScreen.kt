@@ -146,7 +146,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 ProfileMusicCard(audio) {
                     scope.launch {
                         val all = runCatching { graph.td.send(TdApi.GetUserProfileAudios(userId, 0, 100)).audios.toList() }.getOrNull()
-                        graph.music.play(all?.takeIf { it.isNotEmpty() } ?: listOf(audio), 0)
+                        graph.music.play(all?.takeIf { it.isNotEmpty() } ?: listOf(audio), 0, user?.name)
                     }
                 }
             }

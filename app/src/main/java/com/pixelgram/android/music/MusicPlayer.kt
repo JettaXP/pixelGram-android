@@ -30,14 +30,25 @@ import java.io.File
 
 data class Track(val fileId: Int, val title: String, val performer: String, val cover: String?, val minithumb: ByteArray?)
 
+enum class RepeatMode { Off, All, One }
+
 data class PlayerState(
     val track: Track? = null,
+    val audio: TdApi.Audio? = null,
     val playing: Boolean = false,
     val loading: Boolean = false,
     val position: Long = 0,
     val duration: Long = 0,
     val hasNext: Boolean = false,
     val hasPrevious: Boolean = false,
+    val speed: Float = 1f,
+    val shuffle: Boolean = false,
+    val repeat: RepeatMode = RepeatMode.Off,
+    val queue: List<TdApi.Audio> = emptyList(),
+    val index: Int = -1,
+    val direction: Int = 1,
+    val source: String? = null,
+    val sampleRate: Int = 0,
 )
 
 class MusicPlayer(private val context: Context, private val td: TdClient) {
@@ -45,10 +56,14 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     private val stateFlow = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = stateFlow.asStateFlow()
     private var queue: List<TdApi.Audio> = emptyList()
+    private var original: List<TdApi.Audio> = emptyList()
     private var index = 0
     private var loadJob: Job? = null
     private var ticker: Job? = null
     private var controller: ListenableFuture<MediaController>? = null
+    private val profileFlow = MutableStateFlow<Set<Int>>(emptySet())
+    val profile: StateFlow<Set<Int>> = profileFlow.asStateFlow()
+    private var meId = 0L
 
     private val exo: ExoPlayer by lazy {
         ExoPlayer.Builder(context)
@@ -89,16 +104,104 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED) {
-                if (index < queue.lastIndex) next() else stateFlow.update { it.copy(playing = false, position = it.duration) }
+                when {
+                    stateFlow.value.repeat == RepeatMode.One -> {
+                        exo.seekTo(0)
+                        exo.play()
+                    }
+                    index < queue.lastIndex -> load(index + 1, 1)
+                    stateFlow.value.repeat == RepeatMode.All && queue.isNotEmpty() -> load(0, 1)
+                    else -> stateFlow.update { it.copy(playing = false, position = it.duration) }
+                }
             }
-            if (playbackState == Player.STATE_READY) stateFlow.update { it.copy(duration = exo.duration.coerceAtLeast(0)) }
+            if (playbackState == Player.STATE_READY) {
+                val rate = exo.audioFormat?.sampleRate ?: 0
+                stateFlow.update { it.copy(duration = exo.duration.coerceAtLeast(0), sampleRate = rate) }
+            }
         }
     }
 
-    fun play(audios: List<TdApi.Audio>, start: Int) {
+    fun play(audios: List<TdApi.Audio>, start: Int, source: String? = null) {
         if (audios.isEmpty()) return
-        queue = audios
-        load(start.coerceIn(0, audios.lastIndex))
+        original = audios
+        val first = audios[start.coerceIn(0, audios.lastIndex)]
+        queue = if (stateFlow.value.shuffle) listOf(first) + (audios - first).shuffled() else audios
+        stateFlow.update { it.copy(source = source) }
+        load(queue.indexOf(first).coerceAtLeast(0), 1)
+    }
+
+    fun playAt(position: Int) {
+        if (position in queue.indices && position != index) load(position, if (position > index) 1 else -1)
+    }
+
+    fun reorder(from: Int, to: Int) {
+        if (from !in queue.indices || to !in queue.indices || from == to) return
+        val list = queue.toMutableList()
+        list.add(to, list.removeAt(from))
+        val current = queue.getOrNull(index)
+        queue = list
+        index = list.indexOf(current).coerceAtLeast(0)
+        publishQueue()
+    }
+
+    fun setSpeed(speed: Float) {
+        exo.setPlaybackSpeed(speed)
+        stateFlow.update { it.copy(speed = speed) }
+    }
+
+    fun toggleShuffle() {
+        val on = !stateFlow.value.shuffle
+        val current = queue.getOrNull(index)
+        queue = when {
+            current == null -> queue
+            on -> listOf(current) + (queue - current).shuffled()
+            else -> original
+        }
+        index = queue.indexOf(current).coerceAtLeast(0)
+        stateFlow.update { it.copy(shuffle = on) }
+        publishQueue()
+    }
+
+    fun cycleRepeat() {
+        stateFlow.update {
+            it.copy(repeat = when (it.repeat) {
+                RepeatMode.Off -> RepeatMode.All
+                RepeatMode.All -> RepeatMode.One
+                RepeatMode.One -> RepeatMode.Off
+            })
+        }
+        publishQueue()
+    }
+
+    fun loadProfile(me: Long) {
+        if (me == 0L) return
+        meId = me
+        main.launch {
+            val list = runCatching { td.send(TdApi.GetUserProfileAudios(me, 0, 100)).audios.toList() }.getOrNull() ?: return@launch
+            profileFlow.value = list.map { it.audio.id }.toSet()
+        }
+    }
+
+    fun toggleProfile(audio: TdApi.Audio) {
+        val id = audio.audio.id
+        val saved = id in profileFlow.value
+        profileFlow.update { if (saved) it - id else it + id }
+        main.launch {
+            runCatching { td.send(if (saved) TdApi.RemoveProfileAudio(id) else TdApi.AddProfileAudio(audio.toInput())) }
+                .onFailure { profileFlow.update { if (saved) it + id else it - id } }
+        }
+    }
+
+    private fun publishQueue() {
+        val repeatAll = stateFlow.value.repeat == RepeatMode.All
+        stateFlow.update {
+            it.copy(
+                queue = queue,
+                index = index,
+                hasNext = index < queue.lastIndex || (repeatAll && queue.size > 1),
+                hasPrevious = index > 0,
+            )
+        }
     }
 
     fun toggle() {
@@ -110,35 +213,66 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     }
 
     fun next() {
-        if (index < queue.lastIndex) load(index + 1)
+        when {
+            index < queue.lastIndex -> load(index + 1, 1)
+            stateFlow.value.repeat == RepeatMode.All && queue.size > 1 -> load(0, 1)
+        }
     }
 
     fun previous() {
-        if (exo.currentPosition > 3000 || index == 0) exo.seekTo(0) else load(index - 1)
+        if (exo.currentPosition > 3000 || index == 0) exo.seekTo(0) else load(index - 1, -1)
     }
 
-    fun seekTo(position: Long) = exo.seekTo(position)
+    fun seekTo(position: Long) {
+        exo.seekTo(position)
+        stateFlow.update { it.copy(position = position) }
+    }
+
+    private var scrubJob: Job? = null
+
+    fun scrub(direction: Int) {
+        scrubJob?.cancel()
+        when {
+            direction > 0 -> exo.setPlaybackSpeed(ScrubForward)
+            direction < 0 -> scrubJob = main.launch {
+                while (isActive) {
+                    val target = (exo.currentPosition - ScrubBackStepMs).coerceAtLeast(0)
+                    exo.seekTo(target)
+                    stateFlow.update { it.copy(position = target) }
+                    delay(ScrubTickMs)
+                }
+            }
+            else -> exo.setPlaybackSpeed(stateFlow.value.speed)
+        }
+    }
 
     fun stop() {
         loadJob?.cancel()
         exo.stop()
         exo.clearMediaItems()
         queue = emptyList()
-        stateFlow.value = PlayerState()
+        original = emptyList()
+        val keep = stateFlow.value
+        stateFlow.value = PlayerState(speed = keep.speed, shuffle = keep.shuffle, repeat = keep.repeat)
     }
 
-    private fun load(target: Int) {
+    private fun load(target: Int, direction: Int = 1) {
         index = target
         val audio = queue[target]
         loadJob?.cancel()
         val cover = audio.albumCoverThumbnail?.file
-        stateFlow.value = PlayerState(
-            track = Track(audio.audio.id, audio.title.ifBlank { audio.fileName }, audio.performer, cover?.local?.path?.takeIf { cover.local.isDownloadingCompleted }, audio.albumCoverMinithumbnail?.data),
-            loading = true,
-            duration = audio.duration * 1000L,
-            hasNext = target < queue.lastIndex,
-            hasPrevious = target > 0,
-        )
+        stateFlow.update {
+            it.copy(
+                track = Track(audio.audio.id, audio.title.ifBlank { audio.fileName }, audio.performer, cover?.local?.path?.takeIf { cover.local.isDownloadingCompleted }, audio.albumCoverMinithumbnail?.data),
+                audio = audio,
+                loading = true,
+                playing = false,
+                position = 0,
+                duration = audio.duration * 1000L,
+                direction = direction,
+            )
+        }
+        publishQueue()
         loadJob = main.launch {
             val path = runCatching { td.send(TdApi.DownloadFile(audio.audio.id, 32, 0, 0, true)).local.path }.getOrNull()
             val coverPath = cover?.let { runCatching { td.send(TdApi.DownloadFile(it.id, 16, 0, 0, true)).local.path }.getOrNull() }
@@ -154,6 +288,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
                 .build()
             exo.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(path))).setMediaMetadata(metadata).build())
             exo.prepare()
+            exo.setPlaybackSpeed(stateFlow.value.speed)
             exo.play()
             connect()
         }
@@ -173,4 +308,15 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         if (controller != null) return
         controller = MediaController.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
     }
+}
+
+private const val ScrubForward = 4f
+private const val ScrubBackStepMs = 300L
+private const val ScrubTickMs = 100L
+
+fun TdApi.Audio.toInput(): TdApi.InputAudio = TdApi.InputAudio().also {
+    it.audio = TdApi.InputFileRemote(audio.remote.id)
+    it.duration = duration
+    it.title = title
+    it.performer = performer
 }

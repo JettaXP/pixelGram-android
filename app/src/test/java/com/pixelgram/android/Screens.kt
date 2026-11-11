@@ -35,17 +35,16 @@ class Screens {
     }
 
     private fun shoot(name: String, graph: AppGraph = graph(), before: (() -> Unit)? = null) {
+        rule.mainClock.autoAdvance = false
         rule.setContent {
             val appearance by graph.appearance.state.collectAsState()
             PixelTheme(appearance) {
                 CompositionLocalProvider(LocalGraph provides graph) { AppNavigation(graph) }
             }
         }
-        rule.mainClock.advanceTimeBy(1500)
-        rule.waitForIdle()
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
         before?.invoke()
-        rule.mainClock.advanceTimeBy(1500)
-        rule.waitForIdle()
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
         val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use {
             rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -53,6 +52,37 @@ class Screens {
     }
 
     @Test fun chats() = shoot("chats")
+
+    private fun withMusic(): AppGraph {
+        val graph = graph()
+        val audios = listOf("Midnight Shapes" to "Expressive Hours", "Cookie Waves" to "Material Band", "Soft Burst" to "Pill Club").mapIndexed { i, (title, performer) ->
+            TdApi.Audio().apply {
+                duration = 200 + i * 20
+                this.title = title
+                this.performer = performer
+                fileName = "$performer - $title.mp3"
+                mimeType = "audio/mpeg"
+                audio = TdApi.File().apply {
+                    id = 500 + i
+                    local = TdApi.LocalFile()
+                    remote = TdApi.RemoteFile()
+                }
+            }
+        }
+        graph.music.play(audios, 0, "Alice")
+        com.pixelgram.android.feature.player.FullPlayer.open = true
+        return graph
+    }
+
+    @Test fun player() {
+        com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Cover
+        shoot("player", withMusic())
+    }
+
+    @Test fun playerQueue() {
+        com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Queue
+        shoot("player_queue", withMusic())
+    }
 }
 
 object DemoData {
