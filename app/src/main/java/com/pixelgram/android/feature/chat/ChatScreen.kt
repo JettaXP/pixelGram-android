@@ -8,6 +8,8 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -394,6 +396,43 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     }
                 }
             }
+            val dates = remember(ui.messages) { ui.messages.associate { it.id to it.date } }
+            val topDate by remember(dates) {
+                derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull { it.key is Long }?.let { dates[it.key as Long] } }
+            }
+            var dateVisible by remember { mutableStateOf(false) }
+            LaunchedEffect(listState.isScrollInProgress) {
+                if (listState.isScrollInProgress) dateVisible = true
+                else {
+                    kotlinx.coroutines.delay(DatePillMs)
+                    dateVisible = false
+                }
+            }
+            AnimatedVisibility(
+                visible = dateVisible && topDate != null,
+                enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
+                exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()) + androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+            ) {
+                var shown by remember { mutableStateOf(0) }
+                topDate?.let { shown = it }
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, shadowElevation = 3.dp) {
+                    Text(dayHeader(shown), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
+                }
+            }
+            val showDown by remember { derivedStateOf { listState.firstVisibleItemIndex > 2 } }
+            AnimatedVisibility(
+                visible = showDown,
+                enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.6f),
+                exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.6f),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            ) {
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = { jumpScope.launch { listState.animateScrollToItem(0) } },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = CircleShape,
+                ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
+            }
         }
     }
     viewer?.let { (list, index) ->
@@ -599,8 +638,9 @@ internal fun MessageBubble(
                     )
                 }
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick)
-                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
+                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && (it.content is TdApi.MessagePhoto || it.mediaWidth > 0) }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
+                (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 val meta: @Composable () -> Unit = {
@@ -896,7 +936,7 @@ private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFi
                     val path = photo.localPath ?: files[photo.mediaFileId]
                     if (path == null) LaunchedEffect(photo.mediaFileId) { onNeedFile(photo.mediaFileId) }
                     val single = photos.size == 1
-                    val ratio = if (single) (photo.mediaWidth.toFloat() / photo.mediaHeight.coerceAtLeast(1)).coerceIn(0.8f, 1.8f) else 1f
+                    val ratio = if (single && photo.mediaWidth > 0 && photo.mediaHeight > 0) (photo.mediaWidth.toFloat() / photo.mediaHeight).coerceIn(0.8f, 1.8f) else 1f
                     val top = rowIndex == 0
                     val bottom = rowIndex == rows.lastIndex
                     val left = i == 0
@@ -924,6 +964,59 @@ private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFi
                 }
             }
         }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun GifView(animation: TdApi.Animation, files: Map<Int, String>, onNeedFile: (Int) -> Unit) {
+    val file = animation.animation
+    val path = files[file.id] ?: file.local.path.takeIf { file.local.isDownloadingCompleted && it.isNotEmpty() }
+    if (path == null) LaunchedEffect(file.id) { onNeedFile(file.id) }
+    val thumb = animation.thumbnail?.file?.let { t -> files[t.id] ?: t.local.path.takeIf { t.local.isDownloadingCompleted && it.isNotEmpty() } }
+    animation.thumbnail?.file?.takeIf { thumb == null && path == null }?.let { t -> LaunchedEffect(t.id) { onNeedFile(t.id) } }
+    val ratio = if (animation.width > 0 && animation.height > 0) (animation.width.toFloat() / animation.height).coerceIn(0.6f, 1.9f) else 1f
+    val context = LocalContext.current
+    Box(
+        Modifier
+            .padding(2.dp)
+            .widthIn(max = 300.dp)
+            .fillMaxWidth()
+            .aspectRatio(ratio)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = thumb?.let(::File) ?: animation.minithumbnail?.data,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize(),
+        )
+        val video = path?.takeIf { animation.mimeType != "image/gif" || it.endsWith(".mp4") }
+        if (video != null) {
+            val player = remember(video) {
+                androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                    setMediaItem(androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(File(video))))
+                    repeatMode = androidx.media3.common.Player.REPEAT_MODE_ONE
+                    volume = 0f
+                    prepare()
+                    playWhenReady = true
+                }
+            }
+            androidx.compose.runtime.DisposableEffect(player) { onDispose { player.release() } }
+            androidx.media3.ui.compose.PlayerSurface(player, Modifier.matchParentSize())
+        } else if (path != null) {
+            AsyncImage(model = File(path), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        } else {
+            LoadingIndicator(Modifier.size(36.dp))
+        }
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color.Black.copy(alpha = 0.45f),
+            contentColor = Color.White,
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+        ) { Text("GIF", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
     }
 }
 
@@ -985,6 +1078,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     var linking by remember { mutableStateOf(false) }
     val toolbar = remember { SelectionToolbar { selectionMenu = it } }
     var attach by remember { mutableStateOf(false) }
+    var preparing by remember { mutableStateOf<List<String>?>(null) }
     var emoji by remember { mutableStateOf(false) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -999,8 +1093,6 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(10),
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        val caption = text
-        draft = RichDraft()
         scope.launch {
             val paths = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 uris.mapIndexedNotNull { index, uri ->
@@ -1011,8 +1103,20 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     }.getOrNull()
                 }
             }
-            controller.sendPhotos(paths, caption)
+            if (paths.isNotEmpty()) preparing = paths
         }
+    }
+    preparing?.let { paths ->
+        SendPhotosSheet(
+            paths = paths,
+            caption = text,
+            onDismiss = { preparing = null },
+            onSend = { list, caption ->
+                preparing = null
+                draft = RichDraft()
+                controller.sendPhotos(list, caption)
+            },
+        )
     }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars).imePadding()) {
@@ -1212,6 +1316,60 @@ private fun FormatPopup(menu: SelectionMenu, draft: RichDraft, onFormat: (Format
                         IconButton(onClick = onClear) { Icon(Icons.Rounded.FormatClear, stringResource(R.string.format_clear)) }
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () -> Unit, onSend: (List<String>, String) -> Unit) {
+    val items = remember(paths) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(paths) } }
+    var text by remember { mutableStateOf(caption) }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                pluralStringResource(R.plurals.send_photos_title, items.size, items.size),
+                style = MaterialTheme.typography.titleLargeEmphasized,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(items.size, key = { items[it] }) { index ->
+                    val path = items[index]
+                    Box(Modifier.size(if (items.size == 1) 240.dp else 140.dp).animateItem()) {
+                        AsyncImage(
+                            model = File(path),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize().clip(RoundedCornerShape(18.dp)),
+                        )
+                        if (items.size > 1) {
+                            Surface(
+                                onClick = { items.remove(path) },
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.55f),
+                                contentColor = Color.White,
+                                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp),
+                            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Close, stringResource(R.string.action_remove), Modifier.size(18.dp)) } }
+                        }
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text(stringResource(R.string.send_caption_hint)) },
+                    shape = RoundedCornerShape(24.dp),
+                    maxLines = 4,
+                    modifier = Modifier.weight(1f),
+                )
+                FilledIconButton(
+                    onClick = { onSend(items.toList(), text) },
+                    enabled = items.isNotEmpty(),
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.size(56.dp),
+                ) { Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send)) }
             }
         }
     }
@@ -1492,6 +1650,7 @@ private fun DeleteDialog(message: UiMessage, controller: ChatController, private
 
 private val BigEmojiSize = 64.dp
 private val ReactorSize = 18.dp
+private const val DatePillMs = 1_500L
 private val SpoilerBlur = 7.dp
 private const val ReactorAvatars = 4
 private const val HighlightMs = 1_400L

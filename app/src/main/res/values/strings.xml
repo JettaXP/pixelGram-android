@@ -426,4 +426,11 @@
     <string name="badge_supporter">%1$s supported pixelGram and earned unique supporter badge #%2$s!</string>
     <string name="badge_supporter_someone">This user</string>
     <string name="badge_supporter_label">Supporter Badge #%1$d</string>
+    <string name="chat_scroll_down">Scroll down</string>
+    <string name="send_caption_hint">Add a caption</string>
+    <string name="action_remove">Remove</string>
+    <plurals name="send_photos_title">
+        <item quantity="one">Send %1$d photo</item>
+        <item quantity="other">Send %1$d photos</item>
+    </plurals>
 </resources>

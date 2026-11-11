@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -117,3 +120,18 @@ jobs:
           name: pixelgram-apk-arm64
           path: phone/*.apk
           compression-level: 0
+
+      - name: Alpha release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          universal=$(ls dist/*.apk | head -n1)
+          version=$(basename "$universal" | sed 's/^pixelgram-//; s/-release\.apk$//')
+          cp "$universal" pixelGram-android.apk
+          cp "$(ls phone/*.apk | head -n1)" pixelGram-android-arm64.apk
+          gh release delete alpha --yes --cleanup-tag || true
+          gh release create alpha pixelGram-android.apk pixelGram-android-arm64.apk \
+            --prerelease --latest=false --target "$GITHUB_SHA" \
+            --title "pixelGram Android alpha" \
+            --notes "Alpha build $version ($(git rev-parse --short HEAD)). This release is updated on every push to main."

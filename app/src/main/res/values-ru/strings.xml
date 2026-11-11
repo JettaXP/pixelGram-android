@@ -425,4 +425,13 @@
     <string name="badge_supporter">%1$s поддержал(а) pixelGram и получил(а) уникальный значок #%2$s!</string>
     <string name="badge_supporter_someone">Этот пользователь</string>
     <string name="badge_supporter_label">Значок поддержки #%1$d</string>
+    <string name="chat_scroll_down">Вниз</string>
+    <string name="send_caption_hint">Добавить подпись</string>
+    <string name="action_remove">Убрать</string>
+    <plurals name="send_photos_title">
+        <item quantity="one">Отправить %1$d фото</item>
+        <item quantity="few">Отправить %1$d фото</item>
+        <item quantity="many">Отправить %1$d фото</item>
+        <item quantity="other">Отправить %1$d фото</item>
+    </plurals>
 </resources>

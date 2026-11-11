@@ -313,10 +313,14 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
         val contents = paths.mapIndexed { index, path ->
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            runCatching { android.graphics.BitmapFactory.decodeFile(path, bounds) }
             TdApi.InputMessagePhoto().apply {
                 photo = TdApi.InputPhoto().apply {
                     photo = TdApi.InputFileLocal(path)
                     addedStickerFileIds = IntArray(0)
+                    width = bounds.outWidth.coerceAtLeast(0)
+                    height = bounds.outHeight.coerceAtLeast(0)
                 }
                 this.caption = TdApi.FormattedText(if (index == 0) caption.trim() else "", emptyArray())
             }
