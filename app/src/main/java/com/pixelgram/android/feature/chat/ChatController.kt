@@ -296,6 +296,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }).link
     }.getOrNull()
 
+    fun vote(message: UiMessage, options: IntArray) {
+        scope.launch { runCatching { graph.td.send(TdApi.SetPollAnswer(chatId, message.id, options)) } }
+    }
+
     fun pin(message: UiMessage) {
         scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, true, false)) } }
     }
@@ -425,7 +429,8 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         is TdApi.MessageDocument -> c.caption.text to c.caption.entities.toList()
         is TdApi.MessageVoiceNote -> c.caption.text to c.caption.entities.toList()
         is TdApi.MessageAudio -> c.caption.text to c.caption.entities.toList()
-        else -> contentPreview(content).second to emptyList()
+        is TdApi.MessageVideoNote, is TdApi.MessageSticker -> "" to emptyList()
+        else -> (if (isRichContent(content) || isService(content)) "" else contentPreview(content).second) to emptyList()
     }
     val photo = (content as? TdApi.MessagePhoto)?.photo
     val size = photo?.sizes?.lastOrNull { it.width <= 1280 } ?: photo?.sizes?.lastOrNull()
@@ -468,7 +473,7 @@ private fun isService(content: TdApi.MessageContent): Boolean = when (content) {
     is TdApi.MessageSticker, is TdApi.MessageVoiceNote, is TdApi.MessageVideoNote, is TdApi.MessageAudio,
     is TdApi.MessageDocument, is TdApi.MessagePoll, is TdApi.MessageLocation, is TdApi.MessageContact,
     is TdApi.MessageUnsupported -> false
-    else -> true
+    else -> !isRichContent(content)
 }
 
 private const val RevealPages = 30

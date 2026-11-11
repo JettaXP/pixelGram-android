@@ -325,7 +325,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     Column(Modifier.animateItem()) {
                         if (older == null || !sameDay(older.date, message.date)) DayChip(message.date)
                         if (message.service) {
-                            ServiceMessage(message)
+                            ServiceMessage(message, senderName(snapshot, message.senderId, chat)) { id -> snapshot.users[id]?.name ?: "" }
                         } else {
                             SwipeToReply(onReply = { controller.reply(message) }) {
                                 val reply = message.replyToId.takeIf { it != 0L }?.let { id ->
@@ -361,6 +361,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     reply = reply,
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
                                     onReplyClick = { jumpTo(message.replyToId) },
+                                    onOpenUser = { userId -> navigator.open(ProfileKey(userId)) },
+                                    onVote = { options -> controller.vote(message, options) },
                                     highlighted = highlighted == message.id,
                                     reactor = { userId, size ->
                                         val user = snapshot.users[userId]
@@ -499,11 +501,13 @@ private fun DayChip(date: Int) {
 }
 
 @Composable
-private fun ServiceMessage(message: UiMessage) {
+private fun ServiceMessage(message: UiMessage, sender: String, name: (Long) -> String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val described = remember(message.content, sender) { serviceText(context, message.content, sender, name) }
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         SuggestionChip(
             onClick = {},
-            label = { Text(message.text.ifBlank { stringResource(R.string.preview_service) }, maxLines = 2) },
+            label = { Text(described ?: message.text.ifBlank { stringResource(R.string.preview_service) }, maxLines = 3, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
             shape = androidx.compose.foundation.shape.CircleShape,
             border = null,
             colors = SuggestionChipDefaults.suggestionChipColors(
@@ -590,6 +594,8 @@ internal fun MessageBubble(
     onReplyClick: () -> Unit = {},
     highlighted: Boolean = false,
     reactor: (@Composable (Long, androidx.compose.ui.unit.Dp) -> Unit)? = null,
+    onOpenUser: (Long) -> Unit = {},
+    onVote: (IntArray) -> Unit = {},
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
@@ -638,9 +644,10 @@ internal fun MessageBubble(
                     )
                 }
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick)
-                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && (it.content is TdApi.MessagePhoto || it.mediaWidth > 0) }
+                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
                 (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
+                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 val meta: @Composable () -> Unit = {

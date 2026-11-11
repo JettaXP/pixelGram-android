@@ -129,7 +129,21 @@ class Screens {
             content = TdApi.MessageText(TdApi.FormattedText(t, arrayOf(TdApi.TextEntity(0, 24, TdApi.TextEntityTypeBlockQuote()))), null, null)
             replyTo = TdApi.MessageReplyToMessage(2, 7, null, 0, null, null, 0, null)
         }
+        fun content(id: Long, out: Boolean, c: TdApi.MessageContent) = message(id, out, "").apply { content = c }
+        val poll = TdApi.Poll().apply {
+            id = 1; question = TdApi.FormattedText("Best shape?", emptyArray()); totalVoterCount = 7; isAnonymous = true; type = TdApi.PollTypeRegular()
+            options = arrayOf(
+                TdApi.PollOption().apply { text = TdApi.FormattedText("Cookie", emptyArray()); voterCount = 5; votePercentage = 71; isChosen = true },
+                TdApi.PollOption().apply { text = TdApi.FormattedText("Pill", emptyArray()); voterCount = 2; votePercentage = 29 },
+            )
+        }
+        val voice = TdApi.VoiceNote().apply { duration = 17; waveform = ByteArray(40) { (it * 37 % 251).toByte() }; mimeType = "audio/ogg"; voice = TdApi.File().apply { id = 910; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() } }
         val history = listOf(
+            content(20, false, TdApi.MessagePinMessage(7)),
+            content(19, true, TdApi.MessageCall(1, false, TdApi.CallDiscardReasonHungUp(), 125)),
+            content(18, false, TdApi.MessageLocation().apply { location = TdApi.Location(55.751244, 37.618423, 0.0) }),
+            content(17, false, TdApi.MessagePoll().apply { this.poll = poll; description = TdApi.FormattedText("", emptyArray()) }),
+            content(16, true, TdApi.MessageVoiceNote(voice, TdApi.FormattedText("", emptyArray()), true)),
             quote,
             emojiMessage(14, "😀😀", listOf(0, 2)),
             emojiMessage(13, "Premium 😀 emoji", listOf(8)),
