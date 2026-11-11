@@ -226,6 +226,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
                                     onLongPress = { menuFor = message },
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
+                                    onReact = { emoji -> controller.react(message, emoji) },
                                     onPlayAudio = { audio ->
                                         val all = ui.messages.reversed().mapNotNull { (it.content as? TdApi.MessageAudio)?.audio }
                                         val start = all.indexOfFirst { it.audio.id == audio.audio.id }.coerceAtLeast(0)
@@ -370,6 +371,7 @@ internal fun MessageBubble(
     onLongPress: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onPlayAudio: (TdApi.Audio) -> Unit = {},
+    onReact: (String) -> Unit = {},
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     val big = prefs.bubbleRadius.dp
@@ -424,6 +426,32 @@ internal fun MessageBubble(
                                 Modifier.size(14.dp),
                                 tint = if (message.failed) MaterialTheme.colorScheme.error else onContainer.copy(alpha = 0.7f),
                             )
+                        }
+                    }
+                }
+                if (message.reactions.isNotEmpty()) {
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 4.dp),
+                    ) {
+                        message.reactions.forEach { reaction ->
+                            val chosen = reaction.chosen
+                            Surface(
+                                onClick = { onReact(reaction.emoji) },
+                                shape = RoundedCornerShape(if (chosen) 16.dp else 10.dp),
+                                color = if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f),
+                                contentColor = if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                ) {
+                                    Text(reaction.emoji, style = MaterialTheme.typography.bodyMedium)
+                                    Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
                         }
                     }
                 }

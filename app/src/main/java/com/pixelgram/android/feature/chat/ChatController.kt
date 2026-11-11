@@ -36,7 +36,11 @@ data class UiMessage(
     val albumId: Long = 0,
     val localPath: String? = null,
     val parts: List<UiMessage> = emptyList(),
+    val reactions: List<ReactionUi> = emptyList(),
 )
+
+@Immutable
+data class ReactionUi(val emoji: String, val count: Int, val chosen: Boolean)
 
 @Immutable
 data class ChatUi(
@@ -92,6 +96,9 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
             } else return
             is TdApi.UpdateMessageContent -> if (update.chatId == chatId) {
                 messages[update.messageId]?.content = update.newContent
+            } else return
+            is TdApi.UpdateMessageInteractionInfo -> if (update.chatId == chatId) {
+                messages[update.messageId]?.interactionInfo = update.interactionInfo
             } else return
             is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
                 messages[update.messageId]?.editDate = update.editDate
@@ -226,6 +233,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
 
     fun react(message: UiMessage, emoji: String) {
         if (emoji.isBlank()) return
+        if (message.reactions.any { it.emoji == emoji && it.chosen }) {
+            scope.launch { runCatching { graph.td.send(TdApi.RemoveMessageReaction(chatId, message.id, TdApi.ReactionTypeEmoji(emoji))) } }
+            return
+        }
         scope.launch {
             runCatching {
                 graph.td.send(TdApi.AddMessageReaction().apply {
@@ -350,6 +361,9 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         mediaHeight = size?.height ?: sticker?.height ?: 0,
         albumId = if (photo != null) mediaAlbumId else 0L,
         localPath = size?.photo?.local?.takeIf { it.isDownloadingCompleted }?.path,
+        reactions = interactionInfo?.reactions?.reactions.orEmpty().mapNotNull { reaction ->
+            (reaction.type as? TdApi.ReactionTypeEmoji)?.let { ReactionUi(it.emoji, reaction.totalCount, reaction.isChosen) }
+        },
     )
 }
 

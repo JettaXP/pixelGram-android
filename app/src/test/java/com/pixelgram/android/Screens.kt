@@ -79,7 +79,14 @@ class Screens {
         }
         val history = listOf(
             track,
-            message(9, false, "See you tomorrow 😀", 8),
+            message(9, false, "See you tomorrow 😀", 8).apply {
+                interactionInfo = TdApi.MessageInteractionInfo().apply {
+                    reactions = TdApi.MessageReactions(arrayOf(
+                        TdApi.MessageReaction(TdApi.ReactionTypeEmoji("❤"), 2, true, null, emptyArray()),
+                        TdApi.MessageReaction(TdApi.ReactionTypeEmoji("🔥"), 1, false, null, emptyArray()),
+                    ), false, emptyArray(), false)
+                }
+            },
             message(8, true, "Sure, at 10?"),
             message(7, false, "Shall we meet tomorrow?"),
             message(6, true, "The new Material 3 Expressive shapes look great"),
