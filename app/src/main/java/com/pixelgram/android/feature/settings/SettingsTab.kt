@@ -54,7 +54,7 @@ import org.drinkless.tdlib.TdApi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit) {
+fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?) {
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
@@ -73,7 +73,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
                 showCamera = true,
                 onAvatarClick = pickAvatar,
                 topStart = {
-                    IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                    if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                 },
                 topEnd = {
                     if (me?.username != null) IconButton(onClick = { navigator.open(ProfileKey(snapshot.meId)) }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }

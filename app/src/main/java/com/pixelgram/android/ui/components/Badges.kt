@@ -121,29 +121,63 @@ fun UserBadgeView(badge: UserBadge, size: Dp = 18.dp) {
     val custom by remember { graph.remote.badges }.collectAsState()
     val own = custom[badge.userId]
     val notice = stringResource(badge.notice)
-    val tooltip = androidx.compose.material3.rememberTooltipState(isPersistent = true)
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    androidx.compose.material3.TooltipBox(
-        positionProvider = androidx.compose.material3.TooltipDefaults.rememberTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(own?.text?.takeIf { it.isNotBlank() } ?: notice) } },
-        state = tooltip,
+    val text = own?.text?.takeIf { it.isNotBlank() } ?: notice
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .size(size)
+            .then(if (own == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.primary) else Modifier)
+            .clickable(interactionSource = null, indication = null) { Notice.show(text) },
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .size(size)
-                .then(if (own == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.primary) else Modifier)
-                .clickable(interactionSource = null, indication = null) { scope.launch { tooltip.show() } },
-        ) {
-            if (own != null) {
-                CustomEmoji(own, size)
-            } else {
-                Icon(badge.icon, contentDescription = notice, tint = scheme.onPrimary, modifier = Modifier.size(size * LogoScale))
-            }
+        if (own != null) {
+            CustomEmoji(own, size)
+        } else {
+            Icon(badge.icon, contentDescription = notice, tint = scheme.onPrimary, modifier = Modifier.size(size * LogoScale))
         }
     }
 }
+
+object Notice {
+    var text by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var stamp by androidx.compose.runtime.mutableLongStateOf(0L)
+
+    fun show(value: String) {
+        text = value
+        stamp = System.currentTimeMillis()
+    }
+}
+
+@Composable
+fun NoticeHost(modifier: Modifier = Modifier) {
+    val shown = Notice.text
+    androidx.compose.runtime.LaunchedEffect(Notice.stamp) {
+        if (shown != null) {
+            kotlinx.coroutines.delay(NoticeMs)
+            Notice.text = null
+        }
+    }
+    var last by remember { androidx.compose.runtime.mutableStateOf("") }
+    if (shown != null) last = shown
+    androidx.compose.animation.AnimatedVisibility(
+        visible = shown != null,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.85f) + androidx.compose.animation.slideInVertically { it / 2 },
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.9f),
+        modifier = modifier,
+    ) {
+        androidx.compose.material3.Surface(
+            onClick = { Notice.text = null },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            shadowElevation = 6.dp,
+        ) {
+            Text(last, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp))
+        }
+    }
+}
+
+private const val NoticeMs = 3_000L
 
 @Composable
 fun CustomEmoji(badge: CustomBadge, size: Dp) {

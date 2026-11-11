@@ -13,6 +13,10 @@ import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.ui.theme.PixelTheme
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.pixelgram.android.feature.settings.AppLanguage.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val graph = (application as PixelApp).graph
         installSplashScreen().setKeepOnScreenCondition {

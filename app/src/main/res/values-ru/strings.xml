@@ -368,4 +368,20 @@
     <string name="profile_link">Ссылка</string>
     <string name="file_no_app">Нет приложения, чтобы открыть этот файл</string>
     <string name="stories_like">Нравится</string>
+    <string name="language_system">Как в системе</string>
+    <string name="folders_mine">Мои папки</string>
+    <string name="folders_create">Создать папку</string>
+    <string name="folders_edit">Изменить папку</string>
+    <string name="folders_delete">Удалить папку?</string>
+    <string name="folders_name">Название папки</string>
+    <string name="folders_contacts">Контакты</string>
+    <string name="folders_non_contacts">Не контакты</string>
+    <string name="folders_groups">Группы</string>
+    <string name="folders_channels">Каналы</string>
+    <string name="folders_bots">Боты</string>
+    <string name="pixel_panels">Панели</string>
+    <string name="pixel_show_drawer">Боковое меню</string>
+    <string name="pixel_show_drawer_sub">Кнопка меню и свайп от края</string>
+    <string name="pixel_show_bottom_bar">Нижняя панель</string>
+    <string name="pixel_show_bottom_bar_sub">Вкладки внизу экрана</string>
 </resources>

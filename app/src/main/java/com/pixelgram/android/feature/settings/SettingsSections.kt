@@ -72,7 +72,6 @@ enum class Tone { Primary, Secondary, Tertiary, Error }
 fun SettingsSection.shape(): androidx.compose.ui.graphics.Shape = when (this) {
     SettingsSection.Account -> androidx.compose.material3.MaterialShapes.Cookie9Sided
     SettingsSection.Chats -> androidx.compose.material3.MaterialShapes.Clover4Leaf
-    SettingsSection.Stickers -> androidx.compose.material3.MaterialShapes.Sunny
     SettingsSection.Privacy -> androidx.compose.material3.MaterialShapes.Pentagon
     SettingsSection.Notifications -> androidx.compose.material3.MaterialShapes.Burst
     SettingsSection.Data -> androidx.compose.material3.MaterialShapes.Pill
@@ -98,7 +97,6 @@ fun Tone.content(scheme: ColorScheme): Color = when (this) {
 enum class SettingsSection(val title: Int, val subtitle: Int, val icon: ImageVector, val tone: Tone) {
     Account(R.string.section_account, R.string.section_account_sub, Icons.Rounded.AccountCircle, Tone.Primary),
     Chats(R.string.section_chats, R.string.section_chats_sub, Icons.Rounded.ChatBubble, Tone.Tertiary),
-    Stickers(R.string.section_stickers, R.string.section_stickers_sub, Icons.Rounded.EmojiEmotions, Tone.Secondary),
     Privacy(R.string.section_privacy, R.string.section_privacy_sub, Icons.Rounded.Key, Tone.Primary),
     Notifications(R.string.section_notifications, R.string.section_notifications_sub, Icons.Rounded.Notifications, Tone.Error),
     Data(R.string.section_data, R.string.section_data_sub, Icons.Rounded.DataUsage, Tone.Secondary),
@@ -138,7 +136,11 @@ fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator
                     )
                 }
             }
-            ComingSoon(current.icon, current.tone)
+            when (current) {
+                SettingsSection.Language -> LanguageSection()
+                SettingsSection.Folders -> FoldersSection(graph)
+                else -> ComingSoon(current.icon, current.tone)
+            }
         }
     }
 }

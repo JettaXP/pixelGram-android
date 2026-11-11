@@ -325,6 +325,10 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
             }
         }
     }
+    SettingsGroup(stringResource(R.string.pixel_panels)) {
+        SettingsSwitch(stringResource(R.string.pixel_show_drawer), settings.showDrawer, { v -> update { it.copy(showDrawer = v) } }, SegmentPosition.Top, stringResource(R.string.pixel_show_drawer_sub), enabled = settings.showBottomBar || !settings.showDrawer)
+        SettingsSwitch(stringResource(R.string.pixel_show_bottom_bar), settings.showBottomBar, { v -> update { it.copy(showBottomBar = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_show_bottom_bar_sub), enabled = settings.showDrawer || !settings.showBottomBar)
+    }
     SettingsGroup(stringResource(R.string.pixel_icon_pack)) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 4.dp),

@@ -95,7 +95,9 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
         if (list == LIST_ARCHIVE) list = LIST_MAIN else tab = MainTab.Chats
     }
     val darkNow = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+    val shellPrefs by graph.appearance.state.collectAsState()
     ModalNavigationDrawer(
+        gesturesEnabled = shellPrefs.showDrawer || drawer.isOpen,
         drawerState = drawer,
         drawerContent = {
             DrawerContent(
@@ -155,7 +157,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     label = "main-tab",
                     modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
                 ) { current ->
-                    val openDrawer: () -> Unit = { scope.launch { drawer.open() } }
+                    val openDrawer: (() -> Unit)? = if (appearance.showDrawer) ({ scope.launch { drawer.open() } }) else null
                     when (current) {
                         MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
                         MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
@@ -172,7 +174,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     .align(Alignment.BottomCenter)
                     .onSizeChanged { with(density) { barHeight = it.height.toDp() } },
             ) {
-                if (tabs.size > 1) {
+                if (tabs.size > 1 && appearance.showBottomBar) {
                     MainNavBar(appearance.navBarStyle, tabs, tab, { tab = it }, appearance.capsuleInset, appearance.capsuleSpacing, appearance.capsuleHeight)
                 }
             }

@@ -8,6 +8,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
@@ -81,6 +85,13 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     )
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
+    com.pixelgram.android.ui.components.NoticeHost(
+        androidx.compose.ui.Modifier
+            .align(androidx.compose.ui.Alignment.BottomCenter)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+            .padding(bottom = 96.dp, start = 24.dp, end = 24.dp)
+            .zIndex(30f),
+    )
     }
 }
 

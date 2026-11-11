@@ -105,7 +105,7 @@ fun ChatsTab(
     graph: AppGraph,
     navigator: Navigator,
     baseList: String,
-    onOpenDrawer: () -> Unit,
+    onOpenDrawer: (() -> Unit)?,
     onCloseArchive: () -> Unit,
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
@@ -255,7 +255,7 @@ fun ChatsTab(
                         if (archive) {
                             IconButton(onClick = onCloseArchive) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                         } else {
-                            IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                            if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                         }
                     },
                 )

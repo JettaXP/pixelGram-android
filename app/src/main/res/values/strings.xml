@@ -369,4 +369,20 @@
     <string name="profile_link">Link</string>
     <string name="file_no_app">No app can open this file</string>
     <string name="stories_like">Like</string>
+    <string name="language_system">System</string>
+    <string name="folders_mine">My folders</string>
+    <string name="folders_create">Create folder</string>
+    <string name="folders_edit">Edit folder</string>
+    <string name="folders_delete">Delete folder?</string>
+    <string name="folders_name">Folder name</string>
+    <string name="folders_contacts">Contacts</string>
+    <string name="folders_non_contacts">Non-contacts</string>
+    <string name="folders_groups">Groups</string>
+    <string name="folders_channels">Channels</string>
+    <string name="folders_bots">Bots</string>
+    <string name="pixel_panels">Panels</string>
+    <string name="pixel_show_drawer">Side menu</string>
+    <string name="pixel_show_drawer_sub">Menu button and swipe from the edge</string>
+    <string name="pixel_show_bottom_bar">Bottom bar</string>
+    <string name="pixel_show_bottom_bar_sub">Tabs at the bottom of the screen</string>
 </resources>

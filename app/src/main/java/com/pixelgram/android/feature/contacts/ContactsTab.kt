@@ -43,7 +43,7 @@ import org.drinkless.tdlib.TdApi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit) {
+fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?) {
     val snapshot by graph.store.snapshot.collectAsState()
     var ids by remember { mutableStateOf<List<Long>?>(null) }
     LaunchedEffect(Unit) { ids = runCatching { graph.td.send(TdApi.GetContacts()).userIds.toList() }.getOrDefault(emptyList()) }
@@ -51,7 +51,7 @@ fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_contacts), style = MaterialTheme.typography.titleLargeEmphasized) },
-                navigationIcon = { IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) } },
+                navigationIcon = { if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) } },
             )
         },
     ) { padding ->
