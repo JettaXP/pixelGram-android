@@ -406,4 +406,24 @@
     <string name="action_done">Done</string>
     <string name="action_select_text">Select text</string>
     <string name="action_copy_link">Copy link</string>
+    <string name="support_title">Support Development</string>
+    <string name="support_lead">pixelGram is made by one person in their free time. Every donation helps keep it going.</string>
+    <string name="support_perks">Supporters get</string>
+    <string name="support_numbered">Numbered badge · 2 TON or 2 USDT</string>
+    <string name="support_numbered_text">A pixelGram badge with your own number next to your name, visible to everyone using pixelGram on Android and desktop.</string>
+    <string name="support_custom">Custom badge · 5 TON or 5 USDT</string>
+    <string name="support_custom_text">Pick any emoji or premium emoji and your own caption for the badge. You can change it whenever you like.</string>
+    <string name="support_how">How to get it</string>
+    <string name="support_step_pay">Make a donation</string>
+    <string name="support_step_pay_text">Send TON or USDT to one of these addresses. Tap one to copy it.</string>
+    <string name="support_step_proof">Send proof of payment</string>
+    <string name="support_step_proof_text">Send @%1$s a screenshot of the transfer with the amount and date.</string>
+    <string name="support_step_badge">Receive your badge</string>
+    <string name="support_step_badge_text">Once the payment is checked, the badge appears on your profile within a few minutes.</string>
+    <string name="support_contact">Message @%1$s</string>
+    <string name="support_entry">Support development</string>
+    <string name="support_entry_sub">Donate TON or USDT and get a unique badge</string>
+    <string name="badge_supporter">%1$s supported pixelGram and earned unique supporter badge #%2$s!</string>
+    <string name="badge_supporter_someone">This user</string>
+    <string name="badge_supporter_label">Supporter Badge #%1$d</string>
 </resources>

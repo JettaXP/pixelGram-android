@@ -127,7 +127,7 @@ fun ProfileHeader(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true)
+                NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = true)
             }
             if (!subtitle.isNullOrBlank()) {
                 Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)

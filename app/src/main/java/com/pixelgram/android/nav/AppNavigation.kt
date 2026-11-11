@@ -87,6 +87,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     )
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
+    com.pixelgram.android.feature.pixel.SupportSheet()
     com.pixelgram.android.ui.components.NoticeHost(
         androidx.compose.ui.Modifier
             .align(androidx.compose.ui.Alignment.BottomCenter)

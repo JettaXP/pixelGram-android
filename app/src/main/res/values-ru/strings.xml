@@ -405,4 +405,24 @@
     <string name="action_done">Готово</string>
     <string name="action_select_text">Выделить текст</string>
     <string name="action_copy_link">Копировать ссылку</string>
+    <string name="support_title">Поддержать разработку</string>
+    <string name="support_lead">pixelGram делает один человек в свободное время. Каждый донат помогает проекту жить.</string>
+    <string name="support_perks">Что получают поддержавшие</string>
+    <string name="support_numbered">Номерной значок · 2 TON или 2 USDT</string>
+    <string name="support_numbered_text">Значок pixelGram с вашим личным номером рядом с именем. Его видят все пользователи pixelGram на Android и компьютере.</string>
+    <string name="support_custom">Свой значок · 5 TON или 5 USDT</string>
+    <string name="support_custom_text">Выберите любой эмодзи или премиум-эмодзи и свою подпись к значку. Менять его можно когда угодно.</string>
+    <string name="support_how">Как получить</string>
+    <string name="support_step_pay">Сделайте перевод</string>
+    <string name="support_step_pay_text">Отправьте TON или USDT на один из адресов. Нажмите на адрес, чтобы скопировать.</string>
+    <string name="support_step_proof">Пришлите подтверждение</string>
+    <string name="support_step_proof_text">Отправьте @%1$s скриншот перевода с суммой и датой.</string>
+    <string name="support_step_badge">Получите значок</string>
+    <string name="support_step_badge_text">После проверки перевода значок появится в вашем профиле в течение нескольких минут.</string>
+    <string name="support_contact">Написать @%1$s</string>
+    <string name="support_entry">Поддержать разработку</string>
+    <string name="support_entry_sub">Задонатьте TON или USDT и получите уникальный значок</string>
+    <string name="badge_supporter">%1$s поддержал(а) pixelGram и получил(а) уникальный значок #%2$s!</string>
+    <string name="badge_supporter_someone">Этот пользователь</string>
+    <string name="badge_supporter_label">Значок поддержки #%1$d</string>
 </resources>

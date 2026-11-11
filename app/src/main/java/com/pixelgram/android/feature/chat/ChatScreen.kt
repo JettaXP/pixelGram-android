@@ -1710,6 +1710,16 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 else -> Unit
             }
         }
+        com.pixelgram.android.feature.pixel.SupportProject.LinkPattern.findAll(text).forEach { match ->
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    "pg-support",
+                    androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)),
+                ) { com.pixelgram.android.feature.pixel.SupportProject.open = true },
+                match.range.first,
+                match.range.last + 1,
+            )
+        }
     }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)

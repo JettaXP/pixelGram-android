@@ -14,6 +14,8 @@ import java.net.URI
 
 data class CustomBadge(val emoji: String, val customEmojiId: Long, val text: String)
 
+data class Supporters(val numbers: Map<Long, Int> = emptyMap(), val custom: Set<Long> = emptySet())
+
 class PixelRemote(context: Context, private val scope: CoroutineScope) {
     private val dir = File(context.filesDir, "banners").apply { mkdirs() }
     private val indexFile = File(dir, "index.json")
@@ -24,12 +26,16 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
     private val badgeFlow = MutableStateFlow<Map<Long, CustomBadge>>(emptyMap())
     val banners: StateFlow<Map<Long, File>> = bannerFlow.asStateFlow()
     val badges: StateFlow<Map<Long, CustomBadge>> = badgeFlow.asStateFlow()
+    private val supporterFlow = MutableStateFlow(Supporters())
+    val supporters: StateFlow<Supporters> = supporterFlow.asStateFlow()
+    private val supportersFile = File(dir, "supporters.json")
     private var lastRefresh = 0L
 
     init {
         scope.launch(Dispatchers.IO) {
             runCatching { if (indexFile.isFile) parseIndex(indexFile.readText()) }
             runCatching { if (badgesFile.isFile) badgeFlow.value = parseBadges(badgesFile.readText()) }
+            runCatching { if (supportersFile.isFile) supporterFlow.value = parseSupporters(supportersFile.readText()) }
             refresh()
         }
     }
@@ -42,6 +48,12 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
             runCatching { fetch("$Base/index.json") }.getOrNull()?.let { text ->
                 indexFile.writeText(text)
                 parseIndex(text)
+            }
+            for (url in SupporterUrls) {
+                val text = runCatching { fetch(url) }.getOrNull()?.takeIf { it.contains("\"supporters\"") } ?: continue
+                supportersFile.writeText(text)
+                supporterFlow.value = parseSupporters(text)
+                break
             }
             runCatching { fetch("$Base/badges.tsv") }.getOrNull()?.let { text ->
                 badgesFile.writeText(text)
@@ -83,11 +95,20 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
     private fun parseBadges(text: String): Map<Long, CustomBadge> = text.lines().mapNotNull { row ->
         val parts = row.split('\t')
         val userId = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
-        if (userId !in BadgeOwners) return@mapNotNull null
         val customId = parts.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
         val emoji = parts.getOrNull(2)?.takeIf { it.isNotBlank() && it.length <= 32 } ?: return@mapNotNull null
         userId to CustomBadge(emoji, customId, clean(parts.getOrNull(3).orEmpty()))
     }.toMap()
+
+    private fun parseSupporters(text: String): Supporters {
+        val block = Regex("\"supporters\"\\s*:\\s*\\{([^}]*)}").find(text)?.groupValues?.get(1).orEmpty()
+        val numbers = Regex("\"(\\d+)\"\\s*:\\s*(\\d+)").findAll(block).associate { it.groupValues[1].toLong() to it.groupValues[2].toInt() }
+        val list = Regex("\"custom\"\\s*:\\s*\\[([^]]*)]").find(text)?.groupValues?.get(1).orEmpty()
+        val custom = Regex("(\\d+)").findAll(list).map { it.groupValues[1].toLong() }.toSet()
+        return Supporters(numbers, custom)
+    }
+
+    fun customAllowed(userId: Long): Boolean = userId in BadgeOwners || userId in supporterFlow.value.custom
 
     private fun clean(text: String) = text.replace(Regex("[\\p{Cc}\\p{Cf}&&[^\\u200D\\uFE0F]]"), " ").trim().take(64)
 
@@ -114,5 +135,9 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
         private const val RefreshMs = 60 * 60 * 1000L
         private const val TimeoutMs = 15_000
         val BadgeOwners = setOf(1780288121L, 1170147841L, 1061520526L)
+        private val SupporterUrls = listOf(
+            "https://pixelgram.jettax.xyz/api/badges.json",
+            "https://raw.githubusercontent.com/JettaXP/pixelGram/main/docs/api/badges.json",
+        )
     }
 }

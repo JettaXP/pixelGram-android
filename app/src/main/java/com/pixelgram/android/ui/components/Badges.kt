@@ -57,6 +57,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import coil.compose.AsyncImage
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.R
+import androidx.compose.ui.res.painterResource
 import com.pixelgram.android.pixel.CustomBadge
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
@@ -87,7 +88,7 @@ enum class UserBadge(val userId: Long, val notice: Int) {
 }
 
 @Composable
-fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false) {
+fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false, name: String = "", label: Boolean = false) {
     if (verified) VerifiedBadge(size)
     if (scam || fake) {
         Box(
@@ -100,8 +101,85 @@ fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean 
             )
         }
     }
-    UserBadge.of(userId)?.let { UserBadgeView(it, size) }
+    val official = UserBadge.of(userId)
+    if (official != null) UserBadgeView(official, size) else if (userId > 0) SupporterBadge(userId, name, size, label)
 }
+
+@Composable
+fun SupporterBadge(userId: Long, name: String, size: Dp = 18.dp, label: Boolean = false) {
+    val graph = LocalGraph.current
+    val scheme = MaterialTheme.colorScheme
+    val supporters by remember { graph.remote.supporters }.collectAsState()
+    val badges by remember { graph.remote.badges }.collectAsState()
+    val number = supporters.numbers[userId]
+    val custom = badges[userId]?.takeIf { userId in supporters.custom }
+    if (number == null && custom == null) return
+    val notice = custom?.text?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.badge_supporter, name.ifBlank { stringResource(R.string.badge_supporter_someone) }, number?.toString().orEmpty())
+    var showLabel by remember(userId) { androidx.compose.runtime.mutableStateOf(label && number != null) }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .size(size)
+            .then(if (custom == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.tertiary) else Modifier)
+            .clickable(interactionSource = null, indication = null) { Notice.show(notice) },
+    ) {
+        if (custom != null) {
+            CustomEmoji(custom, size)
+        } else {
+            Icon(painterResource(R.drawable.ic_pixelgram), contentDescription = notice, tint = scheme.onTertiary, modifier = Modifier.size(size * LogoScale))
+        }
+        if (showLabel && number != null) BadgeLabel(stringResource(R.string.badge_supporter_label, number)) { showLabel = false }
+    }
+}
+
+@Composable
+private fun BadgeLabel(text: String, onDone: () -> Unit) {
+    val shown = remember(text) { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+    androidx.compose.runtime.LaunchedEffect(text) {
+        kotlinx.coroutines.delay(LabelMs)
+        shown.targetState = false
+    }
+    androidx.compose.runtime.LaunchedEffect(shown.currentState, shown.isIdle) {
+        if (shown.isIdle && !shown.currentState) onDone()
+    }
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.roundToPx() }
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = remember {
+            object : androidx.compose.ui.window.PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: androidx.compose.ui.unit.IntRect,
+                    windowSize: androidx.compose.ui.unit.IntSize,
+                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                    popupContentSize: androidx.compose.ui.unit.IntSize,
+                ) = androidx.compose.ui.unit.IntOffset(
+                    (anchorBounds.center.x - popupContentSize.width / 2).coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                    (anchorBounds.top - popupContentSize.height - gap).coerceAtLeast(0),
+                )
+            }
+        },
+    ) {
+        androidx.compose.animation.AnimatedVisibility(
+            visibleState = shown,
+            enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec(), initialScale = 0.8f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
+            exit = androidx.compose.animation.fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)),
+        ) {
+            androidx.compose.material3.Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shadowElevation = 4.dp,
+            ) {
+                Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            }
+        }
+    }
+}
+
+private const val LabelMs = 5_000L
 
 @Composable
 fun VerifiedBadge(size: Dp = 18.dp) {

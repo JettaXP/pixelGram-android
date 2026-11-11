@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -422,6 +423,9 @@ internal fun AboutPage() {
     Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PixelLogo(88.dp)
         Text(stringResource(R.string.pixel_about_text), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    SettingsGroup(stringResource(R.string.support_title)) {
+        SettingsItem(stringResource(R.string.support_entry), SegmentPosition.Single, stringResource(R.string.support_entry_sub), Icons.Rounded.Favorite, onClick = { SupportProject.open = true })
     }
     SettingsGroup(stringResource(R.string.pixel_links)) {
         SettingsItem(stringResource(R.string.pixel_channel), SegmentPosition.Top, "@pixelgramclient", Icons.Rounded.Chat, onClick = { uri.openUri("https://t.me/pixelgramclient") })
