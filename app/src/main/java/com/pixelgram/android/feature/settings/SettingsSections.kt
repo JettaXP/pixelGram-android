@@ -67,6 +67,20 @@ import com.pixelgram.android.ui.components.SettingsItem
 
 enum class Tone { Primary, Secondary, Tertiary, Error }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@androidx.compose.runtime.Composable
+fun SettingsSection.shape(): androidx.compose.ui.graphics.Shape = when (this) {
+    SettingsSection.Account -> androidx.compose.material3.MaterialShapes.Cookie9Sided
+    SettingsSection.Chats -> androidx.compose.material3.MaterialShapes.Clover4Leaf
+    SettingsSection.Stickers -> androidx.compose.material3.MaterialShapes.Sunny
+    SettingsSection.Privacy -> androidx.compose.material3.MaterialShapes.Pentagon
+    SettingsSection.Notifications -> androidx.compose.material3.MaterialShapes.Burst
+    SettingsSection.Data -> androidx.compose.material3.MaterialShapes.Pill
+    SettingsSection.Folders -> androidx.compose.material3.MaterialShapes.Arch
+    SettingsSection.Power -> androidx.compose.material3.MaterialShapes.Cookie6Sided
+    else -> androidx.compose.material3.MaterialShapes.Circle
+}.toShape()
+
 fun Tone.container(scheme: ColorScheme): Color = when (this) {
     Tone.Primary -> scheme.primaryContainer
     Tone.Secondary -> scheme.secondaryContainer

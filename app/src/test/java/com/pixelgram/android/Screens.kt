@@ -8,6 +8,8 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.settings.ThemeMode
@@ -34,12 +36,12 @@ class Screens {
         return graph
     }
 
-    private fun shoot(name: String, graph: AppGraph = graph(), before: (() -> Unit)? = null) {
+    private fun shoot(name: String, graph: AppGraph = graph(), start: List<androidx.navigation3.runtime.NavKey> = listOf(com.pixelgram.android.nav.MainKey), before: (() -> Unit)? = null) {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             val appearance by graph.appearance.state.collectAsState()
             PixelTheme(appearance) {
-                CompositionLocalProvider(LocalGraph provides graph) { AppNavigation(graph) }
+                CompositionLocalProvider(LocalGraph provides graph) { AppNavigation(graph, start) }
             }
         }
         repeat(30) { rule.mainClock.advanceTimeBy(50) }
@@ -52,6 +54,51 @@ class Screens {
     }
 
     @Test fun chats() = shoot("chats")
+
+    @Test fun chat() {
+        val graph = graph()
+        val now = (System.currentTimeMillis() / 1000).toInt()
+        fun message(id: Long, out: Boolean, text: String, reply: Long = 0) = TdApi.Message().apply {
+            this.id = id
+            chatId = 2
+            senderId = TdApi.MessageSenderUser(if (out) 1 else 2)
+            isOutgoing = out
+            date = now - (10 - id.toInt()) * 60
+            content = TdApi.MessageText(TdApi.FormattedText(text, emptyArray()), null, null)
+            if (reply != 0L) replyTo = TdApi.MessageReplyToMessage(2, reply, null, 0, null, null, 0, null)
+        }
+        val history = listOf(
+            message(9, false, "See you tomorrow 😀", 8),
+            message(8, true, "Sure, at 10?"),
+            message(7, false, "Shall we meet tomorrow?"),
+            message(6, true, "The new Material 3 Expressive shapes look great"),
+            message(5, false, "Hi there 👋"),
+        )
+        graph.td.offlineReply = { function ->
+            when (function) {
+                is TdApi.GetChatHistory -> TdApi.Messages(history.size, history.toTypedArray())
+                is TdApi.GetRepliedMessage -> history.firstOrNull { it.id == 8L }
+                else -> null
+            }
+        }
+        shoot("chat", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2)))
+    }
+
+    @Test fun settingsTab() = shoot("settings_tab") { rule.onNodeWithContentDescription("Settings").performClick() }
+
+    @Test fun contactsTab() {
+        val graph = graph()
+        graph.td.offlineReply = { function -> if (function is TdApi.GetContacts) TdApi.Users(3, longArrayOf(2, 3, 6)) else null }
+        shoot("contacts_tab", graph) { rule.onNodeWithContentDescription("Contacts").performClick() }
+    }
+
+    @Test fun sessions() = shoot("sessions", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SessionsKey))
+
+    @Test fun search() = shoot("search", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SearchKey))
+
+    @Test fun pixelSettings() = shoot("pixel_settings", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.PixelSettingsKey()))
+
+    @Test fun profile() = shoot("profile", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ProfileKey(2, 2)))
 
     @Test fun story() {
         val graph = graph()

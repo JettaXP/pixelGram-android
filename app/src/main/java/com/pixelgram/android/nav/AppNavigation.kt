@@ -46,8 +46,8 @@ class Navigator(private val stack: MutableList<NavKey>) {
 }
 
 @Composable
-fun AppNavigation(graph: AppGraph) {
-    val stack = rememberNavBackStack(MainKey)
+fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
+    val stack = rememberNavBackStack(*start.toTypedArray())
     val navigator = Navigator(stack)
     val gesture = rememberBackGesture()
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {

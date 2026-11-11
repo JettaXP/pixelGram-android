@@ -89,6 +89,7 @@ fun SettingsItem(
     painter: Painter? = null,
     iconTint: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     iconBackground: Color = MaterialTheme.colorScheme.secondaryContainer,
+    iconShape: androidx.compose.ui.graphics.Shape = CircleShape,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
@@ -97,7 +98,7 @@ fun SettingsItem(
     val shapes = ListItemDefaults.segmentedShapes(index, count)
     val leading: (@Composable () -> Unit)? = if (icon != null || painter != null) {
         {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(iconBackground), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(iconShape).background(iconBackground), contentAlignment = Alignment.Center) {
                 if (icon != null) Icon(icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
                 else if (painter != null) Icon(painter, null, tint = iconTint, modifier = Modifier.size(22.dp))
             }

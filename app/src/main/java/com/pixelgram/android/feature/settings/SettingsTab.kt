@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.settings
 
+import androidx.compose.material3.toShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -90,6 +91,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
                     painter = painterResource(R.drawable.ic_pixelgram),
                     iconBackground = MaterialTheme.colorScheme.primary,
                     iconTint = MaterialTheme.colorScheme.onPrimary,
+                    iconShape = androidx.compose.material3.MaterialShapes.Cookie12Sided.toShape(),
                     position = SegmentPosition.Single,
                     onClick = { navigator.open(PixelSettingsKey()) },
                 )
@@ -103,6 +105,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: () -> Unit)
                         icon = section.icon,
                         iconBackground = section.tone.container(MaterialTheme.colorScheme),
                         iconTint = section.tone.content(MaterialTheme.colorScheme),
+                        iconShape = section.shape(),
                         position = segmentPosition(index, sections.size),
                         onClick = { navigator.open(SettingsSectionKey(section.name)) },
                     )
