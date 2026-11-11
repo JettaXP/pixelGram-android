@@ -67,7 +67,18 @@ class Screens {
             content = TdApi.MessageText(TdApi.FormattedText(text, emptyArray()), null, null)
             if (reply != 0L) replyTo = TdApi.MessageReplyToMessage(2, reply, null, 0, null, null, 0, null)
         }
+        val track = message(10, false, "").apply {
+            content = TdApi.MessageAudio(TdApi.Audio().apply {
+                duration = 214
+                title = "Midnight Shapes"
+                performer = "Expressive Hours"
+                fileName = "Expressive Hours - Midnight Shapes.mp3"
+                mimeType = "audio/mpeg"
+                audio = TdApi.File().apply { id = 700; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() }
+            }, TdApi.FormattedText("", emptyArray()))
+        }
         val history = listOf(
+            track,
             message(9, false, "See you tomorrow 😀", 8),
             message(8, true, "Sure, at 10?"),
             message(7, false, "Shall we meet tomorrow?"),

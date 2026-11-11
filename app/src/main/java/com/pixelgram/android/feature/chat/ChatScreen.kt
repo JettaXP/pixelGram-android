@@ -94,6 +94,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -225,6 +226,12 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                     replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
                                     onLongPress = { menuFor = message },
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
+                                    onPlayAudio = { audio ->
+                                        val all = ui.messages.reversed().mapNotNull { (it.content as? TdApi.MessageAudio)?.audio }
+                                        val start = all.indexOfFirst { it.audio.id == audio.audio.id }.coerceAtLeast(0)
+                                        if (graph.music.state.value.track?.fileId == audio.audio.id) graph.music.toggle()
+                                        else graph.music.play(all.ifEmpty { listOf(audio) }, start, ui.title)
+                                    },
                                 )
                             }
                         }
@@ -362,6 +369,7 @@ internal fun MessageBubble(
     replySender: String?,
     onLongPress: () -> Unit = {},
     onDoubleTap: () -> Unit = {},
+    onPlayAudio: (TdApi.Audio) -> Unit = {},
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     val big = prefs.bubbleRadius.dp
@@ -388,6 +396,7 @@ internal fun MessageBubble(
                 val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.mediaWidth > 0 }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
+                (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 Row(
                     Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.Bottom,
@@ -419,6 +428,53 @@ internal fun MessageBubble(
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AudioRow(audio: TdApi.Audio, outgoing: Boolean, onPlay: () -> Unit) {
+    val music = com.pixelgram.android.LocalGraph.current.music
+    val state by music.state.collectAsState()
+    val current = state.track?.fileId == audio.audio.id
+    val playing = current && state.playing
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp).widthIn(min = 220.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+            if (current && state.duration > 0) {
+                androidx.compose.material3.CircularWavyProgressIndicator(
+                    progress = { (state.position.toFloat() / state.duration).coerceIn(0f, 1f) },
+                    modifier = Modifier.size(48.dp),
+                    color = if (outgoing) scheme.onPrimaryContainer else scheme.primary,
+                    amplitude = { if (playing) 1f else 0f },
+                )
+            }
+            androidx.compose.material3.FilledIconButton(
+                onClick = onPlay,
+                shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (outgoing) scheme.onPrimaryContainer else scheme.primary,
+                    contentColor = if (outgoing) scheme.primaryContainer else scheme.onPrimary,
+                ),
+                modifier = Modifier.size(40.dp),
+            ) {
+                com.pixelgram.android.feature.player.PlayPauseMorph(playing, 24.dp)
+            }
+        }
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(audio.title.ifBlank { audio.fileName }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(
+                listOf(audio.performer, com.pixelgram.android.feature.player.formatTime(audio.duration * 1000L)).filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = LocalContentColor.current.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
         }
     }
 }
