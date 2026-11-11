@@ -147,8 +147,8 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
-    val controller = remember(chatId) { ChatController(graph, chatId) }
+fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int = 0) {
+    val controller = remember(chatId, topicId) { ChatController(graph, chatId, topicId) }
     DisposableEffect(controller) { onDispose { controller.close() } }
     val ui by controller.state.collectAsState()
     val snapshot by graph.store.snapshot.collectAsState()

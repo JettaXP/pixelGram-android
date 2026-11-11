@@ -60,7 +60,10 @@ data class ChatUi(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ChatController(private val graph: AppGraph, val chatId: Long) {
+class ChatController(private val graph: AppGraph, val chatId: Long, val topicId: Int = 0) {
+    private val topic: TdApi.MessageTopic? = if (topicId != 0) TdApi.MessageTopicForum(topicId) else null
+
+    private fun inTopic(message: TdApi.Message): Boolean = topicId == 0 || (message.topicId as? TdApi.MessageTopicForum)?.forumTopicId == topicId
     private val scope = CoroutineScope(graph.scope.coroutineContext + Job())
     private val worker = Dispatchers.Default.limitedParallelism(1)
     private val messages = LinkedHashMap<Long, TdApi.Message>()
@@ -76,6 +79,9 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
         readOutbox = chat?.lastReadOutboxMessageId ?: 0
         ui.value = ui.value.copy(title = chat?.title.orEmpty())
         graph.td.fire(TdApi.OpenChat(chatId))
+        if (topicId != 0) scope.launch {
+            runCatching { graph.td.send(TdApi.GetForumTopic(chatId, topicId)) }.getOrNull()?.let { ui.value = ui.value.copy(title = it.info.name) }
+        }
         scope.launch(worker) { graph.td.updates.collect(::onUpdate) }
         scope.launch {
             val members = runCatching {
@@ -92,7 +98,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
 
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
-            is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId) {
+            is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && inTopic(update.message)) {
                 messages[update.message.id] = update.message
                 graph.td.fire(TdApi.ViewMessages(chatId, longArrayOf(update.message.id), null, true))
             } else return
@@ -185,7 +191,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
             ui.value = ui.value.copy(loading = true)
             val from = messages.keys.minOrNull() ?: 0L
             val page = runCatching {
-                graph.td.send(TdApi.GetChatHistory(chatId, from, 0, 50, false))
+                if (topicId != 0) graph.td.send(TdApi.GetForumTopicHistory(chatId, topicId, from, 0, 50)) else graph.td.send(TdApi.GetChatHistory(chatId, from, 0, 50, false))
             }.getOrNull()
             val list = page?.messages.orEmpty()
             for (message in list) messages[message.id] = message
@@ -298,6 +304,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
                 if (contents.size == 1) {
                     graph.td.send(TdApi.SendMessage().apply {
                         chatId = this@ChatController.chatId
+                        topicId = topic
                         this.replyTo = replyTo
                         inputMessageContent = contents.first()
                     })
@@ -305,6 +312,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
                     for (chunk in contents.chunked(10)) {
                         graph.td.send(TdApi.SendMessageAlbum().apply {
                             chatId = this@ChatController.chatId
+                            topicId = topic
                             this.replyTo = replyTo
                             inputMessageContents = chunk.toTypedArray()
                         })
@@ -323,6 +331,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
             runCatching {
                 graph.td.send(TdApi.SendMessage().apply {
                     chatId = this@ChatController.chatId
+                    topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
                     inputMessageContent = TdApi.InputMessageText().apply {
                         this.text = TdApi.FormattedText(body, emptyArray())
@@ -340,6 +349,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
             runCatching {
                 graph.td.send(TdApi.SendMessage().apply {
                     chatId = this@ChatController.chatId
+                    topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
                     inputMessageContent = content
                 })

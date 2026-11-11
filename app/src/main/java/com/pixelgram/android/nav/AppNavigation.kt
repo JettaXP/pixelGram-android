@@ -31,7 +31,8 @@ import com.pixelgram.android.feature.settings.SessionsScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object MainKey : NavKey
-@Serializable data class ChatKey(val chatId: Long) : NavKey
+@Serializable data class ChatKey(val chatId: Long, val topicId: Int = 0) : NavKey
+@Serializable data class ForumKey(val chatId: Long) : NavKey
 @Serializable data class ProfileKey(val userId: Long, val chatId: Long = 0) : NavKey
 @Serializable data class PixelSettingsKey(val page: String = "") : NavKey
 @Serializable data object SessionsKey : NavKey
@@ -74,7 +75,8 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         ),
         entryProvider = entryProvider {
             entry<MainKey> { MainShell(graph, navigator) }
-            entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator) }
+            entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator, key.topicId) }
+            entry<ForumKey> { key -> com.pixelgram.android.feature.chat.ForumScreen(graph, key.chatId, navigator) }
             entry<ProfileKey> { key -> ProfileScreen(graph, key.userId, key.chatId, navigator) }
             entry<PixelSettingsKey> { key -> PixelSettingsScreen(graph, key.page, navigator) }
             entry<SessionsKey> { SessionsScreen(graph, navigator) }

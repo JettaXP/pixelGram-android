@@ -39,6 +39,7 @@ data class ChatRow(
     val deleted: Boolean = false,
     val scam: Boolean = false,
     val fake: Boolean = false,
+    val forum: Boolean = false,
 )
 
 @Immutable
@@ -288,6 +289,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             list = position.list.key(),
             typing = typing[chat.id]?.isNotEmpty() == true,
             deleted = user?.type is TdApi.UserTypeDeleted,
+            forum = (type as? TdApi.ChatTypeSupergroup)?.let { supergroups[it.supergroupId]?.isForum } == true,
         )
     }
 
