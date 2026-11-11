@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
             graph.auth.state.value.step == AuthStep.Loading
         }
         super.onCreate(savedInstanceState)
+        graph.music.cast.init()
         handle(intent)
         enableEdgeToEdge()
         setContent {

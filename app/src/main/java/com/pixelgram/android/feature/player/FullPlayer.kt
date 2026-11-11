@@ -853,7 +853,7 @@ private fun CastSheet(cast: com.pixelgram.android.music.CastLink, onDismiss: () 
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
             Text(
-                stringResource(if (state.available) R.string.cast_hint else R.string.cast_unavailable),
+                stringResource(if (state.available) R.string.cast_hint else R.string.cast_unavailable) + (state.error?.takeIf { !state.available }?.let { "\n$it" } ?: ""),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -867,6 +867,12 @@ private fun CastSheet(cast: com.pixelgram.android.music.CastLink, onDismiss: () 
                         LoadingIndicator(Modifier.size(48.dp))
                         Spacer(Modifier.height(8.dp))
                         Text(stringResource(R.string.cast_searching), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Cast: " + (if (state.ready) "ready" else "starting") + " · routes: ${state.routes}" + (state.error?.let { " · $it" } ?: ""),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                 } else {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {

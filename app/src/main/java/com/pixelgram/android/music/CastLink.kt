@@ -37,6 +37,9 @@ data class CastState(
     val devices: List<CastDevice> = emptyList(),
     val connecting: String? = null,
     val connected: String? = null,
+    val ready: Boolean = false,
+    val routes: Int = 0,
+    val error: String? = null,
 )
 
 class CastLink(private val context: Context) {
@@ -51,11 +54,12 @@ class CastLink(private val context: Context) {
     var onStatus: (() -> Unit)? = null
     private var lastPosition = 0L
 
-    private val selector by lazy {
+    private val fallbackSelector by lazy {
         MediaRouteSelector.Builder()
             .addControlCategory(CastMediaControlIntent.categoryForCast(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
             .build()
     }
+    private val selector: MediaRouteSelector get() = castContext?.mergedSelector ?: fallbackSelector
     private val router by lazy { MediaRouter.getInstance(context) }
 
     private val routes = object : MediaRouter.Callback() {
@@ -92,17 +96,28 @@ class CastLink(private val context: Context) {
     val client: RemoteMediaClient? get() = session?.remoteMediaClient
     val active: Boolean get() = session?.isConnected == true && client != null
 
+    private var initStarted = false
+
     fun init() {
-        if (castContext != null) return
+        if (castContext != null || initStarted) return
+        initStarted = true
         runCatching {
-            CastContext.getSharedInstance(context, java.util.concurrent.Executors.newSingleThreadExecutor())
+            CastContext.getSharedInstance(context, androidx.core.content.ContextCompat.getMainExecutor(context))
                 .addOnSuccessListener { cast ->
                     castContext = cast
+                    stateFlow.value = stateFlow.value.copy(ready = true, error = null)
                     cast.sessionManager.addSessionManagerListener(sessions, CastSession::class.java)
                     cast.sessionManager.currentCastSession?.takeIf { it.isConnected }?.let(::attach)
+                    if (scanning) {
+                        runCatching {
+                            router.removeCallback(routes)
+                            router.addCallback(selector, routes, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY or MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN)
+                        }
+                    }
+                    refresh()
                 }
-                .addOnFailureListener { stateFlow.value = stateFlow.value.copy(available = false) }
-        }.onFailure { stateFlow.value = stateFlow.value.copy(available = false) }
+                .addOnFailureListener { e -> stateFlow.value = stateFlow.value.copy(available = false, error = e.message ?: e.javaClass.simpleName) }
+        }.onFailure { e -> stateFlow.value = stateFlow.value.copy(available = false, error = e.message ?: e.javaClass.simpleName) }
     }
 
     fun scan(on: Boolean) {
@@ -184,10 +199,11 @@ class CastLink(private val context: Context) {
     }
 
     private fun refresh() {
+        val all = runCatching { router.routes.count { !it.isDefault } }.getOrDefault(0)
         val list = runCatching {
             router.routes.filter { !it.isDefault && it.isEnabled && it.matchesSelector(selector) }
                 .map { CastDevice(it.id, it.name, it.description.orEmpty(), it.isSelected) }
         }.getOrDefault(emptyList())
-        stateFlow.value = stateFlow.value.copy(devices = list)
+        stateFlow.value = stateFlow.value.copy(devices = list, routes = all)
     }
 }
