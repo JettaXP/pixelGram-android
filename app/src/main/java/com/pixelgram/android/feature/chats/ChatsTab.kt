@@ -328,7 +328,11 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                     path = row.photoPath,
                     minithumb = row.minithumb,
                     size = 52.dp,
-                    icon = if (row.kind == ChatKind.Saved) Icons.Rounded.Bookmark else null,
+                    icon = when {
+                        row.kind == ChatKind.Saved -> Icons.Rounded.Bookmark
+                        row.deleted -> com.pixelgram.android.ui.icons.GhostIcon
+                        else -> null
+                    },
                     onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
                 )
                 if (row.online) {
@@ -361,7 +365,11 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = if (row.kind == ChatKind.Saved) stringResource(R.string.drawer_saved) else row.title,
+                text = when {
+                    row.kind == ChatKind.Saved -> stringResource(R.string.drawer_saved)
+                    row.deleted -> stringResource(R.string.chat_deleted_account)
+                    else -> row.title
+                },
                 fontWeight = if (row.unread > 0) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

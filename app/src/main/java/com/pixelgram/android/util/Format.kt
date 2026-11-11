@@ -47,7 +47,7 @@ fun initials(title: String): String {
     return when {
         letters.size >= 2 -> "${letters[0].uppercaseChar()}${letters[1].uppercaseChar()}"
         letters.size == 1 -> letters[0].uppercaseChar().toString()
-        else -> "?"
+        else -> ""
     }
 }
 

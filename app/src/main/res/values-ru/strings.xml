@@ -311,4 +311,23 @@
     <string name="player_save_to">Сохранить в</string>
     <string name="player_save_music_folder">Папку «Музыка»</string>
     <string name="player_save_saved">Избранное</string>
+    <string name="chat_seen_week">был(а) на этой неделе</string>
+    <string name="chat_seen_month">был(а) в этом месяце</string>
+    <string name="chat_seen_long_ago">был(а) очень давно</string>
+    <string name="chat_support">поддержка</string>
+    <string name="chat_deleted_input">Нельзя написать удалённому аккаунту</string>
+    <string name="profile_mute">Без звука</string>
+    <string name="profile_unmute">Со звуком</string>
+    <string name="profile_more">Ещё</string>
+    <string name="profile_rename">Переименовать для себя</string>
+    <string name="profile_local_photo">Поставить своё фото</string>
+    <string name="profile_reset_local">Сбросить своё имя и фото</string>
+    <string name="profile_block">Заблокировать</string>
+    <string name="profile_unblock">Разблокировать</string>
+    <string name="rating_title">Рейтинг</string>
+    <string name="rating_level">Уровень %1$d</string>
+    <string name="rating_text">Рейтинг отражает активность %1$s в Telegram: подарки от Telegram, подарки и посты от пользователей, за вычетом возвратов и конвертаций.</string>
+    <string name="action_understood">Понятно</string>
+    <string name="action_save">Сохранить</string>
+    <string name="chat_deleted_account">Удалённый аккаунт</string>
 </resources>

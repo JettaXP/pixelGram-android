@@ -36,6 +36,7 @@ data class ChatRow(
     val lastMessageId: Long = 0,
     val list: String = LIST_MAIN,
     val typing: Boolean = false,
+    val deleted: Boolean = false,
 )
 
 @Immutable
@@ -43,6 +44,8 @@ data class FolderInfo(val id: Int, val title: String, val icon: String?)
 
 @Immutable
 data class UnreadInfo(val chats: Int, val unmuted: Int)
+
+enum class Seen { Online, Offline, Recently, Week, Month, LongAgo }
 
 @Immutable
 data class UserInfo(
@@ -59,8 +62,12 @@ data class UserInfo(
     val premium: Boolean,
     val verified: Boolean,
     val bot: Boolean,
+    val localPhoto: String? = null,
+    val deleted: Boolean = false,
+    val support: Boolean = false,
+    val seen: Seen = Seen.Recently,
 ) {
-    val name: String get() = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Deleted account" }
+    val name: String get() = if (deleted) "Deleted Account" else listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Deleted Account" }
 }
 
 @Immutable
@@ -91,7 +98,23 @@ private fun TdApi.ChatList.key(): String = when (this) {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
+class TdStore(private val td: TdClient, private val scope: CoroutineScope, context: android.content.Context? = null) {
+    private val local = context?.getSharedPreferences("local_profiles", android.content.Context.MODE_PRIVATE)
+
+    fun localName(userId: Long): String? = local?.getString("name_$userId", null)
+
+    fun localPhoto(userId: Long): String? = local?.getString("photo_$userId", null)?.takeIf { java.io.File(it).isFile }
+
+    fun setLocalName(userId: Long, name: String?) {
+        local?.edit()?.apply { if (name.isNullOrBlank()) remove("name_$userId") else putString("name_$userId", name.trim()) }?.apply()
+        touch()
+    }
+
+    fun setLocalPhoto(userId: Long, path: String?) {
+        local?.edit()?.apply { if (path == null) remove("photo_$userId") else putString("photo_$userId", path) }?.apply()
+        touch()
+    }
+
     private val worker = Dispatchers.Default.limitedParallelism(1)
     private val chats = HashMap<Long, TdApi.Chat>()
     private val users = HashMap<Long, TdApi.User>()
@@ -101,6 +124,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     private var meId = 0L
     private val unread = HashMap<String, UnreadInfo>()
     private val stories = HashMap<Long, StoryOwner>()
+    private val localPhotos = HashMap<Long, String>()
     private val typing = HashMap<Long, HashMap<Long, Long>>()
 
     private val dirty = MutableStateFlow(0L)
@@ -184,6 +208,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     }
 
     private fun publish() {
+        localPhotos.clear()
+        users.keys.forEach { id -> localPhoto(id)?.let { localPhotos[id] = it } }
         val lists = HashMap<String, MutableList<ChatRow>>()
         for (chat in chats.values) {
             for (position in chat.positions) {
@@ -192,7 +218,13 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
             }
         }
         val sorted = lists.mapValues { (_, rows) -> rows.sortedByDescending { it.order } }
-        val userInfo = users.mapValues { (_, user) -> user.info() }
+        val userInfo = users.mapValues { (id, user) ->
+            val info = user.info()
+            val name = localName(id)
+            val named = if (name != null) info.copy(firstName = name, lastName = "") else info
+            localPhoto(id)?.let { named.copy(localPhoto = it) } ?: named
+        }
+
         val storyRow = stories.values.filter { !it.archived }.sortedWith(compareByDescending<StoryOwner> { it.chatId == meId }.thenByDescending { it.order })
         snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread), storyRow)
         for (owner in storyRow.take(20)) chats[owner.chatId]?.photo?.small?.id?.let { requestFile(it) }
@@ -220,11 +252,11 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
         val last = chat.lastMessage
         return ChatRow(
             id = chat.id,
-            title = chat.title,
+            title = localName(userId).takeIf { userId != 0L } ?: chat.title,
             kind = kind,
             userId = userId,
             photoFileId = photoId,
-            photoPath = files[photoId],
+            photoPath = localPhotos[userId] ?: files[photoId],
             minithumb = chat.photo?.minithumbnail?.data,
             preview = last?.let { previewOf(it, chat, users) },
             date = last?.date ?: 0,
@@ -239,6 +271,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
             lastMessageId = last?.id ?: 0,
             list = position.list.key(),
             typing = typing[chat.id]?.isNotEmpty() == true,
+            deleted = user?.type is TdApi.UserTypeDeleted,
         )
     }
 
@@ -284,6 +317,16 @@ private fun TdApi.User.info() = UserInfo(
     premium = isPremium,
     verified = verificationStatus?.isVerified == true,
     bot = type is TdApi.UserTypeBot,
+    deleted = type is TdApi.UserTypeDeleted,
+    support = isSupport,
+    seen = when (status) {
+        is TdApi.UserStatusOnline -> Seen.Online
+        is TdApi.UserStatusOffline -> Seen.Offline
+        is TdApi.UserStatusLastWeek -> Seen.Week
+        is TdApi.UserStatusLastMonth -> Seen.Month
+        is TdApi.UserStatusEmpty -> Seen.LongAgo
+        else -> Seen.Recently
+    },
 )
 
 private const val TypingTimeoutMs = 6_000L

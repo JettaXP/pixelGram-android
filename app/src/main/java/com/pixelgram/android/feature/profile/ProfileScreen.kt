@@ -78,6 +78,12 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.NotificationsActive
 import com.pixelgram.android.nav.ProfilePhotosKey
 import com.pixelgram.android.nav.SettingsSectionKey
 
@@ -103,12 +109,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            val status = when {
-                user == null -> null
-                user.bot -> stringResource(R.string.chat_bot)
-                user.online -> stringResource(R.string.chat_online)
-                else -> stringResource(R.string.chat_last_seen_recently)
-            }
+            val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) }
             ProfileHeader(
                 graph = graph,
                 userId = if (userId != 0L) userId else chatId,
@@ -118,14 +119,14 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 minithumb = user?.minithumb ?: chat?.photo?.minithumbnail?.data,
                 verified = user?.verified == true,
                 showCamera = false,
-                onAvatarClick = { if (userId != 0L) navigator.open(ProfilePhotosKey(userId)) },
+                onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) },
+                icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
+                localPhoto = user?.localPhoto,
                 topStart = {
                     if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                     else IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 },
-                topEnd = {
-                    if (username != null) IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
-                },
+                topEnd = {},
             )
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (self) {
@@ -139,8 +140,33 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                             created?.let { navigator.open(ChatKey(it.id)) }
                         }
                     }
-                    if (username != null) ProfileAction(Icons.Rounded.QrCode2, stringResource(R.string.profile_share)) { showQr = true }
+                    val privateChat = graph.store.chat(userId)
+                    val muted = (privateChat?.notificationSettings?.muteFor ?: 0) > 0
+                    ProfileAction(if (muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff, stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute)) {
+                        scope.launch {
+                            runCatching {
+                                graph.td.send(TdApi.SetChatNotificationSettings(userId, TdApi.ChatNotificationSettings().apply {
+                                    useDefaultMuteFor = false
+                                    muteFor = if (muted) 0 else Int.MAX_VALUE
+                                    useDefaultSound = true
+                                    useDefaultShowPreview = true
+                                    useDefaultMuteStories = true
+                                    useDefaultShowStoryPoster = true
+                                    useDefaultDisablePinnedMessageNotifications = true
+                                    useDefaultDisableMentionNotifications = true
+                                }))
+                            }
+                        }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        var more by remember { mutableStateOf(false) }
+                        Row { ProfileAction(Icons.Rounded.MoreHoriz, stringResource(R.string.profile_more)) { more = true } }
+                        ProfileMoreMenu(graph, userId, username, full, more, onDismiss = { more = false }, onQr = { showQr = true })
+                    }
                 }
+            }
+            full?.rating?.takeIf { !self || it.level > 0 }?.let { rating ->
+                RatingChip(rating, user?.firstName.orEmpty())
             }
             full?.firstProfileAudio?.let { audio ->
                 Spacer(Modifier.height(16.dp))
@@ -200,7 +226,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     if (showQr && username != null) {
         val context = LocalContext.current
         val link = "https://t.me/$username"
-        ModalBottomSheet(onDismissRequest = { showQr = false }) {
+        ModalBottomSheet(onDismissRequest = { showQr = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 ExpressiveQrCode(link, Modifier.fillMaxWidth(0.85f).aspectRatio(1f))
                 Text("@$username", style = MaterialTheme.typography.titleLargeEmphasized)
@@ -293,4 +319,97 @@ internal fun playlistName(user: com.pixelgram.android.td.UserInfo?): String {
     if (user == null) return ""
     val words = (user.firstName.split(' ') + user.lastName.split(' ')).map { it.trim() }.filter { word -> word.any { it.isLetterOrDigit() } }
     return words.firstOrNull() ?: user.name
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ProfileMoreMenu(graph: AppGraph, userId: Long, username: String?, full: TdApi.UserFullInfo?, expanded: Boolean, onDismiss: () -> Unit, onQr: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var renaming by remember { mutableStateOf(false) }
+    val photo = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) scope.launch {
+            val path = withContext(Dispatchers.IO) {
+                runCatching {
+                    val target = java.io.File(java.io.File(context.filesDir, "local-photos").apply { mkdirs() }, "$userId.jpg")
+                    context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+                    target.absolutePath
+                }.getOrNull()
+            }
+            graph.store.setLocalPhoto(userId, path)
+        }
+    }
+    val blocked = full?.blockList != null
+    androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+        if (username != null) androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_share)) }, leadingIcon = { Icon(Icons.Rounded.QrCode2, null) }, onClick = { onDismiss(); onQr() })
+        androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); renaming = true })
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.profile_local_photo)) },
+            leadingIcon = { Icon(Icons.Rounded.AddAPhoto, null) },
+            onClick = {
+                onDismiss()
+                photo.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+        )
+        if (graph.store.localName(userId) != null || graph.store.localPhoto(userId) != null) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(stringResource(R.string.profile_reset_local)) },
+                leadingIcon = { Icon(Icons.Rounded.RestartAlt, null) },
+                onClick = {
+                    onDismiss()
+                    graph.store.setLocalName(userId, null)
+                    graph.store.setLocalPhoto(userId, null)
+                },
+            )
+        }
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(if (blocked) R.string.profile_unblock else R.string.profile_block), color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Rounded.Block, null, tint = MaterialTheme.colorScheme.error) },
+            onClick = {
+                onDismiss()
+                scope.launch { runCatching { graph.td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(userId), if (blocked) null else TdApi.BlockListMain())) } }
+            },
+        )
+    }
+    if (renaming) {
+        var name by remember { mutableStateOf(graph.store.localName(userId) ?: graph.store.snapshot.value.users[userId]?.name.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text(stringResource(R.string.profile_rename)) },
+            text = { androidx.compose.material3.OutlinedTextField(value = name, onValueChange = { name = it.take(64) }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { graph.store.setLocalName(userId, name); renaming = false }) { Text(stringResource(R.string.action_save)) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { renaming = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RatingChip(rating: TdApi.UserRating, name: String) {
+    var open by remember { mutableStateOf(false) }
+    androidx.compose.material3.AssistChip(
+        onClick = { open = true },
+        label = { Text(stringResource(R.string.rating_level, rating.level)) },
+        leadingIcon = { Icon(Icons.Rounded.Shield, null, Modifier.size(18.dp)) },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    if (open) {
+        ModalBottomSheet(onDismissRequest = { open = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                val span = (rating.nextLevelRating - rating.currentLevelRating).coerceAtLeast(1)
+                val progress = if (rating.isMaximumLevelReached) 1f else ((rating.rating - rating.currentLevelRating).toFloat() / span).coerceIn(0f, 1f)
+                Text("${rating.rating} / ${if (rating.isMaximumLevelReached) rating.rating else rating.nextLevelRating}", style = MaterialTheme.typography.titleLarge)
+                androidx.compose.material3.LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.rating_level, rating.level), style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.weight(1f))
+                    if (!rating.isMaximumLevelReached) Text(stringResource(R.string.rating_level, rating.level + 1), style = MaterialTheme.typography.labelLarge)
+                }
+                Text(stringResource(R.string.rating_title), style = MaterialTheme.typography.headlineSmallEmphasized)
+                Text(stringResource(R.string.rating_text, name), textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = { open = false }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_understood)) }
+            }
+        }
+    }
 }

@@ -312,4 +312,23 @@
     <string name="player_save_to">Save to</string>
     <string name="player_save_music_folder">Music folder</string>
     <string name="player_save_saved">Saved Messages</string>
+    <string name="chat_seen_week">last seen within a week</string>
+    <string name="chat_seen_month">last seen within a month</string>
+    <string name="chat_seen_long_ago">last seen a long time ago</string>
+    <string name="chat_support">support</string>
+    <string name="chat_deleted_input">You can\'t send messages to a deleted account</string>
+    <string name="profile_mute">Mute</string>
+    <string name="profile_unmute">Unmute</string>
+    <string name="profile_more">More</string>
+    <string name="profile_rename">Rename locally</string>
+    <string name="profile_local_photo">Set local photo</string>
+    <string name="profile_reset_local">Reset local name and photo</string>
+    <string name="profile_block">Block user</string>
+    <string name="profile_unblock">Unblock user</string>
+    <string name="rating_title">Rating</string>
+    <string name="rating_level">Level %1$d</string>
+    <string name="rating_text">This rating reflects %1$s\'s activity on Telegram: gifts from Telegram, gifts and posts from users, minus refunds and conversions.</string>
+    <string name="action_understood">Understood</string>
+    <string name="action_save">Save</string>
+    <string name="chat_deleted_account">Deleted Account</string>
 </resources>

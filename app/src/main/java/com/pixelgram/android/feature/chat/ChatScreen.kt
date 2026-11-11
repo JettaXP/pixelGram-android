@@ -154,23 +154,43 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        if (saved) stringResource(R.string.drawer_saved) else ui.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = if (saved) Modifier else Modifier.clickable { navigator.open(ProfileKey(privateUserId, chatId)) },
-                    )
+                    ) {
+                        Text(
+                            when {
+                                saved -> stringResource(R.string.drawer_saved)
+                                snapshot.users[privateUserId]?.deleted == true -> stringResource(R.string.chat_deleted_account)
+                                else -> snapshot.users[privateUserId]?.name ?: ui.title
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (!saved) com.pixelgram.android.ui.components.NameBadges(privateUserId, snapshot.users[privateUserId]?.verified == true, 20.dp)
+                    }
                 },
                 subtitle = {
                     when {
                         saved -> Unit
-                        ui.typing.isNotEmpty() -> Text(
-                            if (privateUserId != 0L || ui.typing.size > 1) stringResource(R.string.chat_typing)
-                            else stringResource(R.string.chat_typing_named, snapshot.users[ui.typing.first()]?.firstName.orEmpty()),
-                            color = MaterialTheme.colorScheme.primary,
+                        ui.typing.isNotEmpty() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            com.pixelgram.android.feature.chats.TypingDots(MaterialTheme.colorScheme.primary)
+                            Text(
+                                if (privateUserId != 0L || ui.typing.size > 1) stringResource(R.string.chat_typing)
+                                else stringResource(R.string.chat_typing_named, snapshot.users[ui.typing.first()]?.firstName.orEmpty()),
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                            )
+                        }
+                        privateUserId != 0L -> snapshot.users[privateUserId]?.let { Text(com.pixelgram.android.ui.components.statusLine(it), maxLines = 1) }
+                        ui.members > 0 -> Text(
+                            buildString {
+                                append(androidx.compose.ui.res.pluralStringResource(if (ui.channel) R.plurals.chat_subscribers else R.plurals.chat_members, ui.members, ui.members))
+                                if (ui.online > 1 && !ui.channel) append(", ").append(androidx.compose.ui.res.pluralStringResource(R.plurals.chat_online_count, ui.online, ui.online))
+                            },
                             maxLines = 1,
                         )
-                        else -> subtitle(snapshot, privateUserId)?.let { Text(it, maxLines = 1) }
                     }
                 },
                 titleHorizontalAlignment = Alignment.CenterHorizontally,
@@ -182,17 +202,34 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                         Avatar(
                             title = ui.title,
                             seed = chatId,
-                            path = if (saved) null else chat?.photo?.small?.id?.let { snapshot.files[it] },
+                            path = if (saved) null else snapshot.users[privateUserId]?.localPhoto ?: chat?.photo?.small?.id?.let { snapshot.files[it] },
                             minithumb = if (saved) null else chat?.photo?.minithumbnail?.data,
                             size = 40.dp,
-                            icon = if (saved) Icons.Rounded.Bookmark else null,
+                            icon = when {
+                                saved -> Icons.Rounded.Bookmark
+                                snapshot.users[privateUserId]?.deleted == true -> com.pixelgram.android.ui.icons.GhostIcon
+                                else -> null
+                            },
                             onNeedFile = if (saved) null else ({ chat?.photo?.small?.id?.let(graph.store::requestFileAsync) }),
                         )
                     }
                 },
             )
         },
-        bottomBar = { Composer(ui.replyTo, ui.editing, controller) },
+        bottomBar = {
+            if (snapshot.users[privateUserId]?.deleted == true) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.chat_deleted_input),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(vertical = 18.dp),
+                    )
+                }
+            } else {
+                Composer(ui.replyTo, ui.editing, controller)
+            }
+        },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(

@@ -54,6 +54,9 @@ data class ChatUi(
     val typing: List<Long> = emptyList(),
     val replies: Map<Long, UiMessage> = emptyMap(),
     val canSend: Boolean = true,
+    val members: Int = 0,
+    val online: Int = 0,
+    val channel: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -74,6 +77,16 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
         ui.value = ui.value.copy(title = chat?.title.orEmpty())
         graph.td.fire(TdApi.OpenChat(chatId))
         scope.launch(worker) { graph.td.updates.collect(::onUpdate) }
+        scope.launch {
+            val members = runCatching {
+                when (val type = chat?.type) {
+                    is TdApi.ChatTypeSupergroup -> graph.td.send(TdApi.GetSupergroupFullInfo(type.supergroupId)).memberCount
+                    is TdApi.ChatTypeBasicGroup -> graph.td.send(TdApi.GetBasicGroupFullInfo(type.basicGroupId)).members.size
+                    else -> 0
+                }
+            }.getOrDefault(0)
+            ui.value = ui.value.copy(members = members, channel = (chat?.type as? TdApi.ChatTypeSupergroup)?.isChannel == true)
+        }
         loadMore()
     }
 
@@ -117,6 +130,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long) {
                     actions.entries.removeAll { now - it.value >= 6000 }
                     ui.value = ui.value.copy(typing = actions.keys.toList())
                 }
+                return
+            } else return
+            is TdApi.UpdateChatOnlineMemberCount -> if (update.chatId == chatId) {
+                ui.value = ui.value.copy(online = update.onlineMemberCount)
                 return
             } else return
             is TdApi.UpdateChatReadOutbox -> if (update.chatId == chatId) {

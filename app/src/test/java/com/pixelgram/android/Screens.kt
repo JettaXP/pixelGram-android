@@ -135,6 +135,19 @@ class Screens {
 
     @Test fun search() = shoot("search", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SearchKey))
 
+    @Test fun deleted() {
+        val graph = graph()
+        graph.td.emit(TdApi.UpdateUser(TdApi.User().apply {
+            id = 3
+            firstName = ""
+            lastName = ""
+            phoneNumber = ""
+            status = TdApi.UserStatusEmpty()
+            type = TdApi.UserTypeDeleted()
+        }))
+        shoot("deleted", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(3)))
+    }
+
     @Test fun pixelSettings() = shoot("pixel_settings", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.PixelSettingsKey()))
 
     @Test fun profile() = shoot("profile", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ProfileKey(2, 2)))

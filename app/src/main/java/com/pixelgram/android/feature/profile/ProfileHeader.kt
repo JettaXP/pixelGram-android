@@ -67,6 +67,8 @@ fun ProfileHeader(
     onAvatarClick: () -> Unit,
     topStart: @Composable RowScope.() -> Unit = {},
     topEnd: @Composable RowScope.() -> Unit = {},
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    localPhoto: String? = null,
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
     val banners by graph.remote.banners.collectAsState()
@@ -99,9 +101,10 @@ fun ProfileHeader(
                 Avatar(
                     title = title,
                     seed = userId,
-                    path = snapshot.files[photoFileId],
-                    minithumb = minithumb,
+                    path = localPhoto ?: snapshot.files[photoFileId],
+                    minithumb = if (icon != null) null else minithumb,
                     size = 120.dp,
+                    icon = icon,
                     modifier = Modifier.clickable(onClick = onAvatarClick),
                     onNeedFile = { graph.store.requestFileAsync(photoFileId) },
                 )
@@ -124,7 +127,7 @@ fun ProfileHeader(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                NameBadges(userId, verified, 22.dp)
+                NameBadges(userId, verified, 28.dp)
             }
             if (!subtitle.isNullOrBlank()) {
                 Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
