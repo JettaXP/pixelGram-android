@@ -35,6 +35,7 @@ data class ChatRow(
     val order: Long,
     val lastMessageId: Long = 0,
     val list: String = LIST_MAIN,
+    val typing: Boolean = false,
 )
 
 @Immutable
@@ -100,6 +101,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     private var meId = 0L
     private val unread = HashMap<String, UnreadInfo>()
     private val stories = HashMap<Long, StoryOwner>()
+    private val typing = HashMap<Long, HashMap<Long, Long>>()
 
     private val dirty = MutableStateFlow(0L)
     private val snapshotFlow = MutableStateFlow(StoreSnapshot())
@@ -141,6 +143,23 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
                 FolderInfo(it.id, it.name.text.text, it.icon?.name)
             }
             is TdApi.UpdateUnreadChatCount -> unread[update.chatList.key()] = UnreadInfo(update.unreadCount, update.unreadUnmutedCount)
+            is TdApi.UpdateChatAction -> {
+                val sender = when (val from = update.senderId) {
+                    is TdApi.MessageSenderUser -> from.userId
+                    is TdApi.MessageSenderChat -> from.chatId
+                    else -> 0L
+                }
+                val actions = typing.getOrPut(update.chatId) { HashMap() }
+                if (update.action is TdApi.ChatActionCancel) actions.remove(sender) else actions[sender] = System.currentTimeMillis()
+                if (actions.isEmpty()) typing.remove(update.chatId)
+                scope.launch(worker) {
+                    kotlinx.coroutines.delay(TypingTimeoutMs + 100)
+                    val now = System.currentTimeMillis()
+                    typing.values.forEach { map -> map.entries.removeAll { now - it.value >= TypingTimeoutMs } }
+                    typing.entries.removeAll { it.value.isEmpty() }
+                    touch()
+                }
+            }
             is TdApi.UpdateChatActiveStories -> {
                 val active = update.activeStories
                 val list = active.list
@@ -219,6 +238,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
             order = position.order,
             lastMessageId = last?.id ?: 0,
             list = position.list.key(),
+            typing = typing[chat.id]?.isNotEmpty() == true,
         )
     }
 
@@ -265,3 +285,5 @@ private fun TdApi.User.info() = UserInfo(
     verified = verificationStatus?.isVerified == true,
     bot = type is TdApi.UserTypeBot,
 )
+
+private const val TypingTimeoutMs = 6_000L

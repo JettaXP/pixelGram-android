@@ -185,7 +185,7 @@ private fun StoryBubble(
             Box(
                 Modifier
                     .size(RingSize)
-                    .then(if (brush != null) Modifier.border(if (ring == RingState.Unread) 2.5.dp else 1.5.dp, brush, CircleShape) else Modifier)
+                    .then(if (brush != null) Modifier.border(if (ring == RingState.Unread) 2.5.dp else 1.5.dp, brush, com.pixelgram.android.ui.theme.LocalAvatarShape.current) else Modifier)
                     .padding(4.dp),
             ) {
                 Avatar(title = title, seed = seed, path = path, minithumb = null, size = RingSize - 8.dp, onNeedFile = onNeedFile)

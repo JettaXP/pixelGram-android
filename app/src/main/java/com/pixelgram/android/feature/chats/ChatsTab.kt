@@ -27,6 +27,16 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Archive
@@ -121,25 +131,63 @@ fun ChatsTab(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val tracker = remember { HideOnScroll(with(density) { HideDistance.toPx() }, with(density) { ShowDistance.toPx() }) }
     var newMessage by remember { mutableStateOf(false) }
+    var fabMenu by remember { mutableStateOf(false) }
+    var newChat by remember { mutableStateOf<Boolean?>(null) }
+    BackHandler(enabled = fabMenu) { fabMenu = false }
+    LaunchedEffect(tracker.hidden) { if (tracker.hidden) fabMenu = false }
     if (newMessage) NewMessageSheet(graph, navigator) { newMessage = false }
+    newChat?.let { channel -> NewChatDialog(graph, navigator, channel) { newChat = null } }
     Scaffold(
         floatingActionButton = {
             val visible = !archive && !tracker.hidden
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+                horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(bottom = com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+                modifier = Modifier.padding(
+                    bottom = (com.pixelgram.android.ui.components.LocalBottomBarPadding.current -
+                        androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).coerceAtLeast(0.dp),
+                ),
             ) {
                 androidx.compose.material3.SmallFloatingActionButton(
                     onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.animateFloatingActionButton(visible, Alignment.Center),
+                    modifier = Modifier.padding(end = (PencilSize - CameraSize) / 2).animateFloatingActionButton(visible && !fabMenu, Alignment.Center),
                 ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
-                androidx.compose.material3.MediumFloatingActionButton(
-                    onClick = { newMessage = true },
+                androidx.compose.material3.FloatingActionButtonMenu(
+                    expanded = fabMenu,
+                    horizontalAlignment = Alignment.End,
                     modifier = Modifier.animateFloatingActionButton(visible, Alignment.BottomEnd),
-                ) { Icon(Icons.Rounded.Edit, stringResource(R.string.new_message), Modifier.size(28.dp)) }
+                    button = {
+                        androidx.compose.material3.ToggleFloatingActionButton(
+                            checked = fabMenu,
+                            onCheckedChange = { fabMenu = it },
+                            containerSize = androidx.compose.material3.ToggleFloatingActionButtonDefaults.containerSize(PencilSize, PencilOpenSize),
+                        ) {
+                            val progress = checkedProgress
+                            Icon(
+                                if (progress > 0.5f) Icons.Rounded.Close else Icons.Rounded.Edit,
+                                stringResource(R.string.new_message),
+                                Modifier.graphicsLayer { rotationZ = progress * 90f },
+                            )
+                        }
+                    },
+                ) {
+                    listOf(
+                        Triple(Icons.Rounded.Person, R.string.new_message) { newMessage = true },
+                        Triple(Icons.Rounded.Groups, R.string.new_group) { newChat = false },
+                        Triple(Icons.Rounded.Campaign, R.string.new_channel) { newChat = true },
+                    ).forEach { (icon, label, action) ->
+                        FloatingActionButtonMenuItem(
+                            onClick = {
+                                fabMenu = false
+                                action()
+                            },
+                            icon = { Icon(icon, null) },
+                            text = { Text(stringResource(label)) },
+                        )
+                    }
+                }
             }
         },
         topBar = {
@@ -204,6 +252,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
     actionsFor?.let { row -> ChatActions(graph, row) { actionsFor = null } }
     val listState = rememberLazyListState()
+    val reveal = remember { StoryReveal(listState) }
     var loading by remember(listKey) { mutableStateOf(true) }
     val tdList: TdApi.ChatList = remember(listKey) {
         when {
@@ -234,11 +283,17 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().nestedScroll(reveal),
         ) {
             if (listKey == LIST_MAIN || stories.isNotEmpty()) {
                 item(key = "stories", contentType = "stories") {
-                    com.pixelgram.android.feature.stories.StoriesRow(graph, stories, Modifier.padding(bottom = 8.dp))
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = reveal.shown,
+                        enter = androidx.compose.animation.expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.fadeOut(),
+                    ) {
+                        com.pixelgram.android.feature.stories.StoriesRow(graph, stories, Modifier.padding(bottom = 8.dp))
+                    }
                 }
             }
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
@@ -298,7 +353,11 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                 }
             }
         },
-        supportingContent = { PreviewText(row, Modifier) },
+        supportingContent = {
+            androidx.compose.animation.Crossfade(row.typing, label = "typing") { typing ->
+                if (typing) TypingLine() else PreviewText(row, Modifier)
+            }
+        },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -431,6 +490,23 @@ private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
     )
 }
 
+private class StoryReveal(private val list: androidx.compose.foundation.lazy.LazyListState) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+    var shown by mutableStateOf(false)
+
+    override fun onPostScroll(
+        consumed: androidx.compose.ui.geometry.Offset,
+        available: androidx.compose.ui.geometry.Offset,
+        source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+    ): androidx.compose.ui.geometry.Offset {
+        if (available.y > RevealPull && list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset == 0) shown = true
+        if (consumed.y < -HideScroll) shown = false
+        return androidx.compose.ui.geometry.Offset.Zero
+    }
+}
+
+private const val RevealPull = 6f
+private const val HideScroll = 24f
+
 private class HideOnScroll(private val hideAt: Float, private val showAt: Float) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
     var hidden by mutableStateOf(false)
     private var distance = 0f
@@ -457,6 +533,9 @@ private class HideOnScroll(private val hideAt: Float, private val showAt: Float)
 }
 
 private val HideDistance = 16.dp
+private val PencilSize = 52.dp
+private val PencilOpenSize = 56.dp
+private val CameraSize = 40.dp
 private val ShowDistance = 48.dp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -502,4 +581,85 @@ private fun NewMessageSheet(graph: AppGraph, navigator: Navigator, onDismiss: ()
             }
         }
     }
+}
+
+@Composable
+private fun TypingLine() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        TypingDots(MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.chat_typing), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+    }
+}
+
+@Composable
+internal fun TypingDots(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    val flow = androidx.compose.animation.core.rememberInfiniteTransition(label = "dots")
+    val phase by flow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    androidx.compose.foundation.Canvas(modifier.size(width = 18.dp, height = 8.dp)) {
+        val r = size.height / 2.6f
+        for (i in 0..2) {
+            val wave = ((phase - i * 0.18f) % 1f + 1f) % 1f
+            val lift = kotlin.math.sin(wave * Math.PI.toFloat()).coerceAtLeast(0f)
+            drawCircle(color.copy(alpha = 0.4f + 0.6f * lift), r * (0.8f + 0.3f * lift), androidx.compose.ui.geometry.Offset(r + i * (size.width - 2 * r) / 2f, size.height / 2f))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolean, onDismiss: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var about by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(stringResource(if (channel) R.string.new_channel else R.string.new_group)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it.take(128) },
+                    label = { Text(stringResource(if (channel) R.string.new_channel_name else R.string.new_group_name)) },
+                    singleLine = true,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = about,
+                    onValueChange = { about = it.take(255) },
+                    label = { Text(stringResource(R.string.new_chat_description)) },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = title.isNotBlank() && !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            graph.td.send(TdApi.CreateNewSupergroupChat().apply {
+                                this.title = title.trim()
+                                isForum = false
+                                isChannel = channel
+                                description = about.trim()
+                            })
+                        }.onSuccess {
+                            onDismiss()
+                            navigator.open(ChatKey(it.id))
+                        }.onFailure {
+                            busy = false
+                            error = it.message
+                        }
+                    }
+                },
+            ) { Text(stringResource(R.string.new_chat_create)) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }

@@ -301,4 +301,10 @@
     <string name="auth_keys_title">Ключи Telegram API</string>
     <string name="auth_keys_text">В этой сборке нет ключей API. Введите API ID и API hash с my.telegram.org — они останутся только на этом устройстве.</string>
     <string name="auth_keys_save">Продолжить</string>
+    <string name="new_group">Новая группа</string>
+    <string name="new_channel">Новый канал</string>
+    <string name="new_group_name">Название группы</string>
+    <string name="new_channel_name">Название канала</string>
+    <string name="new_chat_description">Описание (необязательно)</string>
+    <string name="new_chat_create">Создать</string>
 </resources>

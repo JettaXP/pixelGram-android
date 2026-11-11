@@ -55,6 +55,8 @@ class Screens {
 
     @Test fun chats() = shoot("chats")
 
+    @Test fun fabMenu() = shoot("fab_menu") { rule.onNodeWithContentDescription("New message").performClick() }
+
     @Test fun keys() {
         val graph = AppGraph(ApplicationProvider.getApplicationContext(), offline = true)
         graph.appearance.update { it.copy(themeMode = ThemeMode.Dark, dynamicColor = false) }
