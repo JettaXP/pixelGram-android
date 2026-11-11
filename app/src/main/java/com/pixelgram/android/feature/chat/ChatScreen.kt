@@ -907,9 +907,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 }
             }
             AnimatedVisibility(emoji, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
                 androidx.compose.ui.viewinterop.AndroidView(
                     factory = { context ->
-                        androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
+                        val themed = android.view.ContextThemeWrapper(context, if (dark) com.google.android.material.R.style.Theme_Material3_Dark_NoActionBar else com.google.android.material.R.style.Theme_Material3_Light_NoActionBar)
+                        androidx.emoji2.emojipicker.EmojiPickerView(themed).apply {
                             emojiGridColumns = 8
                             setOnEmojiPickedListener { item -> text += item.emoji }
                         }

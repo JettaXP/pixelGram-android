@@ -37,6 +37,8 @@ data class ChatRow(
     val list: String = LIST_MAIN,
     val typing: Boolean = false,
     val deleted: Boolean = false,
+    val scam: Boolean = false,
+    val fake: Boolean = false,
 )
 
 @Immutable
@@ -64,6 +66,9 @@ data class UserInfo(
     val bot: Boolean,
     val localPhoto: String? = null,
     val contact: Boolean = false,
+    val scam: Boolean = false,
+    val fake: Boolean = false,
+    val usernames: List<String> = emptyList(),
     val deleted: Boolean = false,
     val support: Boolean = false,
     val seen: Seen = Seen.Recently,
@@ -126,6 +131,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private val unread = HashMap<String, UnreadInfo>()
     private val stories = HashMap<Long, StoryOwner>()
     private val localPhotos = HashMap<Long, String>()
+    private val supergroups = HashMap<Long, TdApi.Supergroup>()
     private val typing = HashMap<Long, HashMap<Long, Long>>()
 
     private val dirty = MutableStateFlow(0L)
@@ -159,6 +165,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateChatUnreadMentionCount -> chats[update.chatId]?.unreadMentionCount = update.unreadMentionCount
             is TdApi.UpdateChatNotificationSettings -> chats[update.chatId]?.notificationSettings = update.notificationSettings
             is TdApi.UpdateUser -> users[update.user.id] = update.user
+            is TdApi.UpdateSupergroup -> supergroups[update.supergroup.id] = update.supergroup
             is TdApi.UpdateUserStatus -> users[update.userId]?.status = update.status
             is TdApi.UpdateFile -> {
                 val file = update.file
@@ -266,7 +273,9 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             mentions = chat.unreadMentionCount,
             pinned = position.isPinned,
             muted = chat.notificationSettings.muteFor > 0,
-            verified = user?.verificationStatus?.isVerified == true,
+            verified = user?.verificationStatus?.isVerified == true || (type as? TdApi.ChatTypeSupergroup)?.let { supergroups[it.supergroupId]?.verificationStatus?.isVerified } == true,
+            scam = user?.verificationStatus?.isScam == true || (type as? TdApi.ChatTypeSupergroup)?.let { supergroups[it.supergroupId]?.verificationStatus?.isScam } == true,
+            fake = user?.verificationStatus?.isFake == true || (type as? TdApi.ChatTypeSupergroup)?.let { supergroups[it.supergroupId]?.verificationStatus?.isFake } == true,
             online = user?.status is TdApi.UserStatusOnline,
             order = position.order,
             lastMessageId = last?.id ?: 0,
@@ -320,6 +329,9 @@ private fun TdApi.User.info() = UserInfo(
     bot = type is TdApi.UserTypeBot,
     deleted = type is TdApi.UserTypeDeleted,
     contact = isContact,
+    scam = verificationStatus?.isScam == true,
+    fake = verificationStatus?.isFake == true,
+    usernames = usernames?.activeUsernames?.toList().orEmpty(),
     support = isSupport,
     seen = when (status) {
         is TdApi.UserStatusOnline -> Seen.Online

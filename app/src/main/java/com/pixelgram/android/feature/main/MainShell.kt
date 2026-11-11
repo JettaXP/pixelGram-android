@@ -94,6 +94,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     BackHandler(enabled = !drawer.isOpen && (tab != MainTab.Chats || list == LIST_ARCHIVE)) {
         if (list == LIST_ARCHIVE) list = LIST_MAIN else tab = MainTab.Chats
     }
+    val darkNow = com.pixelgram.android.ui.theme.LocalDarkTheme.current
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
@@ -111,7 +112,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                         DrawerItem.Pixel -> navigator.open(PixelSettingsKey())
                         DrawerItem.Settings -> tab = MainTab.Settings
                         DrawerItem.Theme -> graph.appearance.update {
-                            it.copy(themeMode = if (it.themeMode == ThemeMode.Dark) ThemeMode.Light else ThemeMode.Dark)
+                            it.copy(themeMode = if (darkNow) ThemeMode.Light else ThemeMode.Dark)
                         }
                     }
                 },
@@ -218,7 +219,7 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
-    ModalDrawerSheet {
+    ModalDrawerSheet(modifier = Modifier.width(DrawerWidth)) {
         Column(Modifier.padding(horizontal = 28.dp, vertical = 24.dp)) {
             Avatar(
                 title = me?.name.orEmpty(),
@@ -232,22 +233,35 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
             Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleLargeEmphasized)
             if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
         }
-        val dark = appearance.themeMode == ThemeMode.Dark
-        DrawerRow(Icons.Outlined.BookmarkBorder, stringResource(R.string.drawer_saved)) { onItem(DrawerItem.Saved) }
-        DrawerRow(Icons.Outlined.Archive, stringResource(R.string.drawer_archive)) { onItem(DrawerItem.Archive) }
-        DrawerRow(Icons.Outlined.People, stringResource(R.string.tab_contacts)) { onItem(DrawerItem.Contacts) }
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.pixel_settings)) },
-            icon = { Icon(painterResource(R.drawable.ic_pixelgram), null) },
-            selected = false,
-            onClick = { onItem(DrawerItem.Pixel) },
-            modifier = Modifier.padding(horizontal = 12.dp),
+        val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+        val groups = listOf(
+            listOf(
+                Triple(Icons.Outlined.BookmarkBorder, stringResource(R.string.drawer_saved), DrawerItem.Saved),
+                Triple(Icons.Outlined.Archive, stringResource(R.string.drawer_archive), DrawerItem.Archive),
+            ),
+            listOf(Triple(Icons.Outlined.People, stringResource(R.string.tab_contacts), DrawerItem.Contacts)),
+            listOf(
+                Triple(null, stringResource(R.string.pixel_settings), DrawerItem.Pixel),
+                Triple(Icons.Outlined.Settings, stringResource(R.string.tab_settings), DrawerItem.Settings),
+            ),
+            listOf(Triple(if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, stringResource(if (dark) R.string.drawer_day else R.string.drawer_night), DrawerItem.Theme)),
         )
-        DrawerRow(Icons.Outlined.Settings, stringResource(R.string.tab_settings)) { onItem(DrawerItem.Settings) }
-        DrawerRow(
-            if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-            stringResource(if (dark) R.string.drawer_day else R.string.drawer_night),
-        ) { onItem(DrawerItem.Theme) }
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            groups.forEach { group ->
+                Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                    group.forEachIndexed { index, (icon, label, item) ->
+                        androidx.compose.material3.SegmentedListItem(
+                            onClick = { onItem(item) },
+                            shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, group.size),
+                            colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            leadingContent = {
+                                if (icon != null) Icon(icon, null) else Icon(painterResource(R.drawable.ic_pixelgram), null)
+                            },
+                        ) { Text(label) }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -261,3 +275,5 @@ private fun DrawerRow(icon: ImageVector, label: String, onClick: () -> Unit) {
         modifier = Modifier.padding(horizontal = 12.dp),
     )
 }
+
+private val DrawerWidth = 300.dp

@@ -78,6 +78,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Folder
@@ -106,6 +107,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val chat = remember(chatId, snapshot) { if (chatId != 0L) graph.store.chat(chatId) else null }
     var full by remember { mutableStateOf<TdApi.UserFullInfo?>(null) }
     var showQr by remember { mutableStateOf(false) }
+    var collectible by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(userId) {
         if (userId != 0L) full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull()
@@ -214,21 +216,41 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             val birthday = full?.birthdate
             Spacer(Modifier.height(8.dp))
             SettingsGroup {
+                val context = LocalContext.current
+                val copiedText = stringResource(R.string.profile_copied)
+                val copy: (String) -> Unit = { value ->
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(null, value))
+                    android.widget.Toast.makeText(context, copiedText, android.widget.Toast.LENGTH_SHORT).show()
+                }
+                val names = user?.usernames?.takeIf { it.isNotEmpty() } ?: listOfNotNull(username)
                 val rows = buildList {
                     if (bio.isNotBlank()) add("bio")
-                    if (username != null) add("username")
+                    names.forEach { add("u:$it") }
                     if (phone.isNotBlank()) add("phone")
                     if (birthday != null) add("birthday")
+                    if (userId != 0L) add("id")
                 }
                 rows.forEachIndexed { index, row ->
                     val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
-                    when (row) {
-                        "phone" -> SettingsItem(stringResource(R.string.profile_phone), position, subtitle = phoneDetails, icon = Icons.Rounded.Phone) {
+                    when {
+                        row == "phone" -> SettingsItem(stringResource(R.string.profile_phone), position, subtitle = phoneDetails, icon = Icons.Rounded.Phone, onLongClick = { copy("+$phone") }) {
                             HiddenPhone("+" + formatPhone(phone), hidden = appearance.hidePhone && self)
                         }
-                        "username" -> SettingsItem("@$username", position, stringResource(R.string.profile_username), Icons.Rounded.AlternateEmail)
-                        "bio" -> SettingsItem(bio, position, stringResource(R.string.profile_bio), Icons.Rounded.Info)
-                        "birthday" -> SettingsItem(
+                        row.startsWith("u:") -> {
+                            val name = row.removePrefix("u:")
+                            SettingsItem(
+                                "@$name",
+                                position,
+                                stringResource(if (name == names.first()) R.string.profile_username else R.string.profile_extra_username),
+                                Icons.Rounded.AlternateEmail,
+                                onClick = { collectible = name },
+                                onLongClick = { copy("@$name") },
+                            )
+                        }
+                        row == "bio" -> SettingsItem(bio, position, stringResource(R.string.profile_bio), Icons.Rounded.Info, onLongClick = { copy(bio) })
+                        row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, onLongClick = { copy(userId.toString()) })
+                        row == "birthday" -> SettingsItem(
                             listOfNotNull(birthday!!.day.toString(), java.text.DateFormatSymbols.getInstance().months[birthday.month - 1], birthday.year.takeIf { it > 0 }?.toString()).joinToString(" "),
                             position,
                             stringResource(R.string.profile_birthday),
@@ -240,15 +262,18 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             Spacer(Modifier.height(24.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current))
         }
     }
+    collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
     if (showQr && username != null) {
         val context = LocalContext.current
         val link = "https://t.me/$username"
-        ModalBottomSheet(onDismissRequest = { showQr = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        val qrSheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val qrScope = rememberCoroutineScope()
+        ModalBottomSheet(onDismissRequest = { showQr = false }, sheetState = qrSheet) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 ExpressiveQrCode(link, Modifier.fillMaxWidth(0.85f).aspectRatio(1f))
                 Text("@$username", style = MaterialTheme.typography.titleLargeEmphasized)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showQr = false }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.action_close)) }
+                    OutlinedButton(onClick = { qrScope.launch { qrSheet.hide() }.invokeOnCompletion { showQr = false } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.action_close)) }
                     Button(
                         onClick = {
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
@@ -343,7 +368,6 @@ internal fun playlistName(user: com.pixelgram.android.td.UserInfo?): String {
 private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long, username: String?, full: TdApi.UserFullInfo?, expanded: Boolean, onDismiss: () -> Unit, onQr: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var renaming by remember { mutableStateOf(false) }
     val photo = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
             val path = withContext(Dispatchers.IO) {
@@ -360,6 +384,7 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
     val user = graph.store.snapshot.collectAsState().value.users[userId]
     var autoDelete by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
     var folders by remember { mutableStateOf(false) }
     androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
         androidx.compose.material3.DropdownMenuItem(
@@ -368,8 +393,8 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
             trailingIcon = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
             onClick = { onDismiss(); autoDelete = true },
         )
+        androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_edit)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); editing = true })
         if (user?.contact == true) {
-            androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_edit_contact)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); editing = true })
             androidx.compose.material3.DropdownMenuItem(
                 text = { Text(stringResource(R.string.profile_delete_contact)) },
                 leadingIcon = { Icon(Icons.Rounded.Delete, null) },
@@ -379,7 +404,7 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
                 },
             )
         } else if (user != null && !user.bot) {
-            androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_add_contact)) }, leadingIcon = { Icon(Icons.Rounded.PersonAdd, null) }, onClick = { onDismiss(); editing = true })
+            androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_add_contact)) }, leadingIcon = { Icon(Icons.Rounded.PersonAdd, null) }, onClick = { onDismiss(); adding = true })
         }
         androidx.compose.material3.DropdownMenuItem(
             text = { Text(stringResource(R.string.profile_secret_chat)) },
@@ -398,26 +423,6 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
             onClick = { onDismiss(); folders = true },
         )
         if (username != null) androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_share)) }, leadingIcon = { Icon(Icons.Rounded.QrCode2, null) }, onClick = { onDismiss(); onQr() })
-        androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(R.string.profile_rename)) }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { onDismiss(); renaming = true })
-        androidx.compose.material3.DropdownMenuItem(
-            text = { Text(stringResource(R.string.profile_local_photo)) },
-            leadingIcon = { Icon(Icons.Rounded.AddAPhoto, null) },
-            onClick = {
-                onDismiss()
-                photo.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
-            },
-        )
-        if (graph.store.localName(userId) != null || graph.store.localPhoto(userId) != null) {
-            androidx.compose.material3.DropdownMenuItem(
-                text = { Text(stringResource(R.string.profile_reset_local)) },
-                leadingIcon = { Icon(Icons.Rounded.RestartAlt, null) },
-                onClick = {
-                    onDismiss()
-                    graph.store.setLocalName(userId, null)
-                    graph.store.setLocalPhoto(userId, null)
-                },
-            )
-        }
         androidx.compose.material3.DropdownMenuItem(
             text = { Text(stringResource(if (blocked) R.string.profile_unblock else R.string.profile_block), color = MaterialTheme.colorScheme.error) },
             leadingIcon = { Icon(Icons.Rounded.Block, null, tint = MaterialTheme.colorScheme.error) },
@@ -449,37 +454,58 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
             confirmButton = { androidx.compose.material3.TextButton(onClick = { autoDelete = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (editing && user != null) {
-        var first by remember { mutableStateOf(user.firstName) }
-        var last by remember { mutableStateOf(user.lastName) }
+    if ((editing || adding) && user != null) {
+        val contactEdit = adding || user.contact
+        val localName = graph.store.localName(userId)
+        var first by remember { mutableStateOf(if (contactEdit) user.firstName else localName ?: user.firstName) }
+        var last by remember { mutableStateOf(if (contactEdit) user.lastName else if (localName != null) "" else user.lastName) }
+        val close = { editing = false; adding = false }
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { editing = false },
-            title = { Text(stringResource(if (user.contact) R.string.profile_edit_contact else R.string.profile_add_contact)) },
+            onDismissRequest = close,
+            title = { Text(stringResource(if (adding) R.string.profile_add_contact else R.string.profile_edit)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!adding) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            com.pixelgram.android.ui.components.Avatar(user.name, userId, user.localPhoto ?: graph.store.snapshot.value.files[user.photoFileId], user.minithumb, 56.dp)
+                            Column {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    photo.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }) { Text(stringResource(R.string.profile_set_photo_for)) }
+                                if (user.localPhoto != null) {
+                                    androidx.compose.material3.TextButton(onClick = { graph.store.setLocalPhoto(userId, null) }) { Text(stringResource(R.string.profile_remove_photo), color = MaterialTheme.colorScheme.error) }
+                                }
+                            }
+                        }
+                    }
                     androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.contact_first_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.contact_last_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(enabled = first.isNotBlank(), onClick = {
-                    editing = false
-                    scope.launch {
-                        runCatching {
-                            graph.td.send(TdApi.AddContact().apply {
-                                this.userId = userId
-                                contact = TdApi.ImportedContact().apply {
-                                    phoneNumber = user.phone
-                                    firstName = first.trim()
-                                    lastName = last.trim()
-                                }
-                                sharePhoneNumber = false
-                            })
+                    close()
+                    if (contactEdit) {
+                        scope.launch {
+                            runCatching {
+                                graph.td.send(TdApi.AddContact().apply {
+                                    this.userId = userId
+                                    contact = TdApi.ImportedContact().apply {
+                                        phoneNumber = user.phone
+                                        firstName = first.trim()
+                                        lastName = last.trim()
+                                    }
+                                    sharePhoneNumber = false
+                                })
+                            }
                         }
+                    } else {
+                        val full = listOf(first.trim(), last.trim()).filter { it.isNotEmpty() }.joinToString(" ")
+                        graph.store.setLocalName(userId, full.takeIf { it != listOf(user.firstName, user.lastName).filter { p -> p.isNotBlank() }.joinToString(" ") })
                     }
                 }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { editing = false }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = close) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     if (folders) {
@@ -514,16 +540,6 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
             confirmButton = { androidx.compose.material3.TextButton(onClick = { folders = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (renaming) {
-        var name by remember { mutableStateOf(graph.store.localName(userId) ?: graph.store.snapshot.value.users[userId]?.name.orEmpty()) }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { renaming = false },
-            title = { Text(stringResource(R.string.profile_rename)) },
-            text = { androidx.compose.material3.OutlinedTextField(value = name, onValueChange = { name = it.take(64) }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { graph.store.setLocalName(userId, name); renaming = false }) { Text(stringResource(R.string.action_save)) } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { renaming = false }) { Text(stringResource(R.string.action_cancel)) } },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -538,7 +554,9 @@ private fun RatingChip(rating: TdApi.UserRating, name: String) {
         modifier = Modifier.padding(top = 8.dp),
     )
     if (open) {
-        ModalBottomSheet(onDismissRequest = { open = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val sheetScope = rememberCoroutineScope()
+        ModalBottomSheet(onDismissRequest = { open = false }, sheetState = sheet) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 val span = (rating.nextLevelRating - rating.currentLevelRating).coerceAtLeast(1)
                 val progress = if (rating.isMaximumLevelReached) 1f else ((rating.rating - rating.currentLevelRating).toFloat() / span).coerceIn(0f, 1f)
@@ -551,8 +569,52 @@ private fun RatingChip(rating: TdApi.UserRating, name: String) {
                 }
                 Text(stringResource(R.string.rating_title), style = MaterialTheme.typography.headlineSmallEmphasized)
                 Text(stringResource(R.string.rating_text, name), textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = { open = false }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_understood)) }
+                Button(onClick = { sheetScope.launch { sheet.hide() }.invokeOnCompletion { open = false } }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.action_understood)) }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun UsernameSheet(graph: AppGraph, name: String, onDismiss: () -> Unit) {
+    val info by produceState<TdApi.CollectibleItemInfo?>(null, name) {
+        value = runCatching { graph.td.send(TdApi.GetCollectibleItemInfo(TdApi.CollectibleItemTypeUsername(name))) }.getOrNull()
+    }
+    val state = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val close: () -> Unit = { scope.launch { state.hide() }.invokeOnCompletion { onDismiss() } }
+    val context = LocalContext.current
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Rounded.AlternateEmail, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+            Text("@$name", style = MaterialTheme.typography.headlineSmallEmphasized)
+            val item = info
+            if (item != null) {
+                val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(item.purchaseDate * 1000L))
+                Text(stringResource(R.string.username_bought, date), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(
+                    "${formatAmount(item.cryptocurrencyAmount, 9)} ${item.cryptocurrency} · ${formatAmount(item.amount, 2)} ${item.currency}",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(item.url))) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.username_fragment))
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://t.me/$name")
+                    context.startActivity(Intent.createChooser(send, null))
+                },
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.action_share)) }
+            androidx.compose.material3.TextButton(onClick = close) { Text(stringResource(R.string.action_close)) }
+        }
+    }
+}
+
+private fun formatAmount(value: Long, decimals: Int): String {
+    val scaled = java.math.BigDecimal.valueOf(value).movePointLeft(decimals).stripTrailingZeros()
+    return java.text.NumberFormat.getNumberInstance().apply { maximumFractionDigits = decimals }.format(scaled)
 }

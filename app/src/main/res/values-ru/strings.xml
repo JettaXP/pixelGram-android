@@ -355,4 +355,12 @@
     <string name="contact_first_name">Имя</string>
     <string name="contact_last_name">Фамилия</string>
     <string name="chat_emoji">Эмодзи</string>
+    <string name="badge_scam">СКАМ</string>
+    <string name="badge_fake">ФЕЙК</string>
+    <string name="profile_copied">Скопировано</string>
+    <string name="profile_extra_username">Также</string>
+    <string name="username_bought">Куплен %1$s</string>
+    <string name="username_fragment">Открыть на Fragment</string>
+    <string name="profile_set_photo_for">Поставить фото</string>
+    <string name="profile_remove_photo">Убрать фото</string>
 </resources>

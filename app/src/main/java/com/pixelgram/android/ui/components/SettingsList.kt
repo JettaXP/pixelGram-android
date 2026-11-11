@@ -92,6 +92,7 @@ fun SettingsItem(
     iconShape: androidx.compose.ui.graphics.Shape = CircleShape,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val (index, count) = position.index()
@@ -111,9 +112,10 @@ fun SettingsItem(
     val headline: @Composable () -> Unit = {
         Text(title, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
     }
-    if (onClick != null) {
+    if (onClick != null || onLongClick != null) {
         SegmentedListItem(
-            onClick = onClick,
+            onClick = onClick ?: {},
+            onLongClick = onLongClick,
             shapes = shapes,
             enabled = enabled,
             leadingContent = leading,

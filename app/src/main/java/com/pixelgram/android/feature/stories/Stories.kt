@@ -161,6 +161,33 @@ fun StoriesRow(graph: AppGraph, owners: List<StoryOwner>, modifier: Modifier = M
 private enum class RingState { None, Unread, Read }
 
 @Composable
+fun StoryStack(graph: AppGraph, owners: List<StoryOwner>, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    val shown = owners.take(StackCount)
+    val shape = com.pixelgram.android.ui.theme.LocalAvatarShape.current
+    Box(modifier.clip(CircleShape).clickable(onClick = onClick).padding(2.dp)) {
+        shown.forEachIndexed { index, owner ->
+            val chat = graph.store.chat(owner.chatId)
+            val photo = chat?.photo?.small?.id ?: 0
+            Box(
+                Modifier
+                    .padding(start = StackStep * index)
+                    .zIndex((StackCount - index).toFloat())
+                    .size(StackSize)
+                    .border(2.dp, if (owner.unread) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
+                    .padding(3.dp),
+            ) {
+                Avatar(title = chat?.title.orEmpty(), seed = owner.chatId, path = snapshot.files[photo], minithumb = null, size = StackSize - 6.dp, onNeedFile = { graph.store.requestFileAsync(photo) })
+            }
+        }
+    }
+}
+
+private const val StackCount = 3
+private val StackSize = 30.dp
+private val StackStep = 18.dp
+
+@Composable
 private fun StoryBubble(
     title: String,
     seed: Long,

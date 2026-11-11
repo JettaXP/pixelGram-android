@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -86,8 +87,19 @@ enum class UserBadge(val userId: Long, val notice: Int) {
 }
 
 @Composable
-fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp) {
+fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false) {
     if (verified) VerifiedBadge(size)
+    if (scam || fake) {
+        Box(
+            Modifier.padding(start = 4.dp).border(1.dp, MaterialTheme.colorScheme.error, androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
+        ) {
+            Text(
+                stringResource(if (scam) R.string.badge_scam else R.string.badge_fake),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            )
+        }
+    }
     UserBadge.of(userId)?.let { UserBadgeView(it, size) }
 }
 

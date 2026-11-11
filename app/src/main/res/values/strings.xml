@@ -356,4 +356,12 @@
     <string name="contact_first_name">First name</string>
     <string name="contact_last_name">Last name</string>
     <string name="chat_emoji">Emoji</string>
+    <string name="badge_scam">SCAM</string>
+    <string name="badge_fake">FAKE</string>
+    <string name="profile_copied">Copied</string>
+    <string name="profile_extra_username">Also</string>
+    <string name="username_bought">Bought on %1$s</string>
+    <string name="username_fragment">Open on Fragment</string>
+    <string name="profile_set_photo_for">Set photo</string>
+    <string name="profile_remove_photo">Remove photo</string>
 </resources>
