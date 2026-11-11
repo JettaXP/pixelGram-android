@@ -21,19 +21,23 @@ import org.drinkless.tdlib.TdApi
 
 class TdException(val error: TdApi.Error) : Exception("${error.code}: ${error.message}")
 
-class TdClient(private val context: Context, private val scope: CoroutineScope) {
+class TdClient(private val context: Context, private val scope: CoroutineScope, offline: Boolean = false) {
     private val updateFlow = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 4096)
     val updates: SharedFlow<TdApi.Object> = updateFlow.asSharedFlow()
 
     private val authFlow = MutableStateFlow<TdApi.AuthorizationState?>(null)
     val authorizationState: StateFlow<TdApi.AuthorizationState?> = authFlow.asStateFlow()
 
-    private val client: Client
-
-    init {
+    private val client: Client? = if (offline) {
+        null
+    } else {
         Client.execute(TdApi.SetLogVerbosityLevel(if (BuildConfig.DEBUG) 2 else 1))
-        client = Client.create(::onUpdate, null, null)
+        Client.create(::onUpdate, null, null)
     }
+
+    var offlineReply: ((TdApi.Function<*>) -> TdApi.Object?)? = null
+
+    fun emit(update: TdApi.Object) = onUpdate(update)
 
     private fun onUpdate(update: TdApi.Object) {
         if (update is TdApi.UpdateAuthorizationState) {
@@ -66,6 +70,10 @@ class TdClient(private val context: Context, private val scope: CoroutineScope) 
     @Suppress("UNCHECKED_CAST")
     suspend fun <T : TdApi.Object> send(function: TdApi.Function<T>): T =
         suspendCancellableCoroutine { continuation ->
+            val client = client ?: return@suspendCancellableCoroutine when (val reply = offlineReply?.invoke(function)) {
+                null, is TdApi.Error -> continuation.resumeWithException(TdException(reply as? TdApi.Error ?: TdApi.Error(406, "OFFLINE")))
+                else -> continuation.resume(reply as T)
+            }
             client.send(function) { result ->
                 if (result is TdApi.Error) {
                     continuation.resumeWithException(TdException(result))
@@ -76,6 +84,6 @@ class TdClient(private val context: Context, private val scope: CoroutineScope) 
         }
 
     fun fire(function: TdApi.Function<*>) {
-        client.send(function, null)
+        client?.send(function, null)
     }
 }

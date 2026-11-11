@@ -8,9 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
-class AppGraph(context: Context) {
+class AppGraph(context: Context, offline: Boolean = false) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val td = TdClient(context.applicationContext, scope)
+    val td = TdClient(context.applicationContext, scope, offline)
     val store = TdStore(td, scope)
     val appearance = AppearanceStore(context.applicationContext, scope)
     val auth = com.pixelgram.android.feature.auth.AuthController(td, scope)

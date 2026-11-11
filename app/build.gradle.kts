@@ -80,6 +80,20 @@ android {
     packaging {
         jniLibs.useLegacyPackaging = false
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            providers.gradleProperty("robolectricRepo").orNull?.let { test.systemProperty("robolectric.dependency.repo.url", it) }
+            test.jvmArgs(
+                "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+                "--add-opens=java.base/java.io=ALL-UNNAMED",
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            )
+            test.systemProperty("screens.dir", layout.buildDirectory.dir("screens").get().asFile.absolutePath)
+        }
+    }
 }
 
 androidComponents {
@@ -117,4 +131,8 @@ dependencies {
     implementation(libs.media3.session)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
