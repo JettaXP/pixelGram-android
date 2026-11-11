@@ -98,7 +98,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
         val seed by produceState<Color?>(null, coverPath) {
             value = coverPath?.let { path ->
                 withContext(Dispatchers.IO) { runCatching { com.pixelgram.android.feature.player.coverPalette(path) }.getOrNull() }
-                    ?.let { it.getOrNull(3) ?: it.first() }
+                    ?.let { it.getOrNull(3) ?: it.firstOrNull() }
             }
         }
         val themed = remember(seed, dark) { seed?.let { com.pixelgram.android.feature.player.schemeFromSeed(it.toArgb(), dark) } }

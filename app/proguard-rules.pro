@@ -1,1 +1,3 @@
 -keep class org.drinkless.tdlib.** { *; }
+-keep class com.pixelgram.android.music.CastOptionsProvider { *; }
+-keepattributes SourceFile,LineNumberTable

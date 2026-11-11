@@ -407,7 +407,7 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
         value = path?.let {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching { com.pixelgram.android.feature.player.coverPalette(it) }.getOrNull()
-                    ?.let { palette -> (palette.getOrNull(3) ?: palette.first()).let { seed -> com.pixelgram.android.feature.player.schemeFromSeed(seed.toArgb(), dark) } }
+                    ?.let { palette -> (palette.getOrNull(3) ?: palette.firstOrNull())?.let { seed -> com.pixelgram.android.feature.player.schemeFromSeed(seed.toArgb(), dark) } }
             }
         }
     }

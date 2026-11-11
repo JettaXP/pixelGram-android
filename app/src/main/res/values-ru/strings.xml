@@ -513,4 +513,6 @@
         <item quantity="many">%1$d минут</item>
         <item quantity="other">%1$d минуты</item>
     </plurals>
+    <string name="crash_title">pixelGram упал в прошлый раз</string>
+    <string name="crash_text">Вот что произошло. Отправьте это разработчику, чтобы ошибку исправили.</string>
 </resources>

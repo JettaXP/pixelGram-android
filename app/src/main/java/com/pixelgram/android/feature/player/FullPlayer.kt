@@ -594,7 +594,7 @@ private fun QueuePane(graph: AppGraph, state: PlayerState) {
     val covers by graph.covers.found.collectAsState()
     val files = graph.store.snapshot.collectAsState().value.files
     LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
-        itemsIndexed(state.queue, key = { _, audio -> audio.audio.id }) { position, audio ->
+        itemsIndexed(state.queue, key = { position, audio -> "$position:${audio.audio.id}" }) { position, audio ->
             val lifted = audio.audio.id == dragging
             val playing = position == state.index
             val rowColor by animateColorAsState(

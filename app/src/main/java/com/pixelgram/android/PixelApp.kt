@@ -8,6 +8,7 @@ class PixelApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         graph = AppGraph(this)
     }
 }

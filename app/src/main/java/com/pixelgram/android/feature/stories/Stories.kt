@@ -123,7 +123,7 @@ fun StoriesRow(graph: AppGraph, owners: List<StoryOwner>, modifier: Modifier = M
     val snapshot by graph.store.snapshot.collectAsState()
     val me = snapshot.meId
     val mine = owners.firstOrNull { it.chatId == me }
-    val others = owners.filter { it.chatId != me }
+    val others = owners.filter { it.chatId != me }.distinctBy { it.chatId }
     val order = listOfNotNull(mine?.chatId) + others.map { it.chatId }
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp),
