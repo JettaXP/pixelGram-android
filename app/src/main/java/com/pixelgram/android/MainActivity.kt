@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
             graph.auth.state.value.step == AuthStep.Loading
         }
         super.onCreate(savedInstanceState)
+        handle(intent)
         enableEdgeToEdge()
         setContent {
             val appearance by graph.appearance.state.collectAsState()
@@ -28,6 +29,18 @@ class MainActivity : ComponentActivity() {
                     if (auth.step == AuthStep.Ready) AppNavigation(graph) else AuthFlow(graph.auth)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handle(intent)
+    }
+
+    private fun handle(intent: android.content.Intent?) {
+        if (intent?.action == com.pixelgram.android.music.OpenPlayerAction) {
+            com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Queue
+            com.pixelgram.android.feature.player.FullPlayer.open = true
         }
     }
 }

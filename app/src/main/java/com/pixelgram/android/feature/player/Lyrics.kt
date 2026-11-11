@@ -304,24 +304,19 @@ private fun KaraokeLine(
                             lit >= 1f -> drawText(letter, color = color)
                             lit <= 0f -> drawText(letter, color = color.copy(alpha = DimAlpha))
                             else -> {
-                                val fade = (lit * 5f).coerceIn(0f, 1f) * ((1f - lit) * 8f).coerceIn(0f, 1f)
-                                drawText(
-                                    letter,
-                                    color = color.copy(alpha = DimAlpha),
-                                    shadow = if (fade > 0.01f) androidx.compose.ui.graphics.Shadow(glow.copy(alpha = GlowAlpha * fade), blurRadius = glowRadius * fade) else null,
-                                )
-                                val filled = w * lit
+                                val filled = (w * lit).coerceIn(0f, w)
                                 val edge = (w * EdgeShare).coerceAtLeast(1f)
                                 val solid = (filled - edge).coerceAtLeast(0f)
-                                if (solid > 0f) clipRect(-glowRadius, -h, solid, h * 2f) { drawText(letter, color = color) }
-                                for (j in 0 until EdgeSlices) {
-                                    val from = solid + j * edge / EdgeSlices
-                                    val to = (solid + (j + 1) * edge / EdgeSlices + 0.5f).coerceAtMost(filled)
-                                    if (to > from) {
-                                        val a = DimAlpha + (1f - DimAlpha) * (1f - (j + 0.5f) / EdgeSlices)
-                                        clipRect(from, -h, to, h * 2f) { drawText(letter, color = color.copy(alpha = a)) }
-                                    }
-                                }
+                                val dim = color.copy(alpha = DimAlpha)
+                                val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    0f to color,
+                                    (solid / w).coerceIn(0f, 1f) to color,
+                                    (filled / w).coerceIn(0f, 1f) to dim,
+                                    1f to dim,
+                                    startX = 0f,
+                                    endX = w,
+                                )
+                                drawText(letter, brush = brush)
                             }
                         }
                     }
