@@ -4,7 +4,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 
-class LyricWord(val time: Float, val text: String)
+class LyricWord(val time: Float, val text: String, val end: Float = Float.NaN)
 
 class LyricLine(val time: Float, val text: String, val words: List<LyricWord> = emptyList())
 
@@ -30,6 +30,10 @@ object Lyrics {
         cache[key]?.let { return it }
         if (title.isBlank()) return LyricsResult.NotFound
         failed.set(false)
+        better(artist, title, duration)?.let {
+            cache[key] = it
+            return it
+        }
         val base = "https://lrclib.net/api/get?artist_name=${encode(artist)}&track_name=${encode(title)}"
         val direct = listOfNotNull(
             if (duration > 0) request("$base&duration=$duration") else null,
@@ -38,6 +42,79 @@ object Lyrics {
         val result = direct ?: search(artist, title) ?: LyricsResult.NotFound
         if (result != LyricsResult.NotFound || !failed.get()) cache[key] = result
         return result
+    }
+
+    private fun better(artist: String, title: String, duration: Int): LyricsResult? {
+        val url = "https://lyrics-api.boidu.dev/getLyrics?s=${encode(title)}&a=${encode(artist)}" + if (duration > 0) "&d=$duration" else ""
+        val body = request(url, "Mozilla/5.0") ?: return null
+        val ttml = field(body, "ttml")?.takeIf { it.isNotBlank() } ?: return null
+        val lines = runCatching { parseTtml(ttml) }.getOrNull() ?: return null
+        return LyricsResult.Synced(lines).takeIf { it.useful() }
+    }
+
+    internal fun parseTtml(ttml: String): List<LyricLine> {
+        val parser = android.util.Xml.newPullParser()
+        parser.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+        parser.setInput(java.io.StringReader(ttml))
+        val lines = mutableListOf<LyricLine>()
+        var lineStart = Float.NaN
+        val words = mutableListOf<LyricWord>()
+        val text = StringBuilder()
+        var background = 0
+        var spanDepth = 0
+        var wordStart = Float.NaN
+        var wordEnd = Float.NaN
+        val wordText = StringBuilder()
+        var event = parser.eventType
+        while (event != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                org.xmlpull.v1.XmlPullParser.START_TAG -> when (parser.name) {
+                    "p" -> {
+                        lineStart = ttmlTime(parser.getAttributeValue(null, "begin"))
+                        words.clear()
+                        text.clear()
+                    }
+                    "span" -> {
+                        spanDepth++
+                        val role = parser.getAttributeValue(null, "ttm:role")
+                        if (role == "x-bg" || background > 0) background++
+                        else if (!lineStart.isNaN()) {
+                            wordStart = ttmlTime(parser.getAttributeValue(null, "begin"))
+                            wordEnd = ttmlTime(parser.getAttributeValue(null, "end"))
+                            wordText.clear()
+                        }
+                    }
+                }
+                org.xmlpull.v1.XmlPullParser.TEXT -> if (!lineStart.isNaN() && background == 0) {
+                    if (spanDepth > 0) wordText.append(parser.text) else if (parser.text.isNotEmpty() && parser.text.isBlank() && text.isNotEmpty()) text.append(' ')
+                }
+                org.xmlpull.v1.XmlPullParser.END_TAG -> when (parser.name) {
+                    "span" -> {
+                        spanDepth--
+                        if (background > 0) background--
+                        else if (!wordStart.isNaN() && wordText.isNotBlank()) {
+                            val piece = wordText.toString().trim()
+                            words += LyricWord(wordStart, piece, wordEnd)
+                            text.append(piece)
+                            wordStart = Float.NaN
+                        }
+                    }
+                    "p" -> {
+                        val line = text.toString().replace(Regex("\\s+"), " ").trim()
+                        if (!lineStart.isNaN() && line.isNotEmpty()) lines += LyricLine(lineStart, line, words.toList())
+                        lineStart = Float.NaN
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return lines.sortedBy { it.time }
+    }
+
+    private fun ttmlTime(value: String?): Float {
+        if (value.isNullOrBlank()) return Float.NaN
+        val parts = value.trim().removeSuffix("s").split(':')
+        return runCatching { parts.fold(0f) { acc, part -> acc * 60f + part.toFloat() } }.getOrDefault(Float.NaN)
     }
 
     private fun search(artist: String, title: String): LyricsResult? {
@@ -92,11 +169,11 @@ object Lyrics {
 
     private val failed = ThreadLocal.withInitial { false }
 
-    private fun request(url: String): String? = runCatching {
+    private fun request(url: String, agent: String? = null): String? = runCatching {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = 8_000
         connection.readTimeout = 12_000
-        connection.setRequestProperty("User-Agent", "pixelGram Android/${com.pixelgram.android.BuildConfig.VERSION_NAME} (https://github.com/JettaXP/pixelGram-android)")
+        connection.setRequestProperty("User-Agent", agent ?: "pixelGram Android/${com.pixelgram.android.BuildConfig.VERSION_NAME} (https://github.com/JettaXP/pixelGram-android)")
         try {
             val code = connection.responseCode
             if (code != 200 && code != 404) failed.set(true)

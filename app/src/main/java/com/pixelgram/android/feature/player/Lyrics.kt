@@ -358,12 +358,17 @@ private fun lineWords(line: LyricLine, end: Float): List<Word> =
     if (line.words.isNotEmpty()) {
         line.words.mapIndexedNotNull { i, word ->
             val text = word.text.trim()
-            if (text.isEmpty()) null else Word(text, word.time, line.words.getOrNull(i + 1)?.time ?: end)
+            val stop = if (word.end.isNaN()) line.words.getOrNull(i + 1)?.time ?: end else word.end
+            if (text.isEmpty()) null else Word(text, word.time, stop)
         }
     } else {
-        line.text.split(Regex("\\s+")).filter { it.isNotBlank() }.mapIndexed { i, text ->
-            val start = line.time + i * WordStagger
-            Word(text, start, start + WordDuration)
+        val parts = line.text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val chars = parts.sumOf { it.length }.coerceAtLeast(1)
+        val span = ((end - line.time) * SpanShare).coerceAtMost(chars * MaxCharSeconds).coerceAtLeast(0.3f)
+        var at = line.time
+        parts.map { text ->
+            val length = span * text.length / chars
+            Word(text, at, at + length).also { at += length }
         }
     }
 
@@ -443,6 +448,7 @@ private fun LyricRow(
         }
     }
     val alpha by animateFloatAsState(target, tween(LineFadeMs))
+    val blur by animateFloatAsState(if (active || !auto) 0f else (distance * BlurStep).coerceAtMost(BlurMax), tween(ShiftMs, easing = FastOutSlowInEasing))
     val style = TextStyle(
         fontSize = LyricSize,
         fontWeight = FontWeight.Bold,
@@ -474,6 +480,7 @@ private fun LyricRow(
         Modifier
             .fillMaxWidth()
             .onSizeChanged { onSize(it.height) }
+            .blur(blur.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded)
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = LinePad, vertical = 12.dp),
@@ -643,11 +650,13 @@ private const val GapFadeMs = 200
 private const val FocusedAlpha = 0.3f
 private const val NudgeStrength = 0.038f
 private const val EdgeSlices = 12
-private const val WordDuration = 0.18f
-private const val WordStagger = 0.03f
+private const val SpanShare = 0.9f
+private const val MaxCharSeconds = 0.11f
 private const val PreviewMs = 4_000L
 private const val ShiftMs = 750
 private const val StaggerMs = 20
 private const val StaggerMaxMs = 200
 private const val LineFadeMs = 250
+private const val BlurStep = 1.5f
+private const val BlurMax = 6f
 
