@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
+import com.pixelgram.android.ui.components.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
@@ -320,6 +320,28 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(if (style == NavBarStyle.Expressive) R.string.nav_bar_expressive else R.string.nav_bar_classic))
+                }
+            }
+        }
+    }
+    SettingsGroup(stringResource(R.string.pixel_icon_pack)) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        ) {
+            val packs = com.pixelgram.android.settings.IconPack.entries
+            packs.forEachIndexed { index, pack ->
+                ToggleButton(
+                    checked = settings.iconPack == pack,
+                    onCheckedChange = { update { it.copy(iconPack = pack) } },
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        packs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(pack.name, maxLines = 1)
                 }
             }
         }

@@ -92,6 +92,12 @@ class Screens {
         shoot("contacts_tab", graph) { rule.onNodeWithContentDescription("Contacts").performClick() }
     }
 
+    @Test fun telegramIcons() {
+        val graph = graph()
+        graph.appearance.update { it.copy(iconPack = com.pixelgram.android.settings.IconPack.Telegram) }
+        shoot("icons_telegram", graph) { rule.onNodeWithContentDescription("Settings").performClick() }
+    }
+
     @Test fun sessions() = shoot("sessions", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SessionsKey))
 
     @Test fun search() = shoot("search", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SearchKey))

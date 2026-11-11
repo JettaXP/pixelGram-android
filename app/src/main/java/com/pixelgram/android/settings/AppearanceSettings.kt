@@ -23,6 +23,8 @@ enum class ThemeMode { System, Light, Dark }
 
 enum class NavBarStyle { Expressive, Classic }
 
+enum class IconPack { Material, Telegram, Solar, Remix }
+
 enum class FolderTitle { NamesAndIcons, Names, Icons, ActiveName }
 
 data class AppearanceSettings(
@@ -35,6 +37,7 @@ data class AppearanceSettings(
     val hidePhone: Boolean = true,
     val phoneDetails: Boolean = true,
     val navBarStyle: NavBarStyle = NavBarStyle.Expressive,
+    val iconPack: IconPack = IconPack.Material,
     val folderTitle: FolderTitle = FolderTitle.NamesAndIcons,
     val capsuleInset: Int = 12,
     val capsuleSpacing: Int = 4,
@@ -63,6 +66,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val HidePhone = booleanPreferencesKey("hide_phone")
         val PhoneDetails = booleanPreferencesKey("phone_details")
         val NavBar = stringPreferencesKey("nav_bar")
+        val Pack = stringPreferencesKey("icon_pack")
         val FolderTitleMode = stringPreferencesKey("folder_title")
         val CapsuleInset = intPreferencesKey("capsule_inset")
         val CapsuleSpacing = intPreferencesKey("capsule_spacing")
@@ -78,7 +82,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
         val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats)
         val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
-        val strings = listOf(Theme, Shape, NavBar, FolderTitleMode, NavTabs, K_doubleTapEmoji)
+        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, K_doubleTapEmoji)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -109,6 +113,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         hidePhone = p[Keys.HidePhone] ?: true,
         phoneDetails = p[Keys.PhoneDetails] ?: true,
         navBarStyle = NavBarStyle.entries.firstOrNull { it.name == p[Keys.NavBar] } ?: NavBarStyle.Expressive,
+        iconPack = IconPack.entries.firstOrNull { it.name == p[Keys.Pack] } ?: IconPack.Material,
         folderTitle = FolderTitle.entries.firstOrNull { it.name == p[Keys.FolderTitleMode] } ?: FolderTitle.NamesAndIcons,
         capsuleInset = p[Keys.CapsuleInset] ?: 12,
         capsuleSpacing = p[Keys.CapsuleSpacing] ?: 4,
@@ -139,6 +144,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.HidePhone] = next.hidePhone
                 p[Keys.PhoneDetails] = next.phoneDetails
                 p[Keys.NavBar] = next.navBarStyle.name
+                p[Keys.Pack] = next.iconPack.name
                 p[Keys.FolderTitleMode] = next.folderTitle.name
                 p[Keys.CapsuleInset] = next.capsuleInset
                 p[Keys.CapsuleSpacing] = next.capsuleSpacing
