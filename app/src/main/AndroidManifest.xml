@@ -17,6 +17,9 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Pixelgram">
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.pixelgram.android.music.CastOptionsProvider" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

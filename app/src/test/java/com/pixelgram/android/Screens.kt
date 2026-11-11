@@ -99,7 +99,21 @@ class Screens {
                 document = TdApi.File().apply { this.id = fileId; size = 52_000_000; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() }
             }, TdApi.FormattedText("", emptyArray()))
         }
+        val tgs = File(ApplicationProvider.getApplicationContext<android.content.Context>().cacheDir, "emoji.tgs")
+        val lottie = """{"v":"5.7.4","fr":60,"ip":0,"op":60,"w":512,"h":512,"layers":[{"ty":4,"ind":1,"ip":0,"op":60,"st":0,"ks":{"o":{"a":0,"k":100},"r":{"a":0,"k":0},"p":{"a":0,"k":[256,256,0]},"a":{"a":0,"k":[0,0,0]},"s":{"a":0,"k":[100,100,100]}},"shapes":[{"ty":"gr","it":[{"ty":"el","p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[440,440]}},{"ty":"fl","c":{"a":0,"k":[1,0.72,0.1,1]},"o":{"a":0,"k":100}},{"ty":"tr","p":{"a":0,"k":[0,0]},"a":{"a":0,"k":[0,0]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}]},{"ty":"gr","it":[{"ty":"rc","p":{"a":0,"k":[0,40]},"s":{"a":0,"k":[220,60]},"r":{"a":0,"k":30}},{"ty":"fl","c":{"a":0,"k":[0.35,0.2,0.05,1]},"o":{"a":0,"k":100}},{"ty":"tr","p":{"a":0,"k":[0,40]},"a":{"a":0,"k":[0,40]},"s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}]}]}]}"""
+        java.util.zip.GZIPOutputStream(tgs.outputStream()).use { it.write(lottie.toByteArray()) }
+        val sticker = TdApi.Sticker().apply {
+            id = 1; setId = 1; width = 512; height = 512; emoji = "😀"
+            format = TdApi.StickerFormatTgs()
+            fullType = TdApi.StickerFullTypeCustomEmoji(42, false)
+            sticker = TdApi.File().apply { id = 900; local = TdApi.LocalFile().apply { path = tgs.absolutePath; isDownloadingCompleted = true }; remote = TdApi.RemoteFile() }
+        }
+        fun emojiMessage(id: Long, text: String, offsets: List<Int>) = message(id, false, "").apply {
+            content = TdApi.MessageText(TdApi.FormattedText(text, offsets.map { TdApi.TextEntity(it, 2, TdApi.TextEntityTypeCustomEmoji(42)) }.toTypedArray()), null, null)
+        }
         val history = listOf(
+            emojiMessage(14, "😀😀", listOf(0, 2)),
+            emojiMessage(13, "Premium 😀 emoji", listOf(8)),
             doc(12, 801, "pixelGram-0.55.apk"),
             doc(11, 800, "Expressive Shapes.pdf"),
             track,
@@ -120,6 +134,7 @@ class Screens {
             when (function) {
                 is TdApi.GetChatHistory -> TdApi.Messages(history.size, history.toTypedArray())
                 is TdApi.GetRepliedMessage -> history.firstOrNull { it.id == 8L }
+                is TdApi.GetCustomEmojiStickers -> TdApi.Stickers(arrayOf(sticker))
                 else -> null
             }
         }
@@ -128,7 +143,7 @@ class Screens {
             local = TdApi.LocalFile().apply { isDownloadingActive = true; downloadedSize = 21_000_000 }
             remote = TdApi.RemoteFile()
         }))
-        shoot("chat", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2)))
+        shoot("chat", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2))) { repeat(10) { Thread.sleep(300); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); rule.mainClock.advanceTimeBy(50) } }
     }
 
     @Test fun settingsTab() = shoot("settings_tab") { rule.onNodeWithContentDescription("Settings").performClick() }

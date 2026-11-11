@@ -537,10 +537,18 @@ internal fun MessageBubble(
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (message.text.isNotBlank()) {
+                    val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
+                    if (bigEmoji != null && !prefs.zalgoFilter) {
+                        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            bigEmoji.forEach { (id, alt) -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = BigEmojiSize) }
+                        }
+                    } else if (message.text.isNotBlank()) {
+                        val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
+                        val entities = if (prefs.zalgoFilter) emptyList() else message.entities
                         Text(
-                            formatted(if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text, if (prefs.zalgoFilter) emptyList() else message.entities, MaterialTheme.colorScheme.primary, onContainer),
+                            formatted(text, entities, MaterialTheme.colorScheme.primary, onContainer),
                             style = MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
+                            inlineContent = remember(text, entities, prefs.messageFontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (prefs.messageFontSize * 1.25f).sp) },
                             modifier = Modifier.weight(1f, fill = false),
                         )
                     }
@@ -1081,6 +1089,20 @@ private fun DeleteDialog(message: UiMessage, controller: ChatController, private
     )
 }
 
+private val BigEmojiSize = 64.dp
+
+private fun bigCustomEmoji(text: String, entities: List<TdApi.TextEntity>): List<Pair<Long, String>>? {
+    val emoji = entities.filter { it.type is TdApi.TextEntityTypeCustomEmoji }.sortedBy { it.offset }
+    if (emoji.isEmpty() || emoji.size > 3) return null
+    val rest = StringBuilder(text)
+    emoji.asReversed().forEach { e ->
+        val start = e.offset.coerceIn(0, rest.length)
+        rest.delete(start, (e.offset + e.length).coerceIn(start, rest.length))
+    }
+    if (rest.isNotBlank()) return null
+    return emoji.map { e -> (e.type as TdApi.TextEntityTypeCustomEmoji).customEmojiId to text.substring(e.offset.coerceIn(0, text.length), (e.offset + e.length).coerceIn(0, text.length)) }
+}
+
 private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Color, content: Color): androidx.compose.ui.text.AnnotatedString =
     androidx.compose.ui.text.buildAnnotatedString {
         append(text)
@@ -1098,6 +1120,7 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 is TdApi.TextEntityTypeSpoiler -> addStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent, background = content.copy(alpha = 0.35f)), start, end)
                 is TdApi.TextEntityTypeUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeTextUrl -> addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeCustomEmoji -> addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
                 is TdApi.TextEntityTypeMention, is TdApi.TextEntityTypeMentionName, is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeEmailAddress, is TdApi.TextEntityTypePhoneNumber, is TdApi.TextEntityTypeBotCommand ->
                     addStyle(androidx.compose.ui.text.SpanStyle(color = link), start, end)
                 else -> Unit

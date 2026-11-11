@@ -389,4 +389,11 @@
     <string name="accounts_unnamed">Аккаунт</string>
     <string name="pixel_typing_bubble">Пузырь «печатает»</string>
     <string name="pixel_typing_bubble_sub">Анимированный пузырь в чате, пока собеседник пишет</string>
+    <string name="cast_title">Трансляция на устройство</string>
+    <string name="cast_casting_to">Трансляция на %1$s</string>
+    <string name="cast_hint">Телефон и устройство должны быть в одной сети Wi-Fi</string>
+    <string name="cast_unavailable">На этом устройстве нет сервисов Google Play</string>
+    <string name="cast_searching">Поиск устройств…</string>
+    <string name="cast_connected">Подключено</string>
+    <string name="cast_disconnect">Остановить трансляцию</string>
 </resources>

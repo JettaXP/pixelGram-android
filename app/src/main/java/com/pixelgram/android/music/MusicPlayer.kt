@@ -68,6 +68,69 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     private val profileFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
     val profile: StateFlow<Map<String, Int>> = profileFlow.asStateFlow()
     private var meId = 0L
+    val cast = CastLink(context)
+    private var currentPath: String? = null
+    private var currentCover: String? = null
+    private var castEnded = false
+    private var castLoadedAt = 0L
+
+    init {
+        cast.onConnected = { main.launch { handOff() } }
+        cast.onDisconnected = { position -> main.launch { takeBack(position) } }
+        cast.onStatus = { main.launch { castStatus() } }
+    }
+
+    private fun mime(audio: TdApi.Audio): String = audio.mimeType.ifBlank { "audio/mpeg" }
+
+    private fun castCurrent(position: Long, autoplay: Boolean) {
+        val audio = stateFlow.value.audio ?: return
+        val path = currentPath ?: return
+        castEnded = false
+        castLoadedAt = android.os.SystemClock.elapsedRealtime()
+        cast.load(File(path), mime(audio), audio.title.ifBlank { audio.fileName }, audio.performer, currentCover?.let(::File), position, autoplay)
+        cast.setSpeed(stateFlow.value.speed)
+    }
+
+    private fun handOff() {
+        if (currentPath == null) return
+        val position = exo.currentPosition
+        val playing = stateFlow.value.playing
+        fadeJob?.cancel()
+        exo.pause()
+        exo.volume = 1f
+        castCurrent(position, playing)
+        stateFlow.update { it.copy(playing = playing) }
+        startTicker()
+    }
+
+    private fun takeBack(position: Long) {
+        val path = currentPath ?: return
+        val audio = stateFlow.value.audio ?: return
+        if (exo.mediaItemCount == 0) {
+            exo.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(path))).setMediaMetadata(MediaMetadata.Builder().setTitle(audio.title.ifBlank { audio.fileName }).setArtist(audio.performer).build()).build())
+            exo.prepare()
+        }
+        exo.seekTo(position)
+        exo.pause()
+        ticker?.cancel()
+        stateFlow.update { it.copy(playing = false, position = position) }
+    }
+
+    private fun castStatus() {
+        if (!cast.active) return
+        val settled = android.os.SystemClock.elapsedRealtime() - castLoadedAt > CastSettleMs
+        if (settled && cast.finished && !castEnded && stateFlow.value.track != null) {
+            castEnded = true
+            when {
+                stateFlow.value.repeat == RepeatMode.One -> castCurrent(0, true)
+                index < queue.lastIndex -> load(index + 1, 1)
+                stateFlow.value.repeat == RepeatMode.All && queue.isNotEmpty() -> load(0, 1)
+                else -> stateFlow.update { it.copy(playing = false, position = it.duration) }
+            }
+            return
+        }
+        if (settled) stateFlow.update { it.copy(playing = cast.playing || it.loading, position = cast.position) }
+    }
 
     private val exo: ExoPlayer by lazy {
         ExoPlayer.Builder(context)
@@ -102,11 +165,13 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
     private val listener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (cast.active) return
             stateFlow.update { it.copy(playing = playWhenReady && exo.playbackState != Player.STATE_ENDED) }
             if (playWhenReady) startTicker() else ticker?.cancel()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            if (cast.active) return
             if (playbackState == Player.STATE_ENDED) {
                 when {
                     stateFlow.value.repeat == RepeatMode.One -> {
@@ -157,6 +222,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
     fun setSpeed(speed: Float) {
         exo.setPlaybackSpeed(speed)
+        if (cast.active) cast.setSpeed(speed)
         stateFlow.update { it.copy(speed = speed) }
     }
 
@@ -224,6 +290,12 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     fun toggle() {
         if (stateFlow.value.track == null) return
         fadeJob?.cancel()
+        if (cast.active) {
+            val playing = !stateFlow.value.playing
+            if (castEnded) castCurrent(0, true) else cast.toggle()
+            stateFlow.update { it.copy(playing = playing) }
+            return
+        }
         if (exo.playWhenReady && exo.playbackState != Player.STATE_ENDED) {
             stateFlow.update { it.copy(playing = false) }
             fadeJob = main.launch {
@@ -257,11 +329,11 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     }
 
     fun previous() {
-        if (exo.currentPosition > 3000 || index == 0) exo.seekTo(0) else load(index - 1, -1)
+        if (stateFlow.value.position > 3000 || index == 0) seekTo(0) else load(index - 1, -1)
     }
 
     fun seekTo(position: Long) {
-        exo.seekTo(position)
+        if (cast.active) cast.seek(position) else exo.seekTo(position)
         stateFlow.update { it.copy(position = position) }
     }
 
@@ -273,10 +345,10 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         if (direction == 0) return
         scrubJob = main.launch {
             while (isActive) {
-                val duration = exo.duration.takeIf { it > 0 } ?: stateFlow.value.duration
+                val duration = (if (cast.active) cast.duration else exo.duration).takeIf { it > 0 } ?: stateFlow.value.duration
                 val step = if (direction > 0) ScrubForwardStepMs else -ScrubBackStepMs
-                val target = (exo.currentPosition + step).coerceIn(0, duration.coerceAtLeast(0))
-                exo.seekTo(target)
+                val target = (stateFlow.value.position + step).coerceIn(0, duration.coerceAtLeast(0))
+                if (cast.active) cast.seek(target) else exo.seekTo(target)
                 stateFlow.update { it.copy(position = target) }
                 delay(ScrubTickMs)
             }
@@ -288,6 +360,9 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         fadeJob?.cancel()
         scrubJob?.cancel()
         loadJob?.cancel()
+        if (cast.active) cast.client?.stop()
+        currentPath = null
+        currentCover = null
         exo.stop()
         exo.clearMediaItems()
         queue = emptyList()
@@ -335,6 +410,14 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
                 return@launch
             }
             stateFlow.update { it.copy(loading = false, track = it.track?.copy(cover = coverPath ?: it.track.cover)) }
+            currentPath = path
+            currentCover = coverPath ?: stateFlow.value.track?.cover
+            if (cast.active) {
+                castCurrent(0, true)
+                stateFlow.update { it.copy(playing = true) }
+                startTicker()
+                return@launch
+            }
             val metadata = MediaMetadata.Builder()
                 .setTitle(audio.title.ifBlank { audio.fileName })
                 .setArtist(audio.performer)
@@ -355,7 +438,12 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         ticker?.cancel()
         ticker = main.launch {
             while (isActive) {
-                stateFlow.update { it.copy(position = exo.currentPosition, duration = exo.duration.takeIf { d -> d > 0 } ?: it.duration) }
+                if (cast.active) {
+                    castStatus()
+                    stateFlow.update { it.copy(duration = cast.duration.takeIf { d -> d > 0 } ?: it.duration) }
+                } else {
+                    stateFlow.update { it.copy(position = exo.currentPosition, duration = exo.duration.takeIf { d -> d > 0 } ?: it.duration) }
+                }
                 delay(250)
             }
         }
@@ -373,6 +461,7 @@ private const val ScrubTickMs = 100L
 private const val FadeMs = 150
 private const val ArtworkWaitMs = 3_000L
 private const val FadeTickMs = 16
+private const val CastSettleMs = 2_000L
 
 fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(
     audio.remote?.uniqueId?.takeIf { it.isNotBlank() }?.let { "u:$it" },

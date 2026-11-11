@@ -390,4 +390,11 @@
     <string name="accounts_unnamed">Account</string>
     <string name="pixel_typing_bubble">Typing bubble</string>
     <string name="pixel_typing_bubble_sub">Show an animated bubble while someone types</string>
+    <string name="cast_title">Cast to device</string>
+    <string name="cast_casting_to">Casting to %1$s</string>
+    <string name="cast_hint">Phone and device must be on the same Wi-Fi network</string>
+    <string name="cast_unavailable">Google Play services are not available on this device</string>
+    <string name="cast_searching">Searching for devices…</string>
+    <string name="cast_connected">Connected</string>
+    <string name="cast_disconnect">Stop casting</string>
 </resources>

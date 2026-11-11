@@ -181,23 +181,7 @@ private const val NoticeMs = 3_000L
 
 @Composable
 fun CustomEmoji(badge: CustomBadge, size: Dp) {
-    val graph = LocalGraph.current
-    val snapshot by graph.store.snapshot.collectAsState()
-    val fileId by produceState(0, badge.customEmojiId) {
-        value = runCatching {
-            val stickers = graph.td.send(TdApi.GetCustomEmojiStickers(longArrayOf(badge.customEmojiId))).stickers
-            val sticker = stickers.firstOrNull() ?: return@runCatching 0
-            if (sticker.format is TdApi.StickerFormatWebp) sticker.sticker.id else sticker.thumbnail?.file?.id ?: 0
-        }.getOrDefault(0)
-    }
-    LaunchedEffect(fileId) { if (fileId != 0) graph.store.requestFileAsync(fileId) }
-    val path = snapshot.files[fileId]
-    if (path != null) {
-        AsyncImage(model = java.io.File(path), contentDescription = badge.text, modifier = Modifier.size(size))
-    } else {
-        val fontSize = with(LocalDensity.current) { (size * 0.8f).toSp() }
-        Text(badge.emoji, fontSize = fontSize)
-    }
+    CustomEmojiView(badge.customEmojiId, badge.emoji, size = size)
 }
 
 private const val LogoScale = 0.66f

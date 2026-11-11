@@ -62,6 +62,10 @@ import androidx.compose.material.icons.rounded.FormatQuote
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.CastConnected
+import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
@@ -686,15 +690,21 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
     var details by remember { mutableStateOf(false) }
     var forwarding by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var casting by remember { mutableStateOf(false) }
+    val castState by graph.music.cast.state.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val path = audio.audio.local.path.takeIf { audio.audio.local.isDownloadingCompleted && it.isNotEmpty() }
     val name = audio.fileName.ifBlank { "${audio.performer} - ${audio.title}.mp3" }
     val savedText = stringResource(R.string.player_saved_music)
+    Row {
+        androidx.compose.animation.AnimatedVisibility(castState.connected != null) {
+            IconButton(onClick = { casting = true }) { Icon(Icons.Rounded.CastConnected, stringResource(R.string.cast_title), tint = MaterialTheme.colorScheme.primary) }
+        }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.action_more)) }
         DropdownMenuPopup(expanded = open, onDismissRequest = { open = false }) {
-            val groups = 3
+            val groups = 4
             DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, groups)) {
                 MenuRow(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.player_forward), 0, 2) {
                     open = false
@@ -720,6 +730,19 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
             }
             Spacer(Modifier.height(MenuDefaults.GroupSpacing))
             DropdownMenuGroup(shapes = MenuDefaults.groupShape(2, groups)) {
+                MenuRow(
+                    if (castState.connected != null) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                    castState.connected?.let { stringResource(R.string.cast_casting_to, it) } ?: stringResource(R.string.cast_title),
+                    0,
+                    1,
+                    trailing = true,
+                ) {
+                    open = false
+                    casting = true
+                }
+            }
+            Spacer(Modifier.height(MenuDefaults.GroupSpacing))
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(3, groups)) {
                 MenuRow(Icons.Rounded.Info, stringResource(R.string.player_details), 0, 1) {
                     open = false
                     details = true
@@ -727,6 +750,8 @@ private fun PlayerMenu(graph: AppGraph, state: PlayerState, saved: Boolean) {
             }
         }
     }
+    }
+    if (casting) CastSheet(graph.music.cast) { casting = false }
     if (forwarding) {
         ChatPickerSheet(
             title = stringResource(R.string.player_forward),
@@ -802,6 +827,84 @@ private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         shape = MenuDefaults.itemShape(index, count).shape,
         onClick = onClick,
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CastSheet(cast: com.pixelgram.android.music.CastLink, onDismiss: () -> Unit) {
+    val state by cast.state.collectAsState()
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        cast.scan(true)
+        onDispose { cast.scan(false) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier.size(64.dp).clip(MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(if (state.connected != null) Icons.Rounded.CastConnected else Icons.Rounded.Cast, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(30.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                state.connected?.let { stringResource(R.string.cast_casting_to, it) } ?: stringResource(R.string.cast_title),
+                style = MaterialTheme.typography.titleLargeEmphasized,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            Text(
+                stringResource(if (state.available) R.string.cast_hint else R.string.cast_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp, vertical = 6.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            val devices = state.devices
+            androidx.compose.animation.AnimatedContent(devices.isEmpty() && state.available, label = "cast-list") { empty ->
+                if (empty) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        LoadingIndicator(Modifier.size(48.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text(stringResource(R.string.cast_searching), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                        devices.forEachIndexed { index, device ->
+                            val connected = device.selected && state.connected != null
+                            val connecting = state.connecting == device.name && !connected
+                            androidx.compose.material3.SegmentedListItem(
+                                onClick = { if (!connected && state.connecting == null) cast.connect(device.id) },
+                                shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, devices.size),
+                                colors = com.pixelgram.android.ui.components.segmentedColors(
+                                    if (connected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                ),
+                                leadingContent = { Icon(if (connected) Icons.Rounded.CastConnected else Icons.Rounded.Tv, null) },
+                                supportingContent = (device.description.takeIf { it.isNotBlank() && !connected } ?: if (connected) stringResource(R.string.cast_connected) else null)?.let { { Text(it) } },
+                                trailingContent = {
+                                    when {
+                                        connecting -> LoadingIndicator(Modifier.size(28.dp))
+                                        connected -> Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                            ) { Text(device.name) }
+                        }
+                    }
+                }
+            }
+            if (state.connected != null) {
+                Spacer(Modifier.height(16.dp))
+                androidx.compose.material3.Button(
+                    onClick = {
+                        cast.disconnect()
+                        onDismiss()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                    shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                ) { Text(stringResource(R.string.cast_disconnect)) }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
