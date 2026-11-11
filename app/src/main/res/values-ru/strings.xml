@@ -298,4 +298,5 @@
     <string name="stories_post">Опубликовать</string>
     <string name="new_message">Новое сообщение</string>
     <string name="pixel_icon_pack">Набор иконок</string>
+    <string name="auth_no_keys">В этой сборке нет ключей Telegram API, поэтому она не может подключиться. Установите сборку, собранную с секретами API_ID и API_HASH.</string>
 </resources>

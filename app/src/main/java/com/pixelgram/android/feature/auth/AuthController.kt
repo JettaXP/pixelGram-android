@@ -27,12 +27,13 @@ enum class CodeType { App, Sms, Call, FlashCall, MissedCall, Fragment, Firebase,
 data class AuthUi(val step: AuthStep = AuthStep.Loading, val busy: Boolean = false, val error: String? = null, val wantQr: Boolean = false)
 
 class AuthController(private val td: TdClient, private val scope: CoroutineScope) {
-    private val ui = MutableStateFlow(AuthUi())
+    private val ui = MutableStateFlow(if (com.pixelgram.android.BuildConfig.API_ID == 0) AuthUi(step = AuthStep.Unsupported("keys")) else AuthUi())
     val state: StateFlow<AuthUi> = ui.asStateFlow()
 
     init {
         scope.launch {
             td.authorizationState.collect { state ->
+                if (com.pixelgram.android.BuildConfig.API_ID == 0) return@collect
                 val step = map(state)
                 ui.value = ui.value.copy(step = step, busy = false)
             }

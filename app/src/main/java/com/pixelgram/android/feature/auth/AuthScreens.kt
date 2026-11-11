@@ -414,7 +414,13 @@ private fun UnsupportedScreen(step: AuthStep.Unsupported, controller: AuthContro
         Text(stringResource(R.string.auth_unsupported_title), style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         Text(
-            stringResource(if (step.reason == "registration") R.string.auth_unsupported_registration else R.string.auth_unsupported_email),
+            stringResource(
+                when (step.reason) {
+                    "registration" -> R.string.auth_unsupported_registration
+                    "keys" -> R.string.auth_no_keys
+                    else -> R.string.auth_unsupported_email
+                },
+            ),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
