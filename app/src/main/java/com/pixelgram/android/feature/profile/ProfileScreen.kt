@@ -246,16 +246,16 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     rows.forEachIndexed { index, row ->
                         val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
                         when {
-                            row == "about" -> SettingsItem(about, position, stringResource(R.string.profile_description), Icons.Rounded.Info, onLongClick = { copy(about) })
+                            row == "about" -> SettingsItem(about, position, stringResource(R.string.profile_description), Icons.Rounded.Info, pill = true, onLongClick = { copy(about) })
                             row.startsWith("u:") -> {
                                 val name = row.removePrefix("u:")
-                                SettingsItem("t.me/$name", position, stringResource(R.string.profile_link), Icons.Rounded.Link, onClick = { collectible = name }, onLongClick = { copy("https://t.me/$name") })
+                                SettingsItem("t.me/$name", position, stringResource(R.string.profile_link), Icons.Rounded.Link, pill = true, onClick = { collectible = name }, onLongClick = { copy("https://t.me/$name") })
                             }
                             row.startsWith("link:") -> {
                                 val link = row.removePrefix("link:")
-                                SettingsItem(link, position, stringResource(R.string.profile_link), Icons.Rounded.Link, onLongClick = { copy(link) })
+                                SettingsItem(link, position, stringResource(R.string.profile_link), Icons.Rounded.Link, pill = true, onLongClick = { copy(link) })
                             }
-                            row == "id" -> SettingsItem(chatId.toString(), position, "ID", Icons.Rounded.Tag, onLongClick = { copy(chatId.toString()) })
+                            row == "id" -> SettingsItem(chatId.toString(), position, "ID", Icons.Rounded.Tag, pill = true, onLongClick = { copy(chatId.toString()) })
                         }
                     }
                 }
@@ -310,9 +310,15 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 rows.forEachIndexed { index, row ->
                     val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
                     when {
-                        row == "phone" -> SettingsItem(stringResource(R.string.profile_phone), position, subtitle = phoneDetails, icon = Icons.Rounded.Phone, onLongClick = { copy("+$phone") }) {
-                            HiddenPhone("+" + formatPhone(phone), hidden = appearance.hidePhone && self)
-                        }
+                        row == "phone" -> SettingsItem(
+                            "+$phone",
+                            position,
+                            subtitle = listOfNotNull(stringResource(R.string.profile_phone), phoneDetails?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                            icon = Icons.Rounded.Phone,
+                            pill = true,
+                            headlineContent = { HiddenPhone("+" + formatPhone(phone), hidden = appearance.hidePhone && self) },
+                            onLongClick = { copy("+$phone") },
+                        )
                         row.startsWith("u:") -> {
                             val name = row.removePrefix("u:")
                             SettingsItem(
@@ -320,17 +326,24 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                                 position,
                                 stringResource(if (name == names.first()) R.string.profile_username else R.string.profile_extra_username),
                                 Icons.Rounded.AlternateEmail,
+                                pill = true,
                                 onClick = { collectible = name },
                                 onLongClick = { copy("@$name") },
+                                trailing = if (name == names.first()) {
+                                    { androidx.compose.material3.IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_share)) } }
+                                } else {
+                                    null
+                                },
                             )
                         }
-                        row == "bio" -> SettingsItem(bio, position, stringResource(R.string.profile_bio), Icons.Rounded.Info, onLongClick = { copy(bio) })
-                        row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, onLongClick = { copy(userId.toString()) })
+                        row == "bio" -> SettingsItem(bio, position, stringResource(R.string.profile_bio), Icons.Rounded.Info, pill = true, onLongClick = { copy(bio) })
+                        row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, pill = true, onLongClick = { copy(userId.toString()) })
                         row == "birthday" -> SettingsItem(
                             listOfNotNull(birthday!!.day.toString(), java.text.DateFormatSymbols.getInstance().months[birthday.month - 1], birthday.year.takeIf { it > 0 }?.toString()).joinToString(" "),
                             position,
                             stringResource(R.string.profile_birthday),
                             Icons.Rounded.Cake,
+                            pill = true,
                         )
                     }
                 }

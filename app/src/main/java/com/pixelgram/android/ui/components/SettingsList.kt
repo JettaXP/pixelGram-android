@@ -93,6 +93,8 @@ fun SettingsItem(
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    pill: Boolean = false,
+    headlineContent: (@Composable () -> Unit)? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val (index, count) = position.index()
@@ -108,8 +110,27 @@ fun SettingsItem(
         null
     }
     val trailingSlot: (@Composable () -> Unit)? = trailing?.let { content -> { Row(verticalAlignment = Alignment.CenterVertically) { content() } } }
-    val supporting: (@Composable () -> Unit)? = subtitle?.let { { Text(it) } }
-    val headline: @Composable () -> Unit = {
+    val supporting: (@Composable () -> Unit)? = subtitle?.let { text ->
+        if (pill) {
+            {
+                androidx.compose.material3.Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Text(
+                        text,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        } else {
+            { Text(text) }
+        }
+    }
+    val headline: @Composable () -> Unit = headlineContent ?: {
         Text(title, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline)
     }
     if (onClick != null || onLongClick != null) {

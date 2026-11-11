@@ -305,6 +305,7 @@ object DemoData {
         lastName = ""
         phoneNumber = "7999000000$id"
         status = if (id == 2L) TdApi.UserStatusOnline(0) else TdApi.UserStatusOffline(0)
+        if (id == 2L) usernames = TdApi.Usernames().apply { activeUsernames = arrayOf("alice", "alice_md"); disabledUsernames = arrayOf(); editableUsername = "alice" }
         type = TdApi.UserTypeRegular()
     }
 }
