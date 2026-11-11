@@ -23,6 +23,9 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.People
@@ -224,6 +227,7 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
     val banners by graph.remote.banners.collectAsState()
     LaunchedEffect(snapshot.meId) { if (snapshot.meId != 0L) graph.remote.want(snapshot.meId) }
     val banner = banners[snapshot.meId]
+    var accountsOpen by remember { mutableStateOf(false) }
     ModalDrawerSheet(modifier = Modifier.width(DrawerWidth)) {
         Box {
             if (banner != null) {
@@ -246,9 +250,40 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                 onNeedFile = { me?.photoFileId?.let(graph.store::requestFileAsync) },
             )
             Spacer(Modifier.height(12.dp))
-            Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleLargeEmphasized)
-            if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleLargeEmphasized)
+                    if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+                }
+                val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
+                androidx.compose.material3.IconButton(onClick = { accountsOpen = !accountsOpen }) {
+                    Icon(Icons.Outlined.ExpandMore, stringResource(R.string.accounts_toggle), Modifier.graphicsLayer { rotationZ = turn })
+                }
+            }
         }
+        }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        LaunchedEffect(me) { if (me != null) com.pixelgram.android.account.Accounts.remember(context, me.name, me.phone, me.id) }
+        androidx.compose.animation.AnimatedVisibility(accountsOpen) {
+            val active = com.pixelgram.android.account.Accounts.active(context)
+            val others = remember(accountsOpen) { com.pixelgram.android.account.Accounts.all(context).filter { it.id != active } }
+            Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                val count = others.size + 1
+                others.forEachIndexed { index, account ->
+                    androidx.compose.material3.SegmentedListItem(
+                        onClick = { com.pixelgram.android.account.Accounts.switchTo(context, account.id) },
+                        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
+                        colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        leadingContent = { Avatar(title = account.name, seed = account.userId, path = null, minithumb = null, size = 36.dp) },
+                    ) { Text(account.name.ifBlank { stringResource(R.string.accounts_unnamed) }) }
+                }
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { com.pixelgram.android.account.Accounts.add(context) },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(others.size, count),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    leadingContent = { Icon(Icons.Outlined.PersonAdd, null) },
+                ) { Text(stringResource(R.string.accounts_add)) }
+            }
         }
         val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
         val groups = listOf(

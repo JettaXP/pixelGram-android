@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.settings
 
+import kotlinx.coroutines.launch
 import androidx.compose.material3.toShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -55,6 +56,7 @@ import org.drinkless.tdlib.TdApi
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
@@ -133,7 +135,11 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 Button(
                     onClick = {
                         confirmLogout = false
-                        graph.td.fire(TdApi.LogOut())
+                        graph.scope.launch {
+                            runCatching { graph.td.send(TdApi.LogOut()) }
+                            kotlinx.coroutines.delay(LogoutSettleMs)
+                            com.pixelgram.android.account.Accounts.forgetActive(appContext)
+                        }
                     },
                     shapes = ButtonDefaults.shapes(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -145,3 +151,5 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
         )
     }
 }
+
+private const val LogoutSettleMs = 1_500L

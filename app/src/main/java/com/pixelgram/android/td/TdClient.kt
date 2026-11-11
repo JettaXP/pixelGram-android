@@ -71,10 +71,11 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
     }
 
     private fun parameters() = TdApi.SetTdlibParameters().apply {
-        val root = File(context.filesDir, "tdlib")
+        val account = com.pixelgram.android.account.Accounts.active(context)
+        val root = File(context.filesDir, com.pixelgram.android.account.Accounts.databaseDir(account))
         useTestDc = false
         databaseDirectory = root.absolutePath
-        filesDirectory = File(context.filesDir, "tdlib-files").absolutePath
+        filesDirectory = File(context.filesDir, com.pixelgram.android.account.Accounts.filesDir(account)).absolutePath
         databaseEncryptionKey = ByteArray(0)
         useFileDatabase = true
         useChatInfoDatabase = true

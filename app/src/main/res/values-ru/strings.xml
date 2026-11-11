@@ -384,4 +384,7 @@
     <string name="pixel_show_drawer_sub">Кнопка меню и свайп от края</string>
     <string name="pixel_show_bottom_bar">Нижняя панель</string>
     <string name="pixel_show_bottom_bar_sub">Вкладки внизу экрана</string>
+    <string name="accounts_toggle">Аккаунты</string>
+    <string name="accounts_add">Добавить аккаунт</string>
+    <string name="accounts_unnamed">Аккаунт</string>
 </resources>

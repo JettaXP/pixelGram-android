@@ -385,4 +385,7 @@
     <string name="pixel_show_drawer_sub">Menu button and swipe from the edge</string>
     <string name="pixel_show_bottom_bar">Bottom bar</string>
     <string name="pixel_show_bottom_bar_sub">Tabs at the bottom of the screen</string>
+    <string name="accounts_toggle">Accounts</string>
+    <string name="accounts_add">Add account</string>
+    <string name="accounts_unnamed">Account</string>
 </resources>
