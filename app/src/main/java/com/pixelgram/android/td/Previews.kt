@@ -23,6 +23,7 @@ internal fun contentPreview(content: TdApi.MessageContent): Pair<PreviewKind, St
     is TdApi.MessageVideo -> PreviewKind.Video to content.caption.text
     is TdApi.MessageAnimation -> PreviewKind.Gif to content.caption.text
     is TdApi.MessageSticker -> PreviewKind.Sticker to content.sticker.emoji
+    is TdApi.MessageAnimatedEmoji -> PreviewKind.Text to content.emoji
     is TdApi.MessageVoiceNote -> PreviewKind.Voice to content.caption.text
     is TdApi.MessageVideoNote -> PreviewKind.VideoNote to ""
     is TdApi.MessageAudio -> PreviewKind.Audio to listOf(content.audio.performer, content.audio.title).filter { it.isNotBlank() }.joinToString(" – ")

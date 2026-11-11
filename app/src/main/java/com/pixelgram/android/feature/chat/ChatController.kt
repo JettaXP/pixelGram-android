@@ -38,6 +38,7 @@ data class UiMessage(
     val parts: List<UiMessage> = emptyList(),
     val reactions: List<ReactionUi> = emptyList(),
     val views: Int = 0,
+    val chatId: Long = 0,
 )
 
 @Immutable
@@ -487,6 +488,7 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
             }
         },
         views = if (isChannelPost) interactionInfo?.viewCount ?: 0 else 0,
+        chatId = chatId,
     )
 }
 

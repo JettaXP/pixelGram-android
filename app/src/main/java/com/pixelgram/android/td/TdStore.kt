@@ -149,6 +149,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     val snapshot: StateFlow<StoreSnapshot> = snapshotFlow.asStateFlow()
 
     init {
+        EmojiTaps.client = td
         scope.launch(worker) { td.updates.collect(::apply) }
         scope.launch(worker) { dirty.sample(50).collect { publish() } }
     }
@@ -160,6 +161,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private fun apply(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
+            is TdApi.UpdateAnimatedEmojiMessageClicked -> EmojiTaps.received(update.chatId, update.messageId, update.sticker)
             is TdApi.UpdateChatTitle -> chats[update.chatId]?.title = update.title
             is TdApi.UpdateChatPhoto -> chats[update.chatId]?.photo = update.photo
             is TdApi.UpdateChatLastMessage -> chats[update.chatId]?.let {

@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,6 +74,7 @@ import coil.compose.AsyncImage
 import com.pixelgram.android.R
 import com.pixelgram.android.ui.components.Icon
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.drinkless.tdlib.TdApi
@@ -80,7 +82,7 @@ import java.io.File
 
 internal fun isRichContent(content: TdApi.MessageContent): Boolean = when (content) {
     is TdApi.MessageVideo, is TdApi.MessageVoiceNote, is TdApi.MessageVideoNote, is TdApi.MessageSticker,
-    is TdApi.MessageLocation, is TdApi.MessageVenue, is TdApi.MessageContact, is TdApi.MessagePoll,
+    is TdApi.MessageAnimatedEmoji, is TdApi.MessageLocation, is TdApi.MessageVenue, is TdApi.MessageContact, is TdApi.MessagePoll,
     is TdApi.MessageDice, is TdApi.MessageGame, is TdApi.MessageInvoice, is TdApi.MessageStory,
     is TdApi.MessageCall, is TdApi.MessageGift, is TdApi.MessageUpgradedGift, is TdApi.MessageChecklist,
     is TdApi.MessageGiveaway, is TdApi.MessagePaidMedia, is TdApi.MessageExpiredPhoto, is TdApi.MessageExpiredVideo,
@@ -107,6 +109,7 @@ internal fun RichContent(
         is TdApi.MessageVoiceNote -> VoiceRow(c.voiceNote, files, onNeedFile, content)
         is TdApi.MessageVideoNote -> VideoNoteView(c.videoNote, files, onNeedFile)
         is TdApi.MessageSticker -> StickerContent(c.sticker, files, onNeedFile)
+        is TdApi.MessageAnimatedEmoji -> AnimatedEmojiContent(message, c, files, onNeedFile)
         is TdApi.MessageLocation -> PlaceCard(c.location, null, null, content)
         is TdApi.MessageVenue -> PlaceCard(c.venue.location, c.venue.title, c.venue.address, content)
         is TdApi.MessageContact -> ContactCard(c.contact, content, onOpenUser)
@@ -566,3 +569,96 @@ private fun autoDelete(context: Context, seconds: Int): String = when {
 private const val VoiceBars = 32
 private val VideoNoteSize = 220.dp
 private val StickerSize = 180.dp
+
+@Composable
+private fun AnimatedEmojiContent(message: UiMessage, content: TdApi.MessageAnimatedEmoji, files: Map<Int, String>, onNeedFile: (Int) -> Unit) {
+    val sticker = content.animatedEmoji?.sticker
+    val size = EmojiSize
+    if (sticker == null) {
+        Text(content.emoji, fontSize = 64.sp, modifier = Modifier.padding(8.dp))
+        return
+    }
+    val key = message.chatId to message.id
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var runs by remember(key) { mutableStateOf(1) }
+    var effect by remember(key) { mutableStateOf<TdApi.Sticker?>(null) }
+    var effectRuns by remember(key) { mutableStateOf(0) }
+    val remote by com.pixelgram.android.td.EmojiTaps.remote.collectAsState()
+    val incoming = remote[key]
+    LaunchedEffect(incoming) {
+        if (incoming == null) return@LaunchedEffect
+        com.pixelgram.android.td.EmojiTaps.consume(key)
+        runs++
+        if (effect == null) {
+            effect = incoming
+            effectRuns++
+        }
+    }
+    Box(
+        Modifier.padding(4.dp).size(size).clickable(interactionSource = null, indication = null) {
+            runs++
+            if (effect == null && message.chatId != 0L) {
+                scope.launch {
+                    val result = com.pixelgram.android.td.EmojiTaps.click(message.chatId, message.id)
+                    if (result != null && effect == null) {
+                        effect = result
+                        effectRuns++
+                    }
+                }
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        OneShotSticker(sticker, files, onNeedFile, runs, Modifier.fillMaxSize(), fallback = content.emoji) {}
+        effect?.let { shown ->
+            val shift = with(androidx.compose.ui.platform.LocalDensity.current) { (size * EffectShift).roundToPx() }
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.Center,
+                offset = androidx.compose.ui.unit.IntOffset(if (message.outgoing) -shift else shift, 0),
+            ) {
+                OneShotSticker(
+                    shown,
+                    files,
+                    onNeedFile,
+                    effectRuns,
+                    Modifier.size(size * EffectScale).graphicsLayer { if (!message.outgoing) scaleX = -1f },
+                    fallback = null,
+                ) { effect = null }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OneShotSticker(
+    sticker: TdApi.Sticker,
+    files: Map<Int, String>,
+    onNeedFile: (Int) -> Unit,
+    runs: Int,
+    modifier: Modifier,
+    fallback: String?,
+    onEnd: () -> Unit,
+) {
+    val path = localPath(sticker.sticker, files)
+    if (path == null) LaunchedEffect(sticker.sticker.id) { onNeedFile(sticker.sticker.id) }
+    if (path == null || sticker.format !is TdApi.StickerFormatTgs) {
+        if (path != null) AsyncImage(model = File(path), contentDescription = sticker.emoji, modifier = modifier)
+        else if (fallback != null) Box(modifier, contentAlignment = Alignment.Center) { Text(fallback, fontSize = 64.sp) }
+        if (fallback == null && path != null) LaunchedEffect(runs) { delay(1500); onEnd() }
+        return
+    }
+    val json by androidx.compose.runtime.produceState<String?>(null, path) { value = com.pixelgram.android.ui.components.EmojiStickers.tgs(path) }
+    val text = json ?: return
+    val composition by com.airbnb.lottie.compose.rememberLottieComposition(com.airbnb.lottie.compose.LottieCompositionSpec.JsonString(text), cacheKey = "tgs:$path")
+    val animatable = com.airbnb.lottie.compose.rememberLottieAnimatable()
+    LaunchedEffect(composition, runs) {
+        val loaded = composition ?: return@LaunchedEffect
+        if (runs > 0) animatable.animate(loaded, iterations = 1)
+        onEnd()
+    }
+    com.airbnb.lottie.compose.LottieAnimation(composition, { animatable.progress }, modifier = modifier)
+}
+
+private val EmojiSize = 128.dp
+private const val EffectScale = 3f
+private const val EffectShift = 1f
