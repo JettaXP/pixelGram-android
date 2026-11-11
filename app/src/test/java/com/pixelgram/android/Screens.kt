@@ -203,6 +203,12 @@ class Screens {
         return graph
     }
 
+    @Test fun chatsMusic() {
+        val graph = withMusic()
+        com.pixelgram.android.feature.player.FullPlayer.open = false
+        shoot("chats_music", graph)
+    }
+
     @Test fun player() {
         com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Cover
         shoot("player", withMusic())

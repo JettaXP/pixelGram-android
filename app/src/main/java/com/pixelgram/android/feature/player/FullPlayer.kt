@@ -171,10 +171,12 @@ fun FullPlayerOverlay(graph: AppGraph) {
             back = 0f
         }
     }
+    val scrim by animateFloatAsState(if (FullPlayer.open) ScrimAlpha * (1f - back) else 0f, tween(SheetMs), label = "scrim")
+    if (scrim > 0f) Box(Modifier.fillMaxSize().zIndex(9f).background(Color.Black.copy(alpha = scrim)))
     AnimatedVisibility(
         visible = FullPlayer.open,
-        enter = slideInVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) { it } + fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
-        exit = slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { it } + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+        enter = slideInVertically(tween(SheetMs, easing = SheetEase)) { it },
+        exit = slideOutVertically(tween(SheetCloseMs, easing = androidx.compose.animation.core.FastOutLinearInEasing)) { it },
         modifier = Modifier.zIndex(10f),
     ) {
         Box(
@@ -185,8 +187,8 @@ fun FullPlayerOverlay(graph: AppGraph) {
                     val shrink = 1f - back * 0.1f
                     scaleX = shrink
                     scaleY = shrink
-                    shape = RoundedCornerShape((back * 48).dp)
-                    clip = back > 0f || drag.value > 0f
+                    shape = RoundedCornerShape(topStart = SheetCorner + (back * 24).dp, topEnd = SheetCorner + (back * 24).dp, bottomStart = (back * 48).dp, bottomEnd = (back * 48).dp)
+                    clip = true
                 }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
@@ -943,6 +945,11 @@ private fun Chevrons(backward: Boolean, color: Color) {
 }
 
 private const val ChevronMs = 700
+private const val SheetMs = 420
+private const val SheetCloseMs = 260
+private const val ScrimAlpha = 0.5f
+private val SheetCorner = 24.dp
+private val SheetEase = androidx.compose.animation.core.CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 private const val CoverKey = "player-cover"
 private val QueueRow = 64.dp
 private const val GroupIdleAlpha = 0.55f

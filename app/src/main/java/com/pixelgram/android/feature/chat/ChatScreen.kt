@@ -17,6 +17,10 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.rounded.EmojiEmotions
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material3.toShape
 import androidx.compose.foundation.verticalScroll
@@ -441,6 +445,7 @@ private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
 }
 
 private val ReplyTrigger = 64.dp
+private val EmojiPanelHeight = 300.dp
 private val ReplyLimit = 110.dp
 
 @Composable
@@ -787,6 +792,10 @@ private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, Str
 private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController) {
     var text by rememberSaveable { mutableStateOf("") }
     var attach by remember { mutableStateOf(false) }
+    var emoji by remember { mutableStateOf(false) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    BackHandler(enabled = emoji) { emoji = false }
     if (attach) AttachSheet(controller, onPhotos = {
         attach = false
     }) { attach = false }
@@ -840,29 +849,45 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom) {
-                        IconButton(onClick = { attach = true }, modifier = Modifier.padding(4.dp)) {
+                        IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
                         }
-                        TextField(
+                        androidx.compose.foundation.text.BasicTextField(
                             value = text,
                             onValueChange = { text = it },
-                            placeholder = { Text(stringResource(R.string.chat_message_hint)) },
-                            colors = TextFieldDefaults.colors(
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                            ),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                             maxLines = 6,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                             ),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).padding(vertical = 16.dp).focusRequester(focus),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    inner()
+                                }
+                            },
                         )
+                        IconButton(
+                            onClick = {
+                                if (emoji) {
+                                    emoji = false
+                                    focus.requestFocus()
+                                    keyboard?.show()
+                                } else {
+                                    keyboard?.hide()
+                                    emoji = true
+                                }
+                            },
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) {
+                            Icon(if (emoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
+                        }
                         androidx.compose.animation.AnimatedVisibility(text.isEmpty(), enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
                             IconButton(
                                 onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                                modifier = Modifier.padding(4.dp),
+                                modifier = Modifier.padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
                             ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
                         }
                     }
@@ -880,6 +905,17 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 ) {
                     Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
                 }
+            }
+            AnimatedVisibility(emoji, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { context ->
+                        androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
+                            emojiGridColumns = 8
+                            setOnEmojiPickedListener { item -> text += item.emoji }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(EmojiPanelHeight),
+                )
             }
         }
     }

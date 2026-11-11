@@ -152,7 +152,7 @@ fun ChatsTab(
                     onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(end = (PencilSize - CameraSize) / 2).animateFloatingActionButton(visible && !fabMenu, Alignment.Center),
+                    modifier = Modifier.padding(end = MenuInset + (PencilSize - CameraSize) / 2).animateFloatingActionButton(visible && !fabMenu, Alignment.Center),
                 ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
                 androidx.compose.material3.FloatingActionButtonMenu(
                     expanded = fabMenu,
@@ -544,6 +544,7 @@ private val HideDistance = 16.dp
 private val PencilSize = 52.dp
 private val PencilOpenSize = 56.dp
 private val CameraSize = 40.dp
+private val MenuInset = 16.dp
 private val ShowDistance = 48.dp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

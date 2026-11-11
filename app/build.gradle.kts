@@ -132,6 +132,7 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.media3.ui.compose)
     implementation(libs.material)
+    implementation(libs.emojipicker)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
