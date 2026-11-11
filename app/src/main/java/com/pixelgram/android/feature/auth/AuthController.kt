@@ -35,6 +35,13 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
         scope.launch {
             td.authorizationState.collect { state ->
                 if (!td.hasKeys.value) return@collect
+                val phone = pendingPhone
+                if (state is TdApi.AuthorizationStateWaitPhoneNumber && phone != null) {
+                    pendingPhone = null
+                    run { sendPhone(phone) }
+                    return@collect
+                }
+                if (phone != null) return@collect
                 val step = map(state)
                 ui.value = ui.value.copy(step = step, busy = false)
             }
@@ -70,7 +77,26 @@ class AuthController(private val td: TdClient, private val scope: CoroutineScope
         }
     }
 
-    fun submitPhone(phone: String) = run {
+    @Volatile
+    private var pendingPhone: String? = null
+
+    fun submitPhone(phone: String) {
+        val current = td.authorizationState.value
+        if (current !is TdApi.AuthorizationStateWaitOtherDeviceConfirmation) {
+            run { sendPhone(phone) }
+            return
+        }
+        pendingPhone = phone
+        ui.value = ui.value.copy(busy = true, error = null)
+        scope.launch {
+            runCatching { td.send(TdApi.LogOut()) }.onFailure {
+                pendingPhone = null
+                run { sendPhone(phone) }
+            }
+        }
+    }
+
+    private suspend fun sendPhone(phone: String) {
         td.send(TdApi.SetAuthenticationPhoneNumber().apply {
             phoneNumber = phone.filter { it.isDigit() || it == '+' }
         })

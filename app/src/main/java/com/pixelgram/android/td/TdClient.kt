@@ -21,7 +21,7 @@ import org.drinkless.tdlib.TdApi
 
 class TdException(val error: TdApi.Error) : Exception("${error.code}: ${error.message}")
 
-class TdClient(private val context: Context, private val scope: CoroutineScope, offline: Boolean = false) {
+class TdClient(private val context: Context, private val scope: CoroutineScope, private val offline: Boolean = false) {
     private val updateFlow = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 4096)
     val updates: SharedFlow<TdApi.Object> = updateFlow.asSharedFlow()
 
@@ -37,7 +37,8 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
 
     private fun apiHash(): String = BuildConfig.API_HASH.ifBlank { keys.getString("api_hash", "").orEmpty() }
 
-    private val client: Client? = if (offline) {
+    @Volatile
+    private var client: Client? = if (offline) {
         null
     } else {
         Client.execute(TdApi.SetLogVerbosityLevel(if (BuildConfig.DEBUG) 2 else 1))
@@ -60,6 +61,7 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
     private fun onUpdate(update: TdApi.Object) {
         if (update is TdApi.UpdateAuthorizationState) {
             authFlow.value = update.authorizationState
+            if (update.authorizationState is TdApi.AuthorizationStateClosed && !offline) client = Client.create(::onUpdate, null, null)
             if (update.authorizationState is TdApi.AuthorizationStateWaitTdlibParameters) {
                 val ready = synchronized(this) { keysFlow.value.also { if (!it) waitingForKeys = true } }
                 if (ready) scope.launch { runCatching { send(parameters()) } }
