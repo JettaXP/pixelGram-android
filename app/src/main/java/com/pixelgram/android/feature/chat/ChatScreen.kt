@@ -17,6 +17,9 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.togetherWith
+import androidx.compose.material.icons.rounded.Android
+import androidx.compose.material.icons.rounded.Download
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material.icons.rounded.EmojiEmotions
@@ -622,32 +625,78 @@ private fun AudioRow(audio: TdApi.Audio, outgoing: Boolean, onPlay: () -> Unit) 
 private fun DocumentRow(document: TdApi.Document, tint: Color) {
     val graph = com.pixelgram.android.LocalGraph.current
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val backup = com.pixelgram.android.settings.Backup.isBackup(document.fileName)
-    var busy by remember { mutableStateOf(false) }
+    val apk = document.fileName.endsWith(".apk", ignoreCase = true)
     var importing by remember { mutableStateOf<File?>(null) }
+    val snapshot by graph.store.snapshot.collectAsState()
+    val fileId = document.document.id
+    val progress = snapshot.progress[fileId]
+    val path = snapshot.files[fileId] ?: document.document.local.path.takeIf { document.document.local.isDownloadingCompleted && it.isNotEmpty() }
+    val downloading = path == null && progress?.active == true
+    val total = progress?.total?.takeIf { it > 0 } ?: maxOf(document.document.size, document.document.expectedSize)
+    val done = progress?.downloaded ?: document.document.local.downloadedSize
+    val noApp = stringResource(R.string.file_no_app)
+    val open: (String) -> Unit = { file ->
+        when {
+            backup -> importing = File(file)
+            else -> runCatching {
+                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", File(file))
+                val type = if (apk) "application/vnd.android.package-archive" else context.contentResolver.getType(uri)
+                    ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(File(file).extension.lowercase()) ?: "*/*"
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, type).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure { android.widget.Toast.makeText(context, noApp, android.widget.Toast.LENGTH_SHORT).show() }
+        }
+    }
     ListItem(
-        modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(16.dp)).clickable(enabled = !busy) {
-            scope.launch {
-                busy = true
-                val path = runCatching { graph.td.send(TdApi.DownloadFile(document.document.id, 32, 0, 0, true)).local.path }.getOrNull()
-                busy = false
-                if (backup && !path.isNullOrEmpty()) importing = File(path)
+        modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(16.dp)).clickable {
+            when {
+                path != null -> open(path)
+                downloading -> graph.store.cancelDownload(fileId)
+                else -> graph.store.download(fileId)
             }
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = tint, supportingColor = tint.copy(alpha = 0.7f)),
         leadingContent = {
-            Box(
-                Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (busy) LoadingIndicator(Modifier.size(32.dp), color = MaterialTheme.colorScheme.onPrimary)
-                else Icon(if (backup) Icons.Rounded.Settings else Icons.AutoMirrored.Rounded.InsertDriveFile, null, tint = MaterialTheme.colorScheme.onPrimary)
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                val corner by androidx.compose.animation.core.animateDpAsState(if (downloading) 24.dp else 14.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "file-corner")
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = when {
+                            downloading -> 1
+                            path == null -> 0
+                            else -> 2
+                        },
+                        transitionSpec = { (fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f)) togetherWith (fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.6f)) },
+                        label = "file-icon",
+                    ) { stage ->
+                        Icon(
+                            when (stage) {
+                                1 -> Icons.Rounded.Close
+                                0 -> Icons.Rounded.Download
+                                else -> when {
+                                    backup -> Icons.Rounded.Settings
+                                    apk -> Icons.Rounded.Android
+                                    else -> Icons.AutoMirrored.Rounded.InsertDriveFile
+                                }
+                            },
+                            null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+                if (downloading) {
+                    val shown by androidx.compose.animation.core.animateFloatAsState(if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f, label = "file-progress")
+                    CircularWavyProgressIndicator(progress = { shown }, modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
+                }
             }
         },
         headlineContent = { Text(document.fileName.ifBlank { "File" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            Text(android.text.format.Formatter.formatShortFileSize(context, maxOf(document.document.size, document.document.expectedSize)))
+            val size = android.text.format.Formatter.formatShortFileSize(context, total)
+            Text(if (downloading) "${android.text.format.Formatter.formatShortFileSize(context, done)} / $size" else size)
         },
     )
     importing?.let { file ->

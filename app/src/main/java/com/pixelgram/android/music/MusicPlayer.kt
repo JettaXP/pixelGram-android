@@ -221,6 +221,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         if (stateFlow.value.track == null) return
         fadeJob?.cancel()
         if (exo.playWhenReady && exo.playbackState != Player.STATE_ENDED) {
+            stateFlow.update { it.copy(playing = false) }
             fadeJob = main.launch {
                 fade(exo.volume, 0f)
                 exo.pause()
@@ -280,6 +281,8 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
 
     fun stop() {
+        fadeJob?.cancel()
+        scrubJob?.cancel()
         loadJob?.cancel()
         exo.stop()
         exo.clearMediaItems()
@@ -360,7 +363,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 private const val ScrubForwardStepMs = 400L
 private const val ScrubBackStepMs = 300L
 private const val ScrubTickMs = 100L
-private const val FadeMs = 240
+private const val FadeMs = 150
 private const val ArtworkWaitMs = 3_000L
 private const val FadeTickMs = 16
 

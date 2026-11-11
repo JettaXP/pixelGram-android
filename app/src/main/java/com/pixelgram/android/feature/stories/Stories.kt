@@ -42,6 +42,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.Button
@@ -381,8 +383,30 @@ private fun StoryViewerScreen(graph: AppGraph, chatId: Long) {
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                    .padding(start = 20.dp, end = 76.dp, top = 24.dp, bottom = 24.dp),
             )
+        }
+        if (story != null && chatId != graph.store.snapshot.collectAsState().value.meId) {
+            var liked by remember(story.story.id) { mutableStateOf(story.story.chosenReactionType != null) }
+            val pop by androidx.compose.animation.core.animateFloatAsState(if (liked) 1f else 0.85f, androidx.compose.animation.core.spring(dampingRatio = 0.4f, stiffness = 600f), label = "like")
+            IconButton(
+                onClick = {
+                    liked = !liked
+                    scope.launch {
+                        runCatching {
+                            graph.td.send(TdApi.SetStoryReaction(chatId, story.story.id, if (liked) TdApi.ReactionTypeEmoji("❤") else null, true))
+                        }
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(12.dp).size(52.dp),
+            ) {
+                Icon(
+                    if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    stringResource(R.string.stories_like),
+                    tint = if (liked) Color(0xFFFF4D6A) else Color.White,
+                    modifier = Modifier.size(30.dp).graphicsLayer { scaleX = pop; scaleY = pop },
+                )
+            }
         }
     }
 }

@@ -141,6 +141,7 @@ fun ChatsTab(
     val tracker = remember { HideOnScroll(with(density) { HideDistance.toPx() }, with(density) { ShowDistance.toPx() }) }
     var newMessage by remember { mutableStateOf(false) }
     var fabMenu by remember { mutableStateOf(false) }
+    var scrollTop by remember { mutableStateOf(0) }
     var newChat by remember { mutableStateOf<Boolean?>(null) }
     BackHandler(enabled = fabMenu) { fabMenu = false }
     LaunchedEffect(tracker.hidden) { if (tracker.hidden) fabMenu = false }
@@ -159,7 +160,7 @@ fun ChatsTab(
                         bottom = (com.pixelgram.android.ui.components.LocalBottomBarPadding.current -
                             androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() - FabLift).coerceAtLeast(0.dp),
                     )
-                    .onGloballyPositioned { origin = it.positionInRoot() },
+                    .onGloballyPositioned { if (!fabMenu) origin = it.positionInRoot() },
             ) {
                 androidx.compose.material3.FloatingActionButtonMenu(
                     expanded = fabMenu,
@@ -213,6 +214,7 @@ fun ChatsTab(
                                 }
                             }
                         }
+                        .graphicsLayer { alpha = if (fabMenu) 0f else 1f }
                         .animateFloatingActionButton(visible && !fabMenu && anchor != null, Alignment.Center),
                 ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
             }
@@ -285,7 +287,7 @@ fun ChatsTab(
                         appearance.folderTitle,
                         onSelect = { id ->
                             val index = tabs.indexOfFirst { it.id == id }
-                            if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
+                            if (id == folder) scrollTop++ else if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
                         },
                     )
                 }
@@ -305,17 +307,18 @@ fun ChatsTab(
                 id != 0 -> folderKey(id)
                 else -> LIST_MAIN
             }
-            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty())
+            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty(), if (page == pager.currentPage) scrollTop else 0)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, stories: List<com.pixelgram.android.td.StoryOwner> = emptyList()) {
+private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0) {
     var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
     actionsFor?.let { row -> ChatActions(graph, row) { actionsFor = null } }
     val listState = rememberLazyListState()
+    LaunchedEffect(scrollTop) { if (scrollTop > 0) listState.animateScrollToItem(0) }
     var loading by remember(listKey) { mutableStateOf(true) }
     val tdList: TdApi.ChatList = remember(listKey) {
         when {

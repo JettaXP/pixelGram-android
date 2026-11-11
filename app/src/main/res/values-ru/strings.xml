@@ -366,4 +366,6 @@
     <string name="profile_join">Вступить</string>
     <string name="profile_description">Описание</string>
     <string name="profile_link">Ссылка</string>
+    <string name="file_no_app">Нет приложения, чтобы открыть этот файл</string>
+    <string name="stories_like">Нравится</string>
 </resources>

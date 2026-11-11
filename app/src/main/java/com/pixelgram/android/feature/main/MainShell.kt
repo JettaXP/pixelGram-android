@@ -219,7 +219,21 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
+    val banners by graph.remote.banners.collectAsState()
+    LaunchedEffect(snapshot.meId) { if (snapshot.meId != 0L) graph.remote.want(snapshot.meId) }
+    val banner = banners[snapshot.meId]
     ModalDrawerSheet(modifier = Modifier.width(DrawerWidth)) {
+        Box {
+            if (banner != null) {
+                val surface = MaterialTheme.colorScheme.surfaceContainerLow
+                coil.compose.AsyncImage(
+                    model = banner,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+                Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.3f to androidx.compose.ui.graphics.Color.Transparent, 1f to surface)))
+            }
         Column(Modifier.padding(horizontal = 28.dp, vertical = 24.dp)) {
             Avatar(
                 title = me?.name.orEmpty(),
@@ -232,6 +246,7 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
             Spacer(Modifier.height(12.dp))
             Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleLargeEmphasized)
             if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+        }
         }
         val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
         val groups = listOf(

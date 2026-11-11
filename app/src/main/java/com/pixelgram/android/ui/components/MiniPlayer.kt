@@ -112,8 +112,11 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
         val shrink = full * ShrinkShare * tanh(swipe.value / (3f * full * ShrinkShare))
         Box(
             Modifier
+                .padding(horizontal = 12.dp, vertical = 4.dp)
                 .fillMaxWidth()
                 .height(BarHeight - with(density) { shrink.toDp() })
+                .clip(RoundedCornerShape(CapsuleRadius))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .graphicsLayer {
                     alpha = 1f - (shrink / (full * ShrinkShare)).coerceIn(0f, 1f) * 0.35f
                     clip = true
@@ -138,7 +141,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize().padding(start = 14.dp, end = 6.dp),
+                modifier = Modifier.fillMaxSize().padding(start = 6.dp, end = 3.dp),
             ) {
                 AnimatedContent(
                     targetState = coverPath to track.fileId,
@@ -172,6 +175,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
                         if (performer.isNotBlank()) Text(performer, style = MaterialTheme.typography.bodySmall, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 val short = state.duration in 1 until LongTrackMs
                 if (short) {
                     Slot(accent, onClick = music::previous) {
@@ -211,6 +215,7 @@ fun MiniPlayer(modifier: Modifier = Modifier) {
                             scaleY = 0.6f + 0.4f * close
                         },
                     )
+                }
                 }
             }
         }
@@ -289,11 +294,12 @@ private fun ProgressRing(progress: Float, playing: Boolean, color: Color) {
 
 private val BarHeight = 48.dp
 private val CoverSize = 36.dp
-private val CoverRadius = 12.dp
-private val SlotSize = 42.dp
-private val SlotInset = 3.dp
+private val CoverRadius = 18.dp
+private val CapsuleRadius = 24.dp
+private val SlotSize = 36.dp
+private val SlotInset = 0.dp
 private val SlotRadius = 15.dp
-private val RingBox = 36.dp
+private val RingBox = 34.dp
 private val RingRadius = 15.dp
 private val RingStroke = 2.5.dp
 private val CloseDistance = 40.dp

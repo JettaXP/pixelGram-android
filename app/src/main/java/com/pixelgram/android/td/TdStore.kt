@@ -82,6 +82,9 @@ data class StoryOwner(val chatId: Long, val storyIds: List<Int>, val maxRead: In
 }
 
 @Immutable
+data class FileProgress(val downloaded: Long, val total: Long, val active: Boolean, val done: Boolean)
+
+@Immutable
 data class StoreSnapshot(
     val lists: Map<String, List<ChatRow>> = emptyMap(),
     val folders: List<FolderInfo> = emptyList(),
@@ -90,6 +93,7 @@ data class StoreSnapshot(
     val meId: Long = 0,
     val unread: Map<String, UnreadInfo> = emptyMap(),
     val stories: List<StoryOwner> = emptyList(),
+    val progress: Map<Int, FileProgress> = emptyMap(),
 )
 
 const val LIST_MAIN = "main"
@@ -131,6 +135,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private val unread = HashMap<String, UnreadInfo>()
     private val stories = HashMap<Long, StoryOwner>()
     private val localPhotos = HashMap<Long, String>()
+    private val progress = HashMap<Int, FileProgress>()
     private val supergroups = HashMap<Long, TdApi.Supergroup>()
     private val typing = HashMap<Long, HashMap<Long, Long>>()
 
@@ -169,7 +174,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateUserStatus -> users[update.userId]?.status = update.status
             is TdApi.UpdateFile -> {
                 val file = update.file
-                if (file.local.isDownloadingCompleted) files[file.id] = file.local.path
+                progress[file.id] = FileProgress(file.local.downloadedSize, maxOf(file.size, file.expectedSize), file.local.isDownloadingActive, file.local.isDownloadingCompleted)
+                if (file.local.isDownloadingCompleted) files[file.id] = file.local.path else files.remove(file.id)
             }
             is TdApi.UpdateChatFolders -> folders = update.chatFolders.map {
                 FolderInfo(it.id, it.name.text.text, it.icon?.name)
@@ -234,7 +240,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
         }
 
         val storyRow = stories.values.filter { !it.archived }.sortedWith(compareByDescending<StoryOwner> { it.chatId == meId }.thenByDescending { it.order })
-        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread), storyRow)
+        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread), storyRow, HashMap(progress))
         for (owner in storyRow.take(20)) chats[owner.chatId]?.photo?.small?.id?.let { requestFile(it) }
         val wanted = sorted[LIST_MAIN].orEmpty().take(60).mapNotNull { it.photoFileId.takeIf { id -> id != 0 } }
         for (id in wanted) requestFile(id)
@@ -301,6 +307,23 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     }
 
     fun chat(chatId: Long): TdApi.Chat? = chats[chatId]
+
+    fun download(fileId: Int) {
+        if (fileId == 0) return
+        scope.launch(worker) {
+            requested.remove(fileId)
+            runCatching { td.send(TdApi.DownloadFile(fileId, 32, 0, 0, false)) }
+        }
+    }
+
+    fun cancelDownload(fileId: Int) {
+        scope.launch(worker) {
+            runCatching { td.send(TdApi.CancelDownloadFile(fileId, false)) }
+            progress[fileId]?.let { progress[fileId] = it.copy(active = false) }
+            requested.remove(fileId)
+            touch()
+        }
+    }
 
     fun markStoriesRead(chatId: Long, storyId: Int) {
         scope.launch(worker) {

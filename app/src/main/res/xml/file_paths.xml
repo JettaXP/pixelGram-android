@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="stories" path="stories/" />
+    <files-path name="tdlib" path="tdlib-files/" />
 </paths>

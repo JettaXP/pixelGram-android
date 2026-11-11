@@ -367,4 +367,6 @@
     <string name="profile_join">Join</string>
     <string name="profile_description">Description</string>
     <string name="profile_link">Link</string>
+    <string name="file_no_app">No app can open this file</string>
+    <string name="stories_like">Like</string>
 </resources>
