@@ -11,9 +11,9 @@ val localProperties = Properties().apply {
 }
 
 fun credential(name: String): String? =
-    localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty(name).orNull?.takeIf { it.isNotBlank() }
-        ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+    (localProperties.getProperty(name)?.trim()?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty(name).orNull?.trim()?.takeIf { it.isNotBlank() }
+        ?: System.getenv(name)?.trim()?.takeIf { it.isNotBlank() })
 
 val appVersionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 val hasReleaseKey = credential("RELEASE_STORE_FILE") != null
