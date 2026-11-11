@@ -199,6 +199,7 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
     SettingsGroup(stringResource(R.string.pixel_messages)) {
         SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
         SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
+        SettingsSwitch(stringResource(R.string.pixel_typing_bubble), settings.typingBubble, { v -> update { it.copy(typingBubble = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_typing_bubble_sub))
         SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub)) {
             androidx.compose.material3.OutlinedTextField(
                 value = settings.doubleTapEmoji,

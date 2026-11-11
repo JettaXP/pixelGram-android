@@ -387,4 +387,6 @@
     <string name="accounts_toggle">Аккаунты</string>
     <string name="accounts_add">Добавить аккаунт</string>
     <string name="accounts_unnamed">Аккаунт</string>
+    <string name="pixel_typing_bubble">Пузырь «печатает»</string>
+    <string name="pixel_typing_bubble_sub">Анимированный пузырь в чате, пока собеседник пишет</string>
 </resources>

@@ -388,4 +388,6 @@
     <string name="accounts_toggle">Accounts</string>
     <string name="accounts_add">Add account</string>
     <string name="accounts_unnamed">Account</string>
+    <string name="pixel_typing_bubble">Typing bubble</string>
+    <string name="pixel_typing_bubble_sub">Show an animated bubble while someone types</string>
 </resources>

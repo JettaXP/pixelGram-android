@@ -257,6 +257,24 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (appearance.typingBubble) {
+                    item(key = "typing", contentType = "typing") {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = ui.typing.isNotEmpty(),
+                            enter = androidx.compose.animation.expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec(), initialScale = 0.6f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)) + fadeIn(),
+                            exit = androidx.compose.animation.shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.scaleOut(targetScale = 0.6f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)) + fadeOut(),
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                                Surface(
+                                    shape = RoundedCornerShape(appearance.bubbleRadius.dp, appearance.bubbleRadius.dp, appearance.bubbleRadius.dp, appearance.bubbleTailRadius.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                ) {
+                                    com.pixelgram.android.feature.chats.TypingDots(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.padding(horizontal = 16.dp, vertical = 14.dp).size(width = 28.dp, height = 10.dp))
+                                }
+                            }
+                        }
+                    }
+                }
                 itemsIndexed(ui.messages, key = { _, m -> m.id }, contentType = { _, m -> if (m.service) "service" else "bubble" }) { index, message ->
                     val older = ui.messages.getOrNull(index + 1)
                     val newer = ui.messages.getOrNull(index - 1)
