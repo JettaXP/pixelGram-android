@@ -289,4 +289,12 @@
     <string name="lyrics_instrumental">Инструментал</string>
     <string name="lyrics_instrumental_sub">Трек отмечен как композиция без слов.</string>
     <string name="action_more">Ещё</string>
+    <string name="stories_mine">Моя история</string>
+    <string name="stories_add">Добавить историю</string>
+    <string name="stories_new">Новая история</string>
+    <string name="stories_camera">Снять фото</string>
+    <string name="stories_gallery">Выбрать из галереи</string>
+    <string name="stories_caption">Добавьте подпись…</string>
+    <string name="stories_post">Опубликовать</string>
+    <string name="new_message">Новое сообщение</string>
 </resources>

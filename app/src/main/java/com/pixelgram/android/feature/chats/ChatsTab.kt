@@ -24,6 +24,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Archive
@@ -36,6 +39,7 @@ import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material3.Badge
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -111,7 +115,33 @@ fun ChatsTab(
     val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.id == folder }.coerceAtLeast(0)) { pageCount }
     val scope = rememberCoroutineScope()
     LaunchedEffect(pager.currentPage, tabs) { tabs.getOrNull(pager.currentPage)?.let { folder = it.id } }
+    LaunchedEffect(archive) {
+        runCatching { graph.td.send(TdApi.LoadActiveStories(if (archive) TdApi.StoryListArchive() else TdApi.StoryListMain())) }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val tracker = remember { HideOnScroll(with(density) { HideDistance.toPx() }, with(density) { ShowDistance.toPx() }) }
+    var newMessage by remember { mutableStateOf(false) }
+    if (newMessage) NewMessageSheet(graph, navigator) { newMessage = false }
     Scaffold(
+        floatingActionButton = {
+            val visible = !archive && !tracker.hidden
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(bottom = com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+            ) {
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.animateFloatingActionButton(visible, Alignment.Center),
+                ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
+                androidx.compose.material3.MediumFloatingActionButton(
+                    onClick = { newMessage = true },
+                    modifier = Modifier.animateFloatingActionButton(visible, Alignment.BottomEnd),
+                ) { Icon(Icons.Rounded.Edit, stringResource(R.string.new_message), Modifier.size(28.dp)) }
+            }
+        },
         topBar = {
             Column {
                 TopAppBar(
@@ -155,7 +185,7 @@ fun ChatsTab(
             state = pager,
             key = { tabs.getOrNull(it)?.id ?: -1 },
             beyondViewportPageCount = 0,
-            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(tracker),
         ) { page ->
             val id = tabs.getOrNull(page)?.id ?: 0
             val key = when {
@@ -163,14 +193,14 @@ fun ChatsTab(
                 id != 0 -> folderKey(id)
                 else -> LIST_MAIN
             }
-            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty())
+            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty(), stories = if (key == LIST_MAIN || key == LIST_ARCHIVE) snapshot.stories.filter { it.archived == archive } else emptyList())
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>) {
+private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, stories: List<com.pixelgram.android.td.StoryOwner> = emptyList()) {
     var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
     actionsFor?.let { row -> ChatActions(graph, row) { actionsFor = null } }
     val listState = rememberLazyListState()
@@ -202,10 +232,15 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     } else {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 8.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (listKey == LIST_MAIN || stories.isNotEmpty()) {
+                item(key = "stories", contentType = "stories") {
+                    com.pixelgram.android.feature.stories.StoriesRow(graph, stories, Modifier.padding(bottom = 8.dp))
+                }
+            }
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 ChatListItem(
                     row = row,
@@ -394,4 +429,77 @@ private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
         leadingContent = { Icon(icon, null) },
         headlineContent = { Text(label) },
     )
+}
+
+private class HideOnScroll(private val hideAt: Float, private val showAt: Float) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+    var hidden by mutableStateOf(false)
+    private var distance = 0f
+
+    override fun onPostScroll(
+        consumed: androidx.compose.ui.geometry.Offset,
+        available: androidx.compose.ui.geometry.Offset,
+        source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+    ): androidx.compose.ui.geometry.Offset {
+        val dy = -consumed.y
+        if (dy == 0f) {
+            if (available.y < 0f) {
+                distance = 0f
+                hidden = false
+            }
+            return androidx.compose.ui.geometry.Offset.Zero
+        }
+        if (distance != 0f && (dy > 0f) != (distance > 0f)) distance = 0f
+        distance += dy
+        if (distance >= hideAt) hidden = true
+        if (distance <= -showAt) hidden = false
+        return androidx.compose.ui.geometry.Offset.Zero
+    }
+}
+
+private val HideDistance = 16.dp
+private val ShowDistance = 48.dp
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun NewMessageSheet(graph: AppGraph, navigator: Navigator, onDismiss: () -> Unit) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    var ids by remember { mutableStateOf<List<Long>?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { ids = runCatching { graph.td.send(TdApi.GetContacts()).userIds.toList() }.getOrDefault(emptyList()) }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(stringResource(R.string.new_message), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        val list = ids
+        if (list == null) {
+            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+            return@ModalBottomSheet
+        }
+        val users = list.mapNotNull { snapshot.users[it] }.sortedWith(compareByDescending<com.pixelgram.android.td.UserInfo> { it.online }.thenBy { it.name.lowercase() })
+        LazyColumn(
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+        ) {
+            itemsIndexed(users, key = { _, it -> it.id }) { index, user ->
+                SegmentedListItem(
+                    onClick = {
+                        scope.launch {
+                            val chat = runCatching { graph.td.send(TdApi.CreatePrivateChat(user.id, false)) }.getOrNull()
+                            onDismiss()
+                            chat?.let { navigator.open(ChatKey(it.id)) }
+                        }
+                    },
+                    shapes = ListItemDefaults.segmentedShapes(index, users.size),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(),
+                    leadingContent = {
+                        Avatar(user.name, user.id, snapshot.files[user.photoFileId], user.minithumb, 44.dp, onNeedFile = { graph.store.requestFileAsync(user.photoFileId) })
+                    },
+                    supportingContent = {
+                        Text(
+                            stringResource(if (user.online) R.string.chat_online else R.string.chat_last_seen_recently),
+                            color = if (user.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                ) { Text(user.name) }
+            }
+        }
+    }
 }

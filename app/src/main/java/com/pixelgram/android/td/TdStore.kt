@@ -63,6 +63,11 @@ data class UserInfo(
 }
 
 @Immutable
+data class StoryOwner(val chatId: Long, val storyIds: List<Int>, val maxRead: Int, val order: Long, val archived: Boolean) {
+    val unread: Boolean get() = storyIds.any { it > maxRead }
+}
+
+@Immutable
 data class StoreSnapshot(
     val lists: Map<String, List<ChatRow>> = emptyMap(),
     val folders: List<FolderInfo> = emptyList(),
@@ -70,6 +75,7 @@ data class StoreSnapshot(
     val files: Map<Int, String> = emptyMap(),
     val meId: Long = 0,
     val unread: Map<String, UnreadInfo> = emptyMap(),
+    val stories: List<StoryOwner> = emptyList(),
 )
 
 const val LIST_MAIN = "main"
@@ -93,6 +99,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     private val requested = HashSet<Int>()
     private var meId = 0L
     private val unread = HashMap<String, UnreadInfo>()
+    private val stories = HashMap<Long, StoryOwner>()
 
     private val dirty = MutableStateFlow(0L)
     private val snapshotFlow = MutableStateFlow(StoreSnapshot())
@@ -134,6 +141,15 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
                 FolderInfo(it.id, it.name.text.text, it.icon?.name)
             }
             is TdApi.UpdateUnreadChatCount -> unread[update.chatList.key()] = UnreadInfo(update.unreadCount, update.unreadUnmutedCount)
+            is TdApi.UpdateChatActiveStories -> {
+                val active = update.activeStories
+                val list = active.list
+                if (list == null || active.stories.isEmpty()) {
+                    stories.remove(active.chatId)
+                } else {
+                    stories[active.chatId] = StoryOwner(active.chatId, active.stories.map { it.storyId }, active.maxReadStoryId, active.order, list is TdApi.StoryListArchive)
+                }
+            }
             is TdApi.UpdateOption -> if (update.name == "my_id") {
                 meId = (update.value as? TdApi.OptionValueInteger)?.value ?: 0
             }
@@ -158,7 +174,9 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
         }
         val sorted = lists.mapValues { (_, rows) -> rows.sortedByDescending { it.order } }
         val userInfo = users.mapValues { (_, user) -> user.info() }
-        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread))
+        val storyRow = stories.values.filter { !it.archived }.sortedWith(compareByDescending<StoryOwner> { it.chatId == meId }.thenByDescending { it.order })
+        snapshotFlow.value = StoreSnapshot(sorted, folders, userInfo, HashMap(files), meId, HashMap(unread), storyRow)
+        for (owner in storyRow.take(20)) chats[owner.chatId]?.photo?.small?.id?.let { requestFile(it) }
         val wanted = sorted[LIST_MAIN].orEmpty().take(60).mapNotNull { it.photoFileId.takeIf { id -> id != 0 } }
         for (id in wanted) requestFile(id)
     }
@@ -220,6 +238,16 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope) {
     }
 
     fun chat(chatId: Long): TdApi.Chat? = chats[chatId]
+
+    fun markStoriesRead(chatId: Long, storyId: Int) {
+        scope.launch(worker) {
+            val owner = stories[chatId] ?: return@launch
+            if (storyId > owner.maxRead) {
+                stories[chatId] = owner.copy(maxRead = storyId)
+                touch()
+            }
+        }
+    }
 }
 
 private fun TdApi.User.info() = UserInfo(

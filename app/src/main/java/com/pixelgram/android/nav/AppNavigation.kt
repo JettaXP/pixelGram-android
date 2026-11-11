@@ -69,5 +69,6 @@ fun AppNavigation(graph: AppGraph) {
         },
     )
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
+    com.pixelgram.android.feature.stories.StoryOverlays(graph)
     }
 }

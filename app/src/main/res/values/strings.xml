@@ -290,4 +290,12 @@
     <string name="lyrics_instrumental">Instrumental</string>
     <string name="lyrics_instrumental_sub">This track is marked as having no lyrics.</string>
     <string name="action_more">More</string>
+    <string name="stories_mine">My story</string>
+    <string name="stories_add">Add story</string>
+    <string name="stories_new">New story</string>
+    <string name="stories_camera">Take a photo</string>
+    <string name="stories_gallery">Choose from gallery</string>
+    <string name="stories_caption">Add a caption…</string>
+    <string name="stories_post">Post story</string>
+    <string name="new_message">New message</string>
 </resources>

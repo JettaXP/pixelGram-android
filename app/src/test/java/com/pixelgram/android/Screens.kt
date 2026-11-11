@@ -53,6 +53,36 @@ class Screens {
 
     @Test fun chats() = shoot("chats")
 
+    @Test fun story() {
+        val graph = graph()
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        val image = File(dir, "story-source.png")
+        val bitmap = Bitmap.createBitmap(360, 640, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawPaint(android.graphics.Paint().apply { shader = android.graphics.LinearGradient(0f, 0f, 360f, 640f, 0xFF6750A4.toInt(), 0xFFFFB4AB.toInt(), android.graphics.Shader.TileMode.CLAMP) })
+        image.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        graph.td.offlineReply = { function ->
+            when (function) {
+                is TdApi.GetStory -> TdApi.Story().apply {
+                    id = function.storyId
+                    posterChatId = function.storyPosterChatId
+                    date = (System.currentTimeMillis() / 1000).toInt() - 600
+                    content = TdApi.StoryContentPhoto(TdApi.Photo(false, null, arrayOf(TdApi.PhotoSize("x", TdApi.File().apply { id = 900; local = TdApi.LocalFile(); remote = TdApi.RemoteFile() }, 360, 640, IntArray(0)))))
+                    caption = TdApi.FormattedText("Expressive shapes everywhere", emptyArray())
+                }
+                is TdApi.DownloadFile -> TdApi.File().apply {
+                    id = function.fileId
+                    local = TdApi.LocalFile(image.absolutePath, true, true, false, true, 0, 0, 0)
+                    remote = TdApi.RemoteFile()
+                }
+                else -> null
+            }
+        }
+        com.pixelgram.android.feature.stories.StoryViewer.open(2L, listOf(1L, 2L, 3L, 6L))
+        shoot("story", graph)
+        com.pixelgram.android.feature.stories.StoryViewer.chatId = null
+    }
+
     private fun withMusic(): AppGraph {
         val graph = graph()
         val audios = listOf("Midnight Shapes" to "Expressive Hours", "Cookie Waves" to "Material Band", "Soft Burst" to "Pill Club").mapIndexed { i, (title, performer) ->
@@ -121,6 +151,9 @@ object DemoData {
             TdApi.ChatFolderInfo(1, TdApi.ChatFolderName(TdApi.FormattedText("Personal", emptyArray()), false), TdApi.ChatFolderIcon("Private"), 0, false, false),
             TdApi.ChatFolderInfo(2, TdApi.ChatFolderName(TdApi.FormattedText("Work", emptyArray()), false), TdApi.ChatFolderIcon("Work"), 0, false, false),
         ), 0, false))
+        listOf(1L, 2L, 3L, 6L).forEachIndexed { i, id ->
+            td.emit(TdApi.UpdateChatActiveStories(TdApi.ChatActiveStories(id, TdApi.StoryListMain(), 100L - i, true, if (i == 3) 2 else 0, arrayOf(TdApi.StoryInfo(1, now, false, false), TdApi.StoryInfo(2, now, false, false)))))
+        }
         td.emit(TdApi.UpdateUnreadChatCount(TdApi.ChatListMain(), 10, 5, 3, 2, 1))
     }
 
