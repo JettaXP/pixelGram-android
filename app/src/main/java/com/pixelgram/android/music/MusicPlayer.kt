@@ -98,9 +98,9 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
     }
 
     private val listener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            stateFlow.update { it.copy(playing = isPlaying) }
-            if (isPlaying) startTicker() else ticker?.cancel()
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            stateFlow.update { it.copy(playing = playWhenReady && exo.playbackState != Player.STATE_ENDED) }
+            if (playWhenReady) startTicker() else ticker?.cancel()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -112,7 +112,10 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
                     }
                     index < queue.lastIndex -> load(index + 1, 1)
                     stateFlow.value.repeat == RepeatMode.All && queue.isNotEmpty() -> load(0, 1)
-                    else -> stateFlow.update { it.copy(playing = false, position = it.duration) }
+                    else -> {
+                        ticker?.cancel()
+                        stateFlow.update { it.copy(playing = false, position = it.duration) }
+                    }
                 }
             }
             if (playbackState == Player.STATE_READY) {
