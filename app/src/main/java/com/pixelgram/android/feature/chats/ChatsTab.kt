@@ -28,6 +28,10 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.rounded.Campaign
@@ -140,29 +144,28 @@ fun ChatsTab(
     Scaffold(
         floatingActionButton = {
             val visible = !archive && !tracker.hidden
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(
-                    bottom = (com.pixelgram.android.ui.components.LocalBottomBarPadding.current -
-                        androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).coerceAtLeast(0.dp),
-                ),
+            var pencil by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+            var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+            val gap = with(density) { CameraGap.roundToPx() }
+            Box(
+                contentAlignment = Alignment.BottomEnd,
+                modifier = Modifier
+                    .padding(
+                        bottom = (com.pixelgram.android.ui.components.LocalBottomBarPadding.current -
+                            androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).coerceAtLeast(0.dp),
+                    )
+                    .onGloballyPositioned { origin = it.positionInRoot() },
             ) {
-                androidx.compose.material3.SmallFloatingActionButton(
-                    onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(end = MenuInset + (PencilSize - CameraSize) / 2).animateFloatingActionButton(visible && !fabMenu, Alignment.Center),
-                ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
                 androidx.compose.material3.FloatingActionButtonMenu(
                     expanded = fabMenu,
                     horizontalAlignment = Alignment.End,
-                    modifier = Modifier.animateFloatingActionButton(visible, Alignment.BottomEnd),
+                    modifier = Modifier.padding(top = CameraSize + CameraGap).animateFloatingActionButton(visible, Alignment.BottomEnd),
                     button = {
                         androidx.compose.material3.ToggleFloatingActionButton(
                             checked = fabMenu,
                             onCheckedChange = { fabMenu = it },
                             containerSize = androidx.compose.material3.ToggleFloatingActionButtonDefaults.containerSize(PencilSize, PencilOpenSize),
+                            modifier = Modifier.onGloballyPositioned { if (!fabMenu) pencil = it.boundsInRoot() },
                         ) {
                             val progress = checkedProgress
                             Icon(
@@ -188,6 +191,25 @@ fun ChatsTab(
                         )
                     }
                 }
+                val anchor = pencil
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            layout(placeable.width, placeable.height) {
+                                if (anchor != null) {
+                                    val x = anchor.center.x - origin.x - placeable.width / 2f
+                                    val y = anchor.top - origin.y - gap - placeable.height
+                                    placeable.place(x.toInt(), y.toInt())
+                                }
+                            }
+                        }
+                        .animateFloatingActionButton(visible && !fabMenu && anchor != null, Alignment.Center),
+                ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
             }
         },
         topBar = {
@@ -544,7 +566,7 @@ private val HideDistance = 16.dp
 private val PencilSize = 52.dp
 private val PencilOpenSize = 56.dp
 private val CameraSize = 40.dp
-private val MenuInset = 16.dp
+private val CameraGap = 12.dp
 private val ShowDistance = 48.dp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
