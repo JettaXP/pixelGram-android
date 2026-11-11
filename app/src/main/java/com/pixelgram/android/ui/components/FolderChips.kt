@@ -178,7 +178,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     ToggleButton(
         checked = selected,
         onCheckedChange = { onClick() },
-        shapes = ToggleButtonShapes(CircleShape, RoundedCornerShape(10.dp), CircleShape),
+        shapes = ToggleButtonShapes(RoundedCornerShape(ChipCorner), RoundedCornerShape(ChipPressedCorner), CircleShape),
         colors = ToggleButtonDefaults.colors(
             containerColor = container,
             contentColor = content,
@@ -270,3 +270,6 @@ private val FolderIcons: Map<String, Pair<ImageVector, ImageVector>> = mapOf(
     "Setup" to (Icons.Rounded.Settings to Icons.Outlined.Settings),
     "Custom" to (Icons.Rounded.Folder to Icons.Outlined.Folder),
 )
+
+private val ChipCorner = 12.dp
+private val ChipPressedCorner = 8.dp
