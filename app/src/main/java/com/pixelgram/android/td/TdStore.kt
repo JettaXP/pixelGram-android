@@ -40,6 +40,7 @@ data class ChatRow(
     val scam: Boolean = false,
     val fake: Boolean = false,
     val forum: Boolean = false,
+    val official: Boolean = false,
 )
 
 @Immutable
@@ -96,6 +97,9 @@ data class StoreSnapshot(
     val stories: List<StoryOwner> = emptyList(),
     val progress: Map<Int, FileProgress> = emptyMap(),
 )
+
+private val OfficialSupergroupIds = setOf(4378271602L)
+private const val OfficialChannel = "pixelgramclient"
 
 const val LIST_MAIN = "main"
 const val LIST_ARCHIVE = "archive"
@@ -275,7 +279,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             minithumb = chat.photo?.minithumbnail?.data,
             preview = last?.let { previewOf(it, chat, users) },
             date = last?.date ?: 0,
-            outgoing = last?.isOutgoing == true,
+            outgoing = last?.isOutgoing == true && last.isChannelPost != true,
             unread = chat.unreadCount,
             mentions = chat.unreadMentionCount,
             pinned = position.isPinned,
@@ -290,6 +294,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             typing = typing[chat.id]?.isNotEmpty() == true,
             deleted = user?.type is TdApi.UserTypeDeleted,
             forum = (type as? TdApi.ChatTypeSupergroup)?.let { supergroups[it.supergroupId]?.isForum } == true,
+            official = isOfficial(chat.id),
         )
     }
 
@@ -309,6 +314,12 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     }
 
     fun chat(chatId: Long): TdApi.Chat? = chats[chatId]
+
+    fun isOfficial(chatId: Long): Boolean {
+        val id = (chats[chatId]?.type as? TdApi.ChatTypeSupergroup)?.supergroupId ?: return false
+        if (id in OfficialSupergroupIds) return true
+        return supergroups[id]?.usernames?.activeUsernames?.any { it.equals(OfficialChannel, ignoreCase = true) } == true
+    }
 
     fun download(fileId: Int) {
         if (fileId == 0) return

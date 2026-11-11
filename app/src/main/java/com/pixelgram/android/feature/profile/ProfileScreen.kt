@@ -145,6 +145,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 photoFileId = user?.bigPhotoFileId ?: chat?.photo?.big?.id ?: 0,
                 minithumb = user?.minithumb ?: chat?.photo?.minithumbnail?.data,
                 verified = user?.verified == true || supergroup?.verificationStatus?.isVerified == true,
+                official = chatId != 0L && graph.store.isOfficial(chatId),
                 showCamera = false,
                 onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) },
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,

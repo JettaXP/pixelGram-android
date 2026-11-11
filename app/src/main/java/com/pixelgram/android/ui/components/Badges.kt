@@ -88,7 +88,8 @@ enum class UserBadge(val userId: Long, val notice: Int) {
 }
 
 @Composable
-fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false, name: String = "", label: Boolean = false) {
+fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false, name: String = "", label: Boolean = false, official: Boolean = false) {
+    if (official) OfficialBadge(size)
     if (verified) VerifiedBadge(size)
     if (scam || fake) {
         Box(
@@ -180,6 +181,23 @@ private fun BadgeLabel(text: String, onDone: () -> Unit) {
 }
 
 private const val LabelMs = 5_000L
+
+@Composable
+fun OfficialBadge(size: Dp = 18.dp) {
+    val scheme = MaterialTheme.colorScheme
+    val notice = stringResource(R.string.badge_official)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .size(size)
+            .clip(MaterialShapes.Cookie12Sided.toShape())
+            .background(scheme.primary)
+            .clickable(interactionSource = null, indication = null) { Notice.show(notice) },
+    ) {
+        Icon(painterResource(R.drawable.ic_pixelgram), contentDescription = notice, tint = scheme.onPrimary, modifier = Modifier.size(size * LogoScale))
+    }
+}
 
 @Composable
 fun VerifiedBadge(size: Dp = 18.dp) {

@@ -37,6 +37,7 @@ data class UiMessage(
     val localPath: String? = null,
     val parts: List<UiMessage> = emptyList(),
     val reactions: List<ReactionUi> = emptyList(),
+    val views: Int = 0,
 )
 
 @Immutable
@@ -443,7 +444,7 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
     return UiMessage(
         id = id,
         senderId = sender,
-        outgoing = isOutgoing,
+        outgoing = isOutgoing && !isChannelPost,
         date = date,
         text = text,
         entities = entities,
@@ -452,7 +453,7 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         pending = sendingState is TdApi.MessageSendingStatePending,
         failed = sendingState is TdApi.MessageSendingStateFailed,
         edited = editDate > 0,
-        read = isOutgoing && id <= readOutbox,
+        read = isOutgoing && !isChannelPost && id <= readOutbox,
         service = isService(content),
         mediaFileId = size?.photo?.id ?: (sticker?.thumbnail?.file?.id ?: 0),
         mediaThumb = photo?.minithumbnail?.data,
@@ -465,6 +466,7 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
                 ReactionUi(it.emoji, reaction.totalCount, reaction.isChosen, reaction.recentSenderIds.orEmpty().mapNotNull { sender -> (sender as? TdApi.MessageSenderUser)?.userId })
             }
         },
+        views = if (isChannelPost) interactionInfo?.viewCount ?: 0 else 0,
     )
 }
 

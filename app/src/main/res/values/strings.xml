@@ -504,4 +504,6 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
+    <string name="badge_official">This is an official pixelGram resource</string>
+    <string name="message_views">Views</string>
 </resources>

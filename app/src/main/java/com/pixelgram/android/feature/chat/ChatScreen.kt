@@ -1,6 +1,7 @@
 package com.pixelgram.android.feature.chat
 
 import java.io.File
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.automirrored.rounded.Forward
 import androidx.compose.material.icons.rounded.PushPin
@@ -228,7 +229,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                         )
                         if (!saved) {
                             val row = snapshot.lists.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == chatId } }
-                            com.pixelgram.android.ui.components.NameBadges(privateUserId, snapshot.users[privateUserId]?.verified == true || row?.verified == true, 20.dp, row?.scam == true, row?.fake == true)
+                            com.pixelgram.android.ui.components.NameBadges(privateUserId, snapshot.users[privateUserId]?.verified == true || row?.verified == true, 20.dp, row?.scam == true, row?.fake == true, official = graph.store.isOfficial(chatId))
                         }
                     }
                 },
@@ -652,6 +653,10 @@ internal fun MessageBubble(
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 val meta: @Composable () -> Unit = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (message.views > 0) {
+                            Icon(Icons.Rounded.Visibility, stringResource(R.string.message_views), Modifier.size(13.dp), tint = onContainer.copy(alpha = 0.7f))
+                            Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f), modifier = Modifier.padding(end = 4.dp))
+                        }
                         if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
                         Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
                         if (message.outgoing) {
@@ -1525,9 +1530,12 @@ private fun MessageMenu(
             },
         ) { measurables, constraints ->
             val loose = constraints.copy(minWidth = 0, minHeight = 0)
-            val full = measurables[0].measure(androidx.compose.ui.unit.Constraints.fixed(constraints.maxWidth, constraints.maxHeight))
-            val bar = measurables[1].measure(loose)
-            val menu = measurables[2].measure(loose)
+            val full = measurables.getOrNull(0)?.measure(androidx.compose.ui.unit.Constraints.fixed(constraints.maxWidth, constraints.maxHeight))
+            val bar = measurables.getOrNull(1)?.measure(loose)
+            val menu = measurables.getOrNull(2)?.measure(loose)
+            if (bar == null || menu == null) {
+                return@Layout layout(constraints.maxWidth, constraints.maxHeight) { full?.place(0, 0) }
+            }
             val margin = with(density) { 12.dp.roundToPx() }
             val gap = with(density) { 8.dp.roundToPx() }
             val top = with(density) { 40.dp.roundToPx() }
@@ -1547,7 +1555,7 @@ private fun MessageMenu(
                 barY = menuY - gap - bar.height
             }
             layout(constraints.maxWidth, constraints.maxHeight) {
-                full.place(0, 0)
+                full?.place(0, 0)
                 bar.place(x(bar.width), barY)
                 menu.place(x(menu.width), menuY)
             }
@@ -2007,4 +2015,10 @@ private fun PollDialog(onDismiss: () -> Unit, onSend: (String, List<String>, Boo
         confirmButton = { androidx.compose.material3.TextButton(enabled = question.isNotBlank() && filled.size >= 2, onClick = { onSend(question, filled, anonymous, multiple) }) { Text(stringResource(R.string.action_send)) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+private fun compactCount(value: Int, exact: Boolean): String = when {
+    exact || value < 1_000 -> value.toString()
+    value < 1_000_000 -> String.format(java.util.Locale.getDefault(), "%.1fK", value / 1_000f).replace(".0K", "K").replace(",0K", "K")
+    else -> String.format(java.util.Locale.getDefault(), "%.1fM", value / 1_000_000f).replace(".0M", "M").replace(",0M", "M")
 }
