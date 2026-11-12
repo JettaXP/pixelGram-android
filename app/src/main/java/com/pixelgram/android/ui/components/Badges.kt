@@ -89,6 +89,18 @@ enum class UserBadge(val userId: Long, val notice: Int) {
 
 @Composable
 fun NameBadges(userId: Long, verified: Boolean, size: Dp = 18.dp, scam: Boolean = false, fake: Boolean = false, name: String = "", label: Boolean = false, official: Boolean = false) {
+    val statusGraph = LocalGraph.current
+    val status = statusGraph.store.snapshot.collectAsState().value.users[userId]?.emojiStatus ?: 0L
+    if (status != 0L) {
+        Box(
+            Modifier
+                .padding(start = 4.dp)
+                .clickable(interactionSource = null, indication = null) {
+                    com.pixelgram.android.feature.premium.EmojiStatusSheet.userId = userId
+                    com.pixelgram.android.feature.premium.EmojiStatusSheet.emojiId = status
+                },
+        ) { CustomEmojiView(status, "⭐", size = size, tint = MaterialTheme.colorScheme.primary) }
+    }
     if (official) OfficialBadge(size)
     if (verified) VerifiedBadge(size)
     if (scam || fake) {

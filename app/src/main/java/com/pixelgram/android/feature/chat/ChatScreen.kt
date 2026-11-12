@@ -392,6 +392,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     onReplyClick = { jumpTo(message.replyToId) },
                                     onOpenUser = { userId -> navigator.open(ProfileKey(userId)) },
                                     onVote = { options -> controller.vote(message, options) },
+                                    onPay = { com.pixelgram.android.feature.premium.PaymentRequest.current = TdApi.InputInvoiceMessage(chatId, message.id) },
                                     highlighted = highlighted == message.id,
                                     reactor = { userId, size ->
                                         val user = snapshot.users[userId]
@@ -649,6 +650,7 @@ internal fun MessageBubble(
     reactor: (@Composable (Long, androidx.compose.ui.unit.Dp) -> Unit)? = null,
     onOpenUser: (Long) -> Unit = {},
     onVote: (IntArray) -> Unit = {},
+    onPay: () -> Unit = {},
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
@@ -725,7 +727,7 @@ internal fun MessageBubble(
                 val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
                 if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
                 (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
-                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote)
+                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 val meta: @Composable () -> Unit = {

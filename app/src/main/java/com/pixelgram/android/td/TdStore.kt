@@ -74,6 +74,7 @@ data class UserInfo(
     val deleted: Boolean = false,
     val support: Boolean = false,
     val seen: Seen = Seen.Recently,
+    val emojiStatus: Long = 0L,
 ) {
     val name: String get() = if (deleted) "Deleted Account" else listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Deleted Account" }
 }
@@ -371,6 +372,7 @@ private fun TdApi.User.info() = UserInfo(
     fake = verificationStatus?.isFake == true,
     usernames = usernames?.activeUsernames?.toList().orEmpty(),
     support = isSupport,
+    emojiStatus = (emojiStatus?.type as? TdApi.EmojiStatusTypeCustomEmoji)?.customEmojiId ?: 0L,
     seen = when (status) {
         is TdApi.UserStatusOnline -> Seen.Online
         is TdApi.UserStatusOffline -> Seen.Offline

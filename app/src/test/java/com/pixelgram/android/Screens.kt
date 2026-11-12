@@ -77,6 +77,28 @@ class Screens {
 
     @Test fun chat() = chatScene("chat")
 
+    @Test fun premium() {
+        val graph = graph()
+        graph.td.offlineReply = { f ->
+            if (f is TdApi.GetPremiumState) TdApi.PremiumState(TdApi.FormattedText("", emptyArray()), arrayOf(
+                TdApi.PremiumStatePaymentOption(TdApi.PremiumPaymentOption("USD", 2999, 36, 12, "", null), false, false, ""),
+                TdApi.PremiumStatePaymentOption(TdApi.PremiumPaymentOption("USD", 399, 0, 1, "", null), false, false, ""),
+            ), emptyArray(), emptyArray()) else null
+        }
+        shoot("premium", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.PremiumKey))
+    }
+
+    @Test fun stars() {
+        val graph = graph()
+        graph.td.offlineReply = { f ->
+            if (f is TdApi.GetStarTransactions) TdApi.StarTransactions(TdApi.StarAmount(3, 200_000_000), arrayOf(
+                TdApi.StarTransaction("1", TdApi.StarAmount(-3, 0), false, (System.currentTimeMillis() / 1000).toInt() - 3600, TdApi.StarTransactionTypeBotInvoicePurchase().apply { userId = 2 }),
+                TdApi.StarTransaction("2", TdApi.StarAmount(21, 0), false, (System.currentTimeMillis() / 1000).toInt() - 86400, TdApi.StarTransactionTypeFragmentDeposit()),
+            ), "") else null
+        }
+        shoot("stars", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.StarsKey))
+    }
+
     @Test fun messageMenu() = chatScene("message_menu", popup = true) {
         val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
         node.performTouchInput { click(center) }

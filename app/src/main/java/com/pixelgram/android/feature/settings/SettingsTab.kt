@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.settings
 
+import androidx.compose.material.icons.rounded.Star
 import kotlinx.coroutines.launch
 import androidx.compose.material3.toShape
 import androidx.compose.foundation.layout.Arrangement
@@ -97,6 +98,25 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     position = SegmentPosition.Single,
                     onClick = { navigator.open(PixelSettingsKey()) },
                 )
+            }
+            SettingsGroup {
+                val balance by androidx.compose.runtime.produceState<org.drinkless.tdlib.TdApi.StarAmount?>(null) { value = com.pixelgram.android.feature.premium.starBalance(graph) }
+                SettingsItem(
+                    title = stringResource(R.string.premium_title),
+                    icon = androidx.compose.material.icons.Icons.Rounded.Star,
+                    iconBackground = com.pixelgram.android.feature.premium.PremiumGradient[1],
+                    iconTint = androidx.compose.ui.graphics.Color.White,
+                    position = SegmentPosition.Top,
+                    onClick = { navigator.open(com.pixelgram.android.nav.PremiumKey) },
+                )
+                SettingsItem(
+                    title = stringResource(R.string.stars_title),
+                    icon = androidx.compose.material.icons.Icons.Rounded.Star,
+                    iconBackground = com.pixelgram.android.feature.premium.StarGold[1],
+                    iconTint = androidx.compose.ui.graphics.Color.White,
+                    position = SegmentPosition.Bottom,
+                    onClick = { navigator.open(com.pixelgram.android.nav.StarsKey) },
+                ) { balance?.let { Text(com.pixelgram.android.feature.premium.stars(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
             }
             SettingsGroup {
                 val sections = SettingsSection.entries

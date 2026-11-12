@@ -103,6 +103,7 @@ internal fun RichContent(
     content: Color,
     onOpenUser: (Long) -> Unit,
     onVote: (IntArray) -> Unit,
+    onPay: () -> Unit = {},
 ) {
     when (val c = message.content) {
         is TdApi.MessageVideo -> VideoBubble(c.video, files, onNeedFile)
@@ -116,14 +117,14 @@ internal fun RichContent(
         is TdApi.MessagePoll -> PollView(c.poll, content, onVote)
         is TdApi.MessageDice -> DiceView(c.emoji, c.value, content)
         is TdApi.MessageGame -> InfoCard(Icons.Rounded.SportsEsports, c.game.title, c.game.description, content)
-        is TdApi.MessageInvoice -> InfoCard(Icons.Rounded.ShoppingBag, c.productInfo.title, price(c.totalAmount, c.currency) + " · " + c.productInfo.description.text, content)
+        is TdApi.MessageInvoice -> InfoCard(Icons.Rounded.ShoppingBag, c.productInfo.title, (if (c.currency == "XTR") "⭐ ${c.totalAmount}" else price(c.totalAmount, c.currency)) + " · " + c.productInfo.description.text, content, onClick = if (c.receiptMessageId == 0L) onPay else null)
         is TdApi.MessageStory -> StoryCard(c, content)
         is TdApi.MessageCall -> CallRow(c, message.outgoing, content)
         is TdApi.MessageGift -> GiftCard(c.gift.sticker, stringResource(R.string.content_gift), stringResource(R.string.content_gift_stars, c.gift.starCount), c.text.text, files, onNeedFile, content)
         is TdApi.MessageUpgradedGift -> GiftCard(null, c.gift.title, "#${c.gift.number}", c.text.text, files, onNeedFile, content)
         is TdApi.MessageChecklist -> ChecklistView(c.list, content)
         is TdApi.MessageGiveaway -> InfoCard(Icons.Rounded.CardGiftcard, stringResource(R.string.content_giveaway), stringResource(R.string.content_giveaway_winners, c.winnerCount), content)
-        is TdApi.MessagePaidMedia -> InfoCard(Icons.Rounded.ShoppingBag, stringResource(R.string.content_paid_media), stringResource(R.string.content_gift_stars, c.starCount), content)
+        is TdApi.MessagePaidMedia -> InfoCard(Icons.Rounded.ShoppingBag, stringResource(R.string.content_paid_media), stringResource(R.string.content_gift_stars, c.starCount), content, onClick = onPay)
         is TdApi.MessageExpiredPhoto -> InfoCard(Icons.Rounded.HelpOutline, stringResource(R.string.content_expired_photo), null, content)
         is TdApi.MessageExpiredVideo -> InfoCard(Icons.Rounded.HelpOutline, stringResource(R.string.content_expired_video), null, content)
         else -> InfoCard(Icons.Rounded.HelpOutline, stringResource(R.string.content_unsupported), stringResource(R.string.content_unsupported_sub), content)

@@ -39,6 +39,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object SearchKey : NavKey
 @Serializable data class ProfilePhotosKey(val userId: Long) : NavKey
 @Serializable data class SettingsSectionKey(val section: String) : NavKey
+@Serializable data object PremiumKey : NavKey
+@Serializable data object StarsKey : NavKey
 
 object PendingNav {
     var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
@@ -87,11 +89,15 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
             entry<SearchKey> { com.pixelgram.android.feature.search.SearchScreen(graph, navigator) }
             entry<ProfilePhotosKey> { key -> com.pixelgram.android.feature.profile.ProfilePhotosScreen(graph, key.userId, navigator) }
             entry<SettingsSectionKey> { key -> com.pixelgram.android.feature.settings.SettingsSectionScreen(graph, key.section, navigator) }
+            entry<PremiumKey> { com.pixelgram.android.feature.premium.PremiumScreen(graph, navigator) }
+            entry<StarsKey> { com.pixelgram.android.feature.premium.StarsScreen(graph, navigator) }
         },
     )
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
     com.pixelgram.android.feature.pixel.SupportSheet()
+    com.pixelgram.android.feature.premium.PaymentHost()
+    com.pixelgram.android.feature.premium.EmojiStatusHost { navigator.open(PremiumKey) }
     androidx.compose.runtime.LaunchedEffect(PendingNav.chat) {
         PendingNav.chat?.let { id ->
             PendingNav.chat = null
