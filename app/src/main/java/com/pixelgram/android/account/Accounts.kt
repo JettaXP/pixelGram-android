@@ -34,8 +34,25 @@ object Accounts {
     fun add(context: Context) {
         val ids = ids(context)
         val next = (ids.maxOrNull() ?: 0) + 1
-        prefs(context).edit().putString("ids", (ids + next).joinToString(",")).apply()
+        prefs(context).edit().putString("ids", (ids + next).joinToString(",")).putInt("previous", active(context)).apply()
         switchTo(context, next)
+    }
+
+    fun canCancelAdd(context: Context): Boolean {
+        val id = active(context)
+        return prefs(context).getLong("user_$id", 0L) == 0L && ids(context).any { it != id && prefs(context).getLong("user_$it", 0L) != 0L }
+    }
+
+    fun cancelAdd(context: Context) {
+        val id = active(context)
+        val rest = ids(context) - id
+        val previous = prefs(context).getInt("previous", rest.first()).takeIf { it in rest } ?: rest.first()
+        prefs(context).edit().putString("ids", rest.joinToString(",")).apply()
+        runCatching {
+            java.io.File(context.filesDir, databaseDir(id)).deleteRecursively()
+            java.io.File(context.filesDir, filesDir(id)).deleteRecursively()
+        }
+        switchTo(context, previous)
     }
 
     fun forgetActive(context: Context) {

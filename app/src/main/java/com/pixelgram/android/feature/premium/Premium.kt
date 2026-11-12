@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.Diamond
@@ -400,36 +401,77 @@ fun StarsScreen(graph: AppGraph, navigator: Navigator) {
     opened?.let { TransactionSheet(graph, it) { opened = null } }
 }
 
-private fun txPeer(type: TdApi.StarTransactionType): TdApi.MessageSender? {
-    var fallback: TdApi.MessageSender? = null
-    for (field in type.javaClass.fields) {
-        val value = runCatching { field.get(type) }.getOrNull() ?: continue
-        when {
-            value is TdApi.MessageSender -> return value
-            field.name == "userId" && value is Long && value != 0L -> return TdApi.MessageSenderUser(value)
-            field.name == "chatId" && value is Long && value != 0L -> fallback = TdApi.MessageSenderChat(value)
-        }
+private fun txPeer(type: TdApi.StarTransactionType): TdApi.MessageSender? = when (type) {
+    is TdApi.StarTransactionTypeUserDeposit -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeGiveawayDeposit -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypeBotPaidMediaPurchase -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBotPaidMediaSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeChannelPaidMediaPurchase -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypeChannelPaidMediaSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBotInvoicePurchase -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBotInvoiceSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBotSubscriptionPurchase -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBotSubscriptionSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeChannelSubscriptionPurchase -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypeChannelSubscriptionSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeGiftAuctionBid -> type.ownerId
+    is TdApi.StarTransactionTypeGiftPurchase -> type.ownerId
+    is TdApi.StarTransactionTypeGiftTransfer -> type.ownerId
+    is TdApi.StarTransactionTypeGiftOriginalDetailsDrop -> type.ownerId
+    is TdApi.StarTransactionTypeGiftSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeGiftUpgrade -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeGiftUpgradePurchase -> type.ownerId
+    is TdApi.StarTransactionTypeUpgradedGiftPurchase -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeUpgradedGiftSale -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeChannelPaidReactionSend -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypeChannelPaidReactionReceive -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeAffiliateProgramCommission -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypePaidMessageSend -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypePaidMessageReceive -> type.senderId
+    is TdApi.StarTransactionTypePaidGroupCallMessageSend -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypePaidGroupCallMessageReceive -> type.senderId
+    is TdApi.StarTransactionTypePaidGroupCallReactionSend -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypePaidGroupCallReactionReceive -> type.senderId
+    is TdApi.StarTransactionTypeSuggestedPostPaymentSend -> TdApi.MessageSenderChat(type.chatId)
+    is TdApi.StarTransactionTypeSuggestedPostPaymentReceive -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypePremiumPurchase -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBusinessBotTransferSend -> TdApi.MessageSenderUser(type.userId)
+    is TdApi.StarTransactionTypeBusinessBotTransferReceive -> TdApi.MessageSenderUser(type.userId)
+    else -> null
     }
-    return fallback
-}
 
-private fun txSticker(type: TdApi.StarTransactionType): TdApi.Sticker? {
-    for (field in type.javaClass.fields) {
-        when (val value = runCatching { field.get(type) }.getOrNull()) {
-            is TdApi.Gift -> return value.sticker
-            is TdApi.UpgradedGift -> return value.model?.sticker
-            is TdApi.Sticker -> return value
-        }
+private fun txSticker(type: TdApi.StarTransactionType): TdApi.Sticker? = when (type) {
+    is TdApi.StarTransactionTypeUserDeposit -> type.sticker
+    is TdApi.StarTransactionTypeGiftAuctionBid -> type.gift?.sticker
+    is TdApi.StarTransactionTypeGiftPurchase -> type.gift?.sticker
+    is TdApi.StarTransactionTypeGiftPurchaseOffer -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypeGiftTransfer -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypeGiftOriginalDetailsDrop -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypeGiftSale -> type.gift?.sticker
+    is TdApi.StarTransactionTypeGiftUpgrade -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypeGiftUpgradePurchase -> type.gift?.sticker
+    is TdApi.StarTransactionTypeUpgradedGiftPurchase -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypeUpgradedGiftSale -> type.gift?.model?.sticker
+    is TdApi.StarTransactionTypePremiumPurchase -> type.sticker
+    else -> null
     }
-    return null
-}
 
-internal data class Peer(val id: Long, val title: String, val photoFileId: Int, val minithumb: ByteArray?)
+private fun txProduct(type: TdApi.StarTransactionType): String? = when (type) {
+    is TdApi.StarTransactionTypeBotInvoicePurchase -> type.productInfo?.title
+    is TdApi.StarTransactionTypeBotInvoiceSale -> type.productInfo?.title
+    is TdApi.StarTransactionTypeBotSubscriptionPurchase -> type.productInfo?.title
+    is TdApi.StarTransactionTypeBotSubscriptionSale -> type.productInfo?.title
+    else -> null
+    }?.takeIf { it.isNotBlank() }
+
+internal data class Peer(val id: Long, val title: String, val photoFileId: Int, val minithumb: ByteArray?, val unknown: Boolean = false)
 
 @Composable
 internal fun rememberPeer(graph: AppGraph, sender: TdApi.MessageSender?): Peer? {
+    val unknown = stringResource(R.string.stars_tx_unknown)
     val peer by produceState<Peer?>(null, sender) {
         value = when (sender) {
+            is TdApi.MessageSenderUser if sender.userId == 0L -> Peer(0, unknown, 0, null, unknown = true)
             is TdApi.MessageSenderUser -> runCatching { graph.td.send(TdApi.GetUser(sender.userId)) }.getOrNull()?.let {
                 Peer(it.id, listOf(it.firstName, it.lastName).filter { s -> s.isNotBlank() }.joinToString(" "), it.profilePhoto?.small?.id ?: 0, it.profilePhoto?.minithumbnail?.data)
             }
@@ -451,6 +493,7 @@ private fun PeerAvatar(graph: AppGraph, peer: Peer, size: androidx.compose.ui.un
         path = snapshot.files[peer.photoFileId],
         minithumb = peer.minithumb,
         size = size,
+        icon = if (peer.unknown) Icons.Rounded.Person else null,
         onNeedFile = if (peer.photoFileId != 0) ({ graph.store.requestFileAsync(peer.photoFileId) }) else null,
     )
 }
@@ -490,7 +533,7 @@ private fun TransactionRow(graph: AppGraph, tx: TdApi.StarTransaction, snapshot:
             Text(peer?.title?.takeIf { it.isNotBlank() } ?: label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (peer != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (sticker != null) TxSticker(graph, sticker, 18.dp)
-                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(txProduct(tx.type) ?: label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(TxShortDate.format(java.util.Date(tx.date * 1000L)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -517,7 +560,7 @@ private fun TransactionSheet(graph: AppGraph, tx: TdApi.StarTransaction, onDismi
                 other != null -> PeerAvatar(graph, other, 96.dp)
                 else -> GradientMark(Icons.Rounded.Star, StarGold, 96.dp)
             }
-            Text(label, style = MaterialTheme.typography.headlineSmallEmphasized, textAlign = TextAlign.Center)
+            Text(txProduct(tx.type) ?: label, style = MaterialTheme.typography.headlineSmallEmphasized, textAlign = TextAlign.Center)
             TxAmount(tx, MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), 28.dp)
             Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
                 Column {
@@ -562,7 +605,7 @@ private fun describe(context: Context, tx: TdApi.StarTransaction, snapshot: com.
         is TdApi.StarTransactionTypeFragmentDeposit -> context.getString(R.string.stars_tx_fragment) to null
         is TdApi.StarTransactionTypePremiumBotDeposit -> context.getString(R.string.stars_tx_bot_deposit) to null
         is TdApi.StarTransactionTypeAppStoreDeposit, is TdApi.StarTransactionTypeGooglePlayDeposit -> context.getString(R.string.stars_tx_purchase) to null
-        is TdApi.StarTransactionTypeUserDeposit -> context.getString(R.string.stars_tx_gift_from) to user(t.userId)
+        is TdApi.StarTransactionTypeUserDeposit -> context.getString(R.string.stars_tx_gift_received) to user(t.userId)
         is TdApi.StarTransactionTypeGiftPurchase -> context.getString(R.string.stars_tx_gift_sent) to null
         is TdApi.StarTransactionTypeGiftSale -> context.getString(R.string.stars_tx_gift_converted) to user(t.userId)
         is TdApi.StarTransactionTypeBotInvoicePurchase -> context.getString(R.string.stars_tx_bot_purchase) to user(t.userId)

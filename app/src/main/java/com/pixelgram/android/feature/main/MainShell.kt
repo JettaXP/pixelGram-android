@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.animateContentSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -168,7 +172,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                         MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
                         MainTab.Profile -> {
                             val me by graph.store.snapshot.collectAsState()
-                            ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { tab = MainTab.Settings })
+                            ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { navigator.open(com.pixelgram.android.nav.SettingsKey) })
                         }
                         MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
                     }
@@ -231,38 +235,48 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
     val banner = banners[snapshot.meId]
     var accountsOpen by remember { mutableStateOf(false) }
     ModalDrawerSheet(modifier = Modifier.width(DrawerWidth)) {
-        Box {
-            if (banner != null) {
-                val surface = MaterialTheme.colorScheme.surfaceContainerLow
-                coil.compose.AsyncImage(
-                    model = banner,
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-                Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.3f to androidx.compose.ui.graphics.Color.Transparent, 1f to surface)))
-            }
-        Column(Modifier.padding(horizontal = 28.dp, vertical = 24.dp)) {
-            Avatar(
-                title = me?.name.orEmpty(),
-                seed = snapshot.meId,
-                path = me?.photoFileId?.let { snapshot.files[it] },
-                minithumb = null,
-                size = 64.dp,
-                onNeedFile = { me?.photoFileId?.let(graph.store::requestFileAsync) },
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleLargeEmphasized)
-                    if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp, bottom = 12.dp),
+        ) {
+            Column {
+                if (banner != null) {
+                    var ratio by remember(banner) { mutableStateOf(3f) }
+                    coil.compose.AsyncImage(
+                        model = banner,
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        onSuccess = { state ->
+                            val size = state.painter.intrinsicSize
+                            if (size.width > 0f && size.height > 0f) ratio = (size.width / size.height).coerceIn(1f, 4f)
+                        },
+                        modifier = Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(28.dp, 28.dp, 8.dp, 8.dp)),
+                    )
                 }
-                val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
-                androidx.compose.material3.IconButton(onClick = { accountsOpen = !accountsOpen }) {
-                    Icon(Icons.Outlined.ExpandMore, stringResource(R.string.accounts_toggle), Modifier.graphicsLayer { rotationZ = turn })
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 14.dp, bottom = 14.dp),
+                ) {
+                    Avatar(
+                        title = me?.name.orEmpty(),
+                        seed = snapshot.meId,
+                        path = me?.photoFileId?.let { snapshot.files[it] },
+                        minithumb = null,
+                        size = 52.dp,
+                        onNeedFile = { me?.photoFileId?.let(graph.store::requestFileAsync) },
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+                    }
+                    val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { accountsOpen = !accountsOpen }) {
+                        Icon(Icons.Outlined.ExpandMore, stringResource(R.string.accounts_toggle), Modifier.graphicsLayer { rotationZ = turn })
+                    }
                 }
             }
-        }
         }
         val context = androidx.compose.ui.platform.LocalContext.current
         LaunchedEffect(me) { if (me != null) com.pixelgram.android.account.Accounts.remember(context, me.name, me.phone, me.id) }

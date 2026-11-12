@@ -45,6 +45,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object PremiumKey : NavKey
 @Serializable data object StarsKey : NavKey
 @Serializable data object BusinessKey : NavKey
+@Serializable data object SettingsKey : NavKey
 
 object PendingNav {
     var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
@@ -93,6 +94,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
             entry<ProfilePhotosKey> { key -> com.pixelgram.android.feature.profile.ProfilePhotosScreen(graph, key.userId, navigator) }
             entry<SettingsSectionKey> { key -> com.pixelgram.android.feature.settings.SettingsSectionScreen(graph, key.section, navigator) }
             entry<PremiumKey> { com.pixelgram.android.feature.premium.PremiumScreen(graph, navigator) }
+            entry<SettingsKey> { com.pixelgram.android.feature.settings.SettingsTab(graph, navigator, onOpenDrawer = null, onBack = { navigator.back() }) }
             entry<BusinessKey> { com.pixelgram.android.feature.premium.PremiumScreen(graph, navigator, business = true) }
             entry<StarsKey> { com.pixelgram.android.feature.premium.StarsScreen(graph, navigator) }
         },
@@ -207,8 +209,8 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier
                 .graphicsLayer {
-                    val closing = key == gesture.closingKey
-                    val entering = key == gesture.enteringKey
+                    val closing = gesture.closingKey?.let { key == it || key.startsWith("$it:") } == true
+                    val entering = gesture.enteringKey?.let { key == it || key.startsWith("$it:") } == true
                     if (!closing && !entering) return@graphicsLayer
                     val p = gesture.progress
                     val c = gesture.commit
@@ -243,7 +245,7 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
                 }
                 .drawWithContent {
                     drawContent()
-                    if (key == gesture.enteringKey && gesture.closingKey != null) {
+                    if (gesture.closingKey != null && gesture.enteringKey?.let { key == it || key.startsWith("$it:") } == true) {
                         val a = ScrimAlpha * (1f - gesture.commit) * (gesture.progress * 4f).coerceAtMost(1f).coerceAtLeast(if (gesture.commit > 0f) 1f else 0f)
                         if (a > 0f) drawRect(scrim.copy(alpha = a))
                     }

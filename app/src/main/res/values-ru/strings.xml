@@ -681,4 +681,6 @@
     <string name="business_start_message">Сообщение</string>
     <string name="business_bot_username">Имя бота</string>
     <string name="business_bot_reply">Бот может отвечать</string>
+    <string name="stars_tx_gift_received">Полученный подарок</string>
+    <string name="stars_tx_unknown">Неизвестный пользователь</string>
 </resources>

@@ -172,8 +172,10 @@ internal fun PhoneScreen(ui: AuthUi, onSubmit: (String) -> Unit, onQr: () -> Uni
     val country = remember(code, number) { Phones.country(code, number) }
     val formatted = remember(code, number) { Phones.formatNational(code, number) }
     val placeholder = remember(code) { Phones.placeholder(code) }
+    val accountContext = androidx.compose.ui.platform.LocalContext.current
+    val cancellable = remember { com.pixelgram.android.account.Accounts.canCancelAdd(accountContext) }
     AuthScaffold(
-        onBack = null,
+        onBack = if (cancellable) ({ com.pixelgram.android.account.Accounts.cancelAdd(accountContext) }) else null,
         bottom = {
             Numpad(
                 onDigit = { digit ->

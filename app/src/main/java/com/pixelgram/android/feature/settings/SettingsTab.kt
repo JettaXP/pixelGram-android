@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.QrCode2
@@ -56,7 +58,7 @@ import org.drinkless.tdlib.TdApi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?) {
+fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?, onBack: (() -> Unit)? = null) {
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
@@ -76,7 +78,8 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 showCamera = true,
                 onAvatarClick = pickAvatar,
                 topStart = {
-                    if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
+                    else if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                 },
                 topEnd = {
                     if (me?.username != null) IconButton(onClick = { navigator.open(ProfileKey(snapshot.meId)) }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
@@ -151,7 +154,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     onClick = { confirmLogout = true },
                 )
             }
-            Spacer(Modifier.height(24.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current))
+            Spacer(Modifier.height(24.dp + (if (onBack != null) 0.dp else com.pixelgram.android.ui.components.LocalBottomBarPadding.current)).let { if (onBack != null) it.navigationBarsPadding() else it })
         }
     }
     if (confirmLogout) {

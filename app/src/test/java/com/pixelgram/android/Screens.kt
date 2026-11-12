@@ -104,6 +104,30 @@ class Screens {
         shoot("stars", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.StarsKey))
     }
 
+    @Test fun predictiveBack() {
+        val graph = graph()
+        var owner: androidx.activity.OnBackPressedDispatcherOwner? = null
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            owner = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
+            val appearance by graph.appearance.state.collectAsState()
+            PixelTheme(appearance) {
+                CompositionLocalProvider(LocalGraph provides graph) { AppNavigation(graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.StarsKey)) }
+            }
+        }
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        val dispatcher = owner!!.onBackPressedDispatcher
+        rule.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(5f, 1200f, 0f, androidx.activity.BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(400f, 1300f, 0.5f, androidx.activity.BackEventCompat.EDGE_LEFT))
+        }
+        repeat(10) { rule.mainClock.advanceTimeBy(32) }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        File(dir, "predictive_back.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    @Test fun settingsScreen() = shoot("settings_screen", graph(), listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SettingsKey))
+
     @Test fun luhn() {
         check(com.pixelgram.android.feature.premium.Card.luhn("4242424242424242"))
         check(com.pixelgram.android.feature.premium.Card.luhn("2200700000000004") || true)
