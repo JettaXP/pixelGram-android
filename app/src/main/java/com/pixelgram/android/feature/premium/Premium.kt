@@ -160,7 +160,7 @@ fun PremiumScreen(graph: AppGraph, navigator: Navigator) {
     val context = LocalContext.current
     val snapshot by graph.store.snapshot.collectAsState()
     val me = snapshot.users[snapshot.meId]
-    val state by produceState<TdApi.PremiumState?>(null) { value = runCatching { graph.td.send(TdApi.GetPremiumState()) }.getOrNull() }
+    val state by produceState<TdApi.PremiumState?>(null) { value = runCatching { graph.td.send(TdApi.GetPremiumState()) }.getOrNull() ?: TdApi.PremiumState(TdApi.FormattedText("", emptyArray()), emptyArray(), emptyArray(), emptyArray()) }
     val options = state?.paymentOptions.orEmpty().map { it.paymentOption }.sortedByDescending { it.monthCount }
     var picked by remember(options.size) { mutableStateOf(0) }
     var paying by remember { mutableStateOf(false) }
