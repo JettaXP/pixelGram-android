@@ -683,4 +683,5 @@
     <string name="business_bot_reply">Бот может отвечать</string>
     <string name="stars_tx_gift_received">Полученный подарок</string>
     <string name="stars_tx_unknown">Неизвестный пользователь</string>
+    <string name="stars_fragment_only">TON · Fragment</string>
 </resources>

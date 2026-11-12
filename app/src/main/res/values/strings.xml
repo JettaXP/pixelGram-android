@@ -670,4 +670,5 @@
     <string name="business_bot_reply">Bot can reply to messages</string>
     <string name="stars_tx_gift_received">Received gift</string>
     <string name="stars_tx_unknown">Unknown user</string>
+    <string name="stars_fragment_only">TON · Fragment</string>
 </resources>

@@ -630,6 +630,22 @@ private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit
             Text(stringResource(R.string.stars_top_up), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             val list = options
             if (list == null) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+            val context = LocalContext.current
+            if (list != null && list.none { it.starCount < 100 }) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable {
+                        openUrl(context, "https://fragment.com/stars/buy" + (username?.let { "?recipient=$it&quantity=50" } ?: "?quantity=50"))
+                        onDismiss()
+                    }.padding(16.dp),
+                ) {
+                    Icon(Icons.Rounded.Star, null, tint = StarGold[0])
+                    Text(stringResource(R.string.stars_count, 50), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Icon(Icons.Rounded.Diamond, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.stars_fragment_only), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             list?.filter { more || !it.isAdditional }?.forEach { option ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
