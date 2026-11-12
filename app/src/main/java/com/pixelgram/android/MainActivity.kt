@@ -25,6 +25,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         graph.music.cast.init()
         handle(intent)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         enableEdgeToEdge()
         setContent {
             val appearance by graph.appearance.state.collectAsState()
@@ -43,6 +46,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: android.content.Intent?) {
+        if (intent?.action == com.pixelgram.android.notify.Notifier.OpenChatAction) {
+            val chatId = intent.getLongExtra(com.pixelgram.android.notify.Notifier.ExtraChat, 0L)
+            if (chatId != 0L) com.pixelgram.android.nav.PendingNav.chat = chatId
+        }
         if (intent?.action == com.pixelgram.android.music.OpenPlayerAction) {
             com.pixelgram.android.feature.player.FullPlayer.view = com.pixelgram.android.feature.player.PlayerView.Queue
             com.pixelgram.android.feature.player.FullPlayer.open = true

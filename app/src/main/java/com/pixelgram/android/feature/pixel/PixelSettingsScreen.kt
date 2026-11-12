@@ -211,6 +211,9 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
             )
         }
     }
+    SettingsGroup(stringResource(R.string.notify_settings)) {
+        SettingsSwitch(stringResource(R.string.notify_keep_alive), settings.keepAlive, { v -> update { it.copy(keepAlive = v) } }, SegmentPosition.Single, stringResource(R.string.notify_keep_alive_sub))
+    }
     SettingsGroup(stringResource(R.string.pixel_chat_list)) {
         SettingsSwitch(stringResource(R.string.pixel_exact_numbers), settings.exactNumbers, { v -> update { it.copy(exactNumbers = v) } }, SegmentPosition.Top, "999+ → 1234")
         SettingsSwitch(stringResource(R.string.pixel_hide_all), settings.hideAllChats, { v -> update { it.copy(hideAllChats = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_hide_all_sub))

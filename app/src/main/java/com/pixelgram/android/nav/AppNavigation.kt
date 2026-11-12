@@ -40,6 +40,10 @@ import kotlinx.serialization.Serializable
 @Serializable data class ProfilePhotosKey(val userId: Long) : NavKey
 @Serializable data class SettingsSectionKey(val section: String) : NavKey
 
+object PendingNav {
+    var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
+}
+
 class Navigator(private val stack: MutableList<NavKey>) {
     fun open(key: NavKey) {
         stack.add(key)
@@ -88,6 +92,12 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
     com.pixelgram.android.feature.pixel.SupportSheet()
+    androidx.compose.runtime.LaunchedEffect(PendingNav.chat) {
+        PendingNav.chat?.let { id ->
+            PendingNav.chat = null
+            navigator.open(ChatKey(id))
+        }
+    }
     com.pixelgram.android.feature.pixel.CreditsOverlay()
     com.pixelgram.android.ui.components.NoticeHost(
         androidx.compose.ui.Modifier

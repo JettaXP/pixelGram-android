@@ -516,4 +516,19 @@
         <item quantity="one">Delete %d message?</item>
         <item quantity="other">Delete %d messages?</item>
     </plurals>
+    <string name="notify_you">You</string>
+    <string name="notify_reply">Reply</string>
+    <string name="notify_mark_read">Mark as read</string>
+    <string name="notify_video">Video</string>
+    <string name="notify_voice">Voice message</string>
+    <string name="notify_sticker">Sticker</string>
+    <string name="notify_message">New message</string>
+    <string name="notify_channel_private">Private chats</string>
+    <string name="notify_channel_groups">Groups and channels</string>
+    <string name="notify_channel_connection">Background connection</string>
+    <string name="notify_connected">pixelGram is connected</string>
+    <string name="notify_connected_sub">Keeps receiving messages in the background</string>
+    <string name="notify_settings">Notifications</string>
+    <string name="notify_keep_alive">Background connection</string>
+    <string name="notify_keep_alive_sub">Keep pixelGram running so messages arrive when the app is closed. Shows a silent notification.</string>
 </resources>

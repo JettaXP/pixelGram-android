@@ -77,6 +77,8 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
     val state: StateFlow<ChatUi> = ui.asStateFlow()
 
     init {
+        if (topicId == 0) com.pixelgram.android.notify.AppVisibility.openChat = chatId
+        graph.notifier.clear(chatId)
         val chat = graph.store.chat(chatId)
         readOutbox = chat?.lastReadOutboxMessageId ?: 0
         ui.value = ui.value.copy(title = chat?.title.orEmpty())
@@ -437,6 +439,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
     }
 
     fun close() {
+        if (com.pixelgram.android.notify.AppVisibility.openChat == chatId) com.pixelgram.android.notify.AppVisibility.openChat = 0L
         graph.td.fire(TdApi.CloseChat(chatId))
         scope.cancel()
     }
