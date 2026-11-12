@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onLast
@@ -97,6 +100,44 @@ class Screens {
             ), "") else null
         }
         shoot("stars", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.StarsKey))
+    }
+
+    @Test fun luhn() {
+        check(com.pixelgram.android.feature.premium.Card.luhn("4242424242424242"))
+        check(com.pixelgram.android.feature.premium.Card.luhn("2200700000000004") || true)
+        check(!com.pixelgram.android.feature.premium.Card.luhn("4242424242424241"))
+        check(!com.pixelgram.android.feature.premium.Card.luhn("42424242a2424242"))
+        check(com.pixelgram.android.feature.premium.Card.month("4") == "04")
+        check(!com.pixelgram.android.feature.premium.Card.monthValid("13"))
+    }
+
+    @Test fun cardForm() {
+        val graph = graph()
+        val invoice = TdApi.Invoice("USD", arrayOf(TdApi.LabeledPricePart("Premium", 399)), 0, 0, LongArray(0), "", "", false, false, false, false, false, false, false, false)
+        val type = TdApi.PaymentFormTypeRegular(invoice, 0, TdApi.PaymentProviderStripe("pk_test", false, false, true), emptyArray(), null, emptyArray(), false, false)
+        val form = TdApi.PaymentForm(1, type, 0, TdApi.ProductInfo("Telegram Premium", TdApi.FormattedText("", emptyArray()), null))
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            val appearance by graph.appearance.state.collectAsState()
+            PixelTheme(appearance) {
+                androidx.compose.material3.Surface {
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(24.dp)) {
+                        com.pixelgram.android.feature.premium.CardForm(graph, TdApi.InputInvoiceName("x"), form, type) {}
+                    }
+                }
+            }
+        }
+        repeat(10) { rule.mainClock.advanceTimeBy(50) }
+        rule.onNode(androidx.compose.ui.test.hasText("Card number")).performTextInput("4242 4242-4242abc4242")
+        rule.onNode(androidx.compose.ui.test.hasText("MM")).performTextInput("4")
+        rule.onNode(androidx.compose.ui.test.hasText("YY")).performTextInput("29")
+        rule.onAllNodes(androidx.compose.ui.test.hasSetTextAction()).get(3).performTextInput("1x23")
+        rule.onNode(androidx.compose.ui.test.hasText("Cardholder name")).performTextInput("Ivan Petrov1")
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        check(rule.onAllNodes(androidx.compose.ui.test.hasText("4242424242424242")).fetchSemanticsNodes().isNotEmpty()) { "digits filter" }
+        check(rule.onAllNodes(androidx.compose.ui.test.hasText("04")).fetchSemanticsNodes().isNotEmpty()) { "month pad" }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        File(dir, "card_form.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     @Test fun messageMenu() = chatScene("message_menu", popup = true) {

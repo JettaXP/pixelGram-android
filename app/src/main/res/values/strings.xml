@@ -568,7 +568,7 @@
     <string name="premium_f_badge_d">A special badge next to your name showing that you support Telegram.</string>
     <string name="pay_choose">Choose how to pay</string>
     <string name="pay_card">Card</string>
-    <string name="pay_card_sub">Telegram\'s official payment form</string>
+    <string name="pay_card_sub">Pay right here in pixelGram</string>
     <string name="pay_fragment">TON on Fragment</string>
     <string name="pay_fragment_sub">Pay with TON through fragment.com</string>
     <string name="pay_done">Payment successful</string>
@@ -603,4 +603,21 @@
     <string name="status_set">%1$s set this emoji as their current status.</string>
     <string name="status_from_pack">%1$s set this emoji from «%2$s» as their current status.</string>
     <string name="status_premium">Emoji statuses are a premium feature. Other features included in Telegram Premium:</string>
+    <string name="card_number">Card number</string>
+    <string name="card_expiry_month">MM</string>
+    <string name="card_expiry_year">YY</string>
+    <string name="card_cvc">CVC</string>
+    <string name="card_holder">Cardholder name</string>
+    <string name="card_country">Country</string>
+    <string name="card_postal">Postal code</string>
+    <string name="card_invalid_number">Invalid card number</string>
+    <string name="card_invalid_expiry">Invalid expiry date</string>
+    <string name="card_pay">Pay %1$s</string>
+    <string name="card_secure">Card details go straight to %1$s and are never stored in pixelGram.</string>
+    <string name="card_failed">Couldn\'t verify the card. Check the details and try again.</string>
+    <string name="card_verify">Confirm the payment with your bank in the browser.</string>
+    <string name="order_name">Name</string>
+    <string name="order_phone">Phone number</string>
+    <string name="order_email">Email</string>
+    <string name="stars_more">More options</string>
 </resources>

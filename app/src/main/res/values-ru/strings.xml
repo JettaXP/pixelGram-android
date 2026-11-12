@@ -581,7 +581,7 @@
     <string name="premium_f_badge_d">Особый значок рядом с именем, показывающий, что вы поддерживаете Telegram.</string>
     <string name="pay_choose">Выберите способ оплаты</string>
     <string name="pay_card">Картой</string>
-    <string name="pay_card_sub">Официальная платёжная форма Telegram</string>
+    <string name="pay_card_sub">Оплата прямо в pixelGram</string>
     <string name="pay_fragment">TON на Fragment</string>
     <string name="pay_fragment_sub">Оплата TON через fragment.com</string>
     <string name="pay_done">Оплата прошла</string>
@@ -616,4 +616,21 @@
     <string name="status_set">%1$s установил(а) этот эмодзи как статус.</string>
     <string name="status_from_pack">%1$s установил(а) этот эмодзи из набора «%2$s» как статус.</string>
     <string name="status_premium">Эмодзи-статусы — функция Premium. Что ещё входит в Telegram Premium:</string>
+    <string name="card_number">Номер карты</string>
+    <string name="card_expiry_month">ММ</string>
+    <string name="card_expiry_year">ГГ</string>
+    <string name="card_cvc">CVC</string>
+    <string name="card_holder">Имя владельца</string>
+    <string name="card_country">Страна</string>
+    <string name="card_postal">Почтовый индекс</string>
+    <string name="card_invalid_number">Неверный номер карты</string>
+    <string name="card_invalid_expiry">Неверный срок действия</string>
+    <string name="card_pay">Оплатить %1$s</string>
+    <string name="card_secure">Данные карты уходят напрямую в %1$s и не сохраняются в pixelGram.</string>
+    <string name="card_failed">Не удалось проверить карту. Проверьте данные и попробуйте снова.</string>
+    <string name="card_verify">Подтвердите оплату в банке через браузер.</string>
+    <string name="order_name">Имя</string>
+    <string name="order_phone">Номер телефона</string>
+    <string name="order_email">Почта</string>
+    <string name="stars_more">Другие варианты</string>
 </resources>

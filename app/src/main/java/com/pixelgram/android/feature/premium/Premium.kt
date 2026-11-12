@@ -407,15 +407,16 @@ private fun describe(context: Context, tx: TdApi.StarTransaction, snapshot: com.
 @Composable
 private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit) {
     val options by produceState<List<TdApi.StarPaymentOption>?>(null) {
-        value = runCatching { graph.td.send(TdApi.GetStarPaymentOptions()).options.filter { !it.isAdditional } }.getOrNull() ?: emptyList()
+        value = runCatching { graph.td.send(TdApi.GetStarPaymentOptions()).options.sortedBy { it.starCount } }.getOrNull() ?: emptyList()
     }
     var chosen by remember { mutableStateOf<TdApi.StarPaymentOption?>(null) }
+    var more by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.stars_top_up), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             val list = options
             if (list == null) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
-            list?.forEach { option ->
+            list?.filter { more || !it.isAdditional }?.forEach { option ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -425,6 +426,9 @@ private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit
                     Text(stringResource(R.string.stars_count, option.starCount), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     Text(price(option.amount, option.currency), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            if (!more && list?.any { it.isAdditional } == true) {
+                androidx.compose.material3.TextButton(onClick = { more = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.stars_more)) }
             }
         }
     }
@@ -506,27 +510,40 @@ fun PaymentHost() {
                             if (!enough) Text(stringResource(R.string.pay_not_enough), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                         }
                         is TdApi.PaymentFormTypeRegular -> {
-                            val total = type.invoice.priceParts.sumOf { it.amount }
-                            Text(price(total, type.invoice.currency), style = MaterialTheme.typography.headlineSmall)
-                            val url = (type.paymentProvider as? TdApi.PaymentProviderOther)?.url
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        val target = url ?: runCatching {
-                                            when (invoice) {
-                                                is TdApi.InputInvoiceName -> graph.td.send(TdApi.GetInternalLink(TdApi.InternalLinkTypeInvoice(invoice.name), true)).url
-                                                is TdApi.InputInvoiceMessage -> graph.td.send(TdApi.GetMessageLink().apply { chatId = invoice.chatId; messageId = invoice.messageId }).link
-                                                else -> null
-                                            }
-                                        }.getOrNull()
-                                        if (target != null) openUrl(context, target) else error = context.getString(R.string.pay_unavailable)
-                                        if (target != null) close()
-                                    }
-                                },
-                                shapes = ButtonDefaults.shapes(),
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                            ) { Text(stringResource(R.string.pay_card_open), style = MaterialTheme.typography.titleMedium) }
-                            Text(stringResource(R.string.pay_card_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                            val native = (type.paymentProvider is TdApi.PaymentProviderStripe || type.paymentProvider is TdApi.PaymentProviderSmartGlocal) && !type.invoice.needShippingAddress && !type.invoice.isFlexible
+                            if (native) {
+                                val verify = stringResource(R.string.card_verify)
+                                CardForm(graph, invoice, loaded, type) { url ->
+                                    if (url != null) {
+                                        openUrl(context, url)
+                                        Notice.show(verify)
+                                    } else Notice.show(done)
+                                    PaymentRequest.completed++
+                                    close()
+                                }
+                            } else {
+                                val total = type.invoice.priceParts.sumOf { it.amount }
+                                Text(price(total, type.invoice.currency), style = MaterialTheme.typography.headlineSmall)
+                                val url = (type.paymentProvider as? TdApi.PaymentProviderOther)?.url
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            val target = url ?: runCatching {
+                                                when (invoice) {
+                                                    is TdApi.InputInvoiceName -> graph.td.send(TdApi.GetInternalLink(TdApi.InternalLinkTypeInvoice(invoice.name), true)).url
+                                                    is TdApi.InputInvoiceMessage -> graph.td.send(TdApi.GetMessageLink().apply { chatId = invoice.chatId; messageId = invoice.messageId }).link
+                                                    else -> null
+                                                }
+                                            }.getOrNull()
+                                            if (target != null) openUrl(context, target) else error = context.getString(R.string.pay_unavailable)
+                                            if (target != null) close()
+                                        }
+                                    },
+                                    shapes = ButtonDefaults.shapes(),
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                ) { Text(stringResource(R.string.pay_card_open), style = MaterialTheme.typography.titleMedium) }
+                                Text(stringResource(R.string.pay_card_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                            }
                         }
                         else -> Text(stringResource(R.string.pay_unavailable), textAlign = TextAlign.Center)
                     }
