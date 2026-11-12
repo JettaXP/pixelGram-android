@@ -100,6 +100,21 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 )
             }
             SettingsGroup {
+                val sections = SettingsSection.entries
+                sections.forEachIndexed { index, section ->
+                    SettingsItem(
+                        title = stringResource(section.title),
+                        subtitle = stringResource(section.subtitle),
+                        icon = section.icon,
+                        iconBackground = section.tone.container(MaterialTheme.colorScheme),
+                        iconTint = section.tone.content(MaterialTheme.colorScheme),
+                        iconShape = section.shape(),
+                        position = segmentPosition(index, sections.size),
+                        onClick = { navigator.open(SettingsSectionKey(section.name)) },
+                    )
+                }
+            }
+            SettingsGroup {
                 val balance by androidx.compose.runtime.produceState<org.drinkless.tdlib.TdApi.StarAmount?>(null) { value = com.pixelgram.android.feature.premium.starBalance(graph) }
                 SettingsItem(
                     title = stringResource(R.string.premium_title),
@@ -114,24 +129,17 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     icon = androidx.compose.material.icons.Icons.Rounded.Star,
                     iconBackground = com.pixelgram.android.feature.premium.StarGold[1],
                     iconTint = androidx.compose.ui.graphics.Color.White,
-                    position = SegmentPosition.Bottom,
+                    position = SegmentPosition.Middle,
                     onClick = { navigator.open(com.pixelgram.android.nav.StarsKey) },
                 ) { balance?.let { Text(com.pixelgram.android.feature.premium.stars(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
-            }
-            SettingsGroup {
-                val sections = SettingsSection.entries
-                sections.forEachIndexed { index, section ->
-                    SettingsItem(
-                        title = stringResource(section.title),
-                        subtitle = stringResource(section.subtitle),
-                        icon = section.icon,
-                        iconBackground = section.tone.container(MaterialTheme.colorScheme),
-                        iconTint = section.tone.content(MaterialTheme.colorScheme),
-                        iconShape = section.shape(),
-                        position = segmentPosition(index, sections.size),
-                        onClick = { navigator.open(SettingsSectionKey(section.name)) },
-                    )
-                }
+                SettingsItem(
+                    title = stringResource(R.string.business_title),
+                    icon = com.pixelgram.android.feature.premium.BusinessIcon,
+                    iconBackground = androidx.compose.ui.graphics.Color(0xFFE5484D),
+                    iconTint = androidx.compose.ui.graphics.Color.White,
+                    position = SegmentPosition.Bottom,
+                    onClick = { navigator.open(com.pixelgram.android.nav.BusinessKey) },
+                )
             }
             SettingsGroup {
                 SettingsItem(

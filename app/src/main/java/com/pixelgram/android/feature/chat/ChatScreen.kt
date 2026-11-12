@@ -185,6 +185,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var menuAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var selected by remember(chatId) { mutableStateOf<List<UiMessage>>(emptyList()) }
     val toggleSelected: (UiMessage) -> Unit = { m -> selected = if (selected.any { it.id == m.id }) selected.filterNot { it.id == m.id } else selected + m }
+    com.pixelgram.android.nav.BackBlock(selected.isNotEmpty())
     androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptyList() }
     var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
@@ -1173,6 +1174,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     var emoji by remember { mutableStateOf(false) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    com.pixelgram.android.nav.BackBlock(emoji)
     BackHandler(enabled = emoji) { emoji = false }
     if (attach) AttachSheet(controller, onPhotos = {
         attach = false

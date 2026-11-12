@@ -360,10 +360,15 @@ private fun VideoNoteView(note: TdApi.VideoNote, files: Map<Int, String>, onNeed
 
 @Composable
 private fun StickerContent(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit) {
+    StickerView(sticker, files, onNeedFile, Modifier.padding(4.dp).size(StickerSize))
+}
+
+@Composable
+internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier) {
     val path = localPath(sticker.sticker, files)
     if (path == null) LaunchedEffect(sticker.sticker.id) { onNeedFile(sticker.sticker.id) }
     val thumb = localPath(sticker.thumbnail?.file, files)
-    Box(Modifier.padding(4.dp).size(StickerSize), contentAlignment = Alignment.Center) {
+    Box(modifier, contentAlignment = Alignment.Center) {
         when {
             path != null && sticker.format is TdApi.StickerFormatTgs -> {
                 val json by androidx.compose.runtime.produceState<String?>(null, path) { value = com.pixelgram.android.ui.components.EmojiStickers.tgs(path) }

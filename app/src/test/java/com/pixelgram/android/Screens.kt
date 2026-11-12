@@ -91,6 +91,8 @@ class Screens {
         shoot("premium", graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.PremiumKey))
     }
 
+    @Test fun business() = shoot("business", graph(), listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.BusinessKey))
+
     @Test fun stars() {
         val graph = graph()
         graph.td.offlineReply = { f ->

@@ -143,6 +143,7 @@ fun ChatsTab(
     var fabMenu by remember { mutableStateOf(false) }
     var scrollTop by remember { mutableStateOf(0) }
     var newChat by remember { mutableStateOf<Boolean?>(null) }
+    com.pixelgram.android.nav.BackBlock(fabMenu)
     BackHandler(enabled = fabMenu) { fabMenu = false }
     LaunchedEffect(tracker.hidden) { if (tracker.hidden) fabMenu = false }
     if (newMessage) NewMessageSheet(graph, navigator) { newMessage = false }

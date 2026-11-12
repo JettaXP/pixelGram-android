@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -43,6 +44,8 @@ import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.Diamond
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -88,6 +91,8 @@ import com.pixelgram.android.nav.Navigator
 import com.pixelgram.android.ui.components.Icon
 import com.pixelgram.android.ui.components.Notice
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import org.drinkless.tdlib.TdApi
 
 val PremiumGradient = listOf(Color(0xFF6B93FF), Color(0xFF976FFF), Color(0xFFE46ACE))
@@ -102,7 +107,7 @@ internal fun openUrl(context: Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-private class Feature(val icon: ImageVector, val title: Int, val text: Int)
+internal class Feature(val icon: ImageVector, val title: Int, val text: Int, val key: String = "")
 
 private val Features = listOf(
     Feature(Icons.Rounded.PlayCircle, R.string.premium_f_stories, R.string.premium_f_stories_d),
@@ -121,7 +126,7 @@ private val Features = listOf(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun GradientMark(icon: ImageVector, colors: List<Color>, size: androidx.compose.ui.unit.Dp) {
+internal fun GradientMark(icon: ImageVector, colors: List<Color>, size: androidx.compose.ui.unit.Dp) {
     Box(
         Modifier.size(size).clip(MaterialShapes.Cookie12Sided.toShape()).background(Brush.linearGradient(colors)),
         contentAlignment = Alignment.Center,
@@ -129,17 +134,19 @@ private fun GradientMark(icon: ImageVector, colors: List<Color>, size: androidx.
 }
 
 @Composable
-private fun FeatureRows() {
+internal fun FeatureRows(features: List<Feature> = Features, onClick: ((Feature) -> Unit)? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Features.forEachIndexed { index, feature ->
+        features.forEachIndexed { index, feature ->
             val shape = when (index) {
                 0 -> RoundedCornerShape(24.dp, 24.dp, 6.dp, 6.dp)
-                Features.lastIndex -> RoundedCornerShape(6.dp, 6.dp, 24.dp, 24.dp)
+                features.lastIndex -> RoundedCornerShape(6.dp, 6.dp, 24.dp, 24.dp)
                 else -> RoundedCornerShape(6.dp)
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .then(if (onClick != null) Modifier.clickable { onClick(feature) } else Modifier).padding(16.dp),
             ) {
                 val tone = PremiumGradient[index % PremiumGradient.size]
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(tone.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
@@ -149,6 +156,7 @@ private fun FeatureRows() {
                     Text(stringResource(feature.title), style = MaterialTheme.typography.titleSmall)
                     Text(stringResource(feature.text), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                if (onClick != null) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -156,7 +164,8 @@ private fun FeatureRows() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun PremiumScreen(graph: AppGraph, navigator: Navigator) {
+fun PremiumScreen(graph: AppGraph, navigator: Navigator, business: Boolean = false) {
+    var editor by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val snapshot by graph.store.snapshot.collectAsState()
     val me = snapshot.users[snapshot.meId]
@@ -185,11 +194,11 @@ fun PremiumScreen(graph: AppGraph, navigator: Navigator) {
             Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(PremiumGradient[1].copy(alpha = 0.45f), Color.Transparent)))) {
                 IconButton(onClick = { navigator.back() }, modifier = Modifier.statusBarsPadding().padding(4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 56.dp, bottom = 16.dp, start = 24.dp, end = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    GradientMark(Icons.Rounded.Star, PremiumGradient, 112.dp)
+                    GradientMark(if (business) Icons.Rounded.Storefront else Icons.Rounded.Star, PremiumGradient, 112.dp)
                     Spacer(Modifier.height(20.dp))
-                    Text(stringResource(R.string.premium_title), style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
+                    Text(stringResource(if (business) R.string.business_title else R.string.premium_title), style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
                     Text(
-                        stringResource(if (me?.premium == true) R.string.premium_active else R.string.premium_lead),
+                        stringResource(if (business) (if (me?.premium == true) R.string.business_active else R.string.business_lead) else if (me?.premium == true) R.string.premium_active else R.string.premium_lead),
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -230,11 +239,15 @@ fun PremiumScreen(graph: AppGraph, navigator: Navigator) {
                         }
                     }
                 }
-                FeatureRows()
+                if (business) {
+                    FeatureRows(BusinessFeatures, if (me?.premium == true) ({ editor = it.key }) else null)
+                    Text(stringResource(R.string.business_later), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+                } else FeatureRows()
                 Spacer(Modifier.height(8.dp))
             }
         }
     }
+    editor?.let { BusinessEditor(graph, it) { editor = null } }
     if (paying) {
         val option = options.getOrNull(picked)
         PayMethodSheet(
@@ -263,14 +276,16 @@ private fun PayMethodSheet(graph: AppGraph, title: String, link: TdApi.InternalL
             Text(title, style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             Text(stringResource(R.string.pay_choose), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
             PayRow(Icons.Rounded.CreditCard, stringResource(R.string.pay_card), stringResource(R.string.pay_card_sub)) {
-                scope.launch {
-                    val target = invoice ?: (link as? TdApi.InternalLinkTypeInvoice)?.let { TdApi.InputInvoiceName(it.invoiceName) }
+                if (invoice == null) Notice.show(context.getString(R.string.pay_opening))
+                onDismiss()
+                graph.scope.launch {
+                    val target = invoice ?: resolveInvoice(graph, link)
                     if (target != null) {
                         PaymentRequest.current = target
                     } else if (link != null) {
-                        runCatching { graph.td.send(TdApi.GetInternalLink(link, true)).url }.getOrNull()?.let { openUrl(context, it) }
-                    }
-                    onDismiss()
+                        val url = runCatching { graph.td.send(TdApi.GetInternalLink(link, true)).url }.getOrNull()
+                        if (url != null) openUrl(context, url) else Notice.show(context.getString(R.string.pay_unavailable))
+                    } else Notice.show(context.getString(R.string.pay_unavailable))
                 }
             }
             PayRow(Icons.Rounded.Diamond, stringResource(R.string.pay_fragment), stringResource(R.string.pay_fragment_sub)) {
@@ -279,6 +294,24 @@ private fun PayMethodSheet(graph: AppGraph, title: String, link: TdApi.InternalL
             }
         }
     }
+}
+
+suspend fun resolveInvoice(graph: AppGraph, link: TdApi.InternalLinkType?): TdApi.InputInvoice? = when (link) {
+    is TdApi.InternalLinkTypeInvoice -> TdApi.InputInvoiceName(link.invoiceName)
+    is TdApi.InternalLinkTypeBotStart -> runCatching {
+        val chat = graph.td.send(TdApi.SearchPublicChat(link.botUsername))
+        val botId = (chat.type as TdApi.ChatTypePrivate).userId
+        kotlinx.coroutines.coroutineScope {
+            val waiter = async {
+                kotlinx.coroutines.withTimeoutOrNull(20_000) {
+                    graph.td.updates.first { u -> u is TdApi.UpdateNewMessage && u.message.chatId == chat.id && u.message.content is TdApi.MessageInvoice }
+                } as? TdApi.UpdateNewMessage
+            }
+            graph.td.send(TdApi.SendBotStartMessage(botId, chat.id, link.startParameter))
+            waiter.await()?.message?.let { TdApi.InputInvoiceMessage(it.chatId, it.id) }
+        }
+    }.getOrNull()
+    else -> null
 }
 
 @Composable
@@ -315,6 +348,7 @@ fun StarsScreen(graph: AppGraph, navigator: Navigator) {
     val snapshot by graph.store.snapshot.collectAsState()
     var tab by remember { mutableStateOf(0) }
     var topUp by remember { mutableStateOf(false) }
+    var opened by remember { mutableStateOf<TdApi.StarTransaction?>(null) }
     var reload by remember { mutableStateOf(0) }
     val data by produceState<TdApi.StarTransactions?>(null, tab, reload) {
         val direction = when (tab) {
@@ -359,29 +393,166 @@ fun StarsScreen(graph: AppGraph, navigator: Navigator) {
         val list = data?.transactions.orEmpty()
         if (data == null) item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { LoadingIndicator() } }
         else if (list.isEmpty()) item { Text(stringResource(R.string.stars_empty), modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        items(list, key = { it.id }) { tx -> TransactionRow(tx, snapshot) }
+        items(list, key = { it.id }) { tx -> TransactionRow(graph, tx, snapshot) { opened = tx } }
     }
     }
     if (topUp) TopUpSheet(graph, snapshot.users[snapshot.meId]?.username) { topUp = false }
+    opened?.let { TransactionSheet(graph, it) { opened = null } }
+}
+
+private fun txPeer(type: TdApi.StarTransactionType): TdApi.MessageSender? {
+    var fallback: TdApi.MessageSender? = null
+    for (field in type.javaClass.fields) {
+        val value = runCatching { field.get(type) }.getOrNull() ?: continue
+        when {
+            value is TdApi.MessageSender -> return value
+            field.name == "userId" && value is Long && value != 0L -> return TdApi.MessageSenderUser(value)
+            field.name == "chatId" && value is Long && value != 0L -> fallback = TdApi.MessageSenderChat(value)
+        }
+    }
+    return fallback
+}
+
+private fun txSticker(type: TdApi.StarTransactionType): TdApi.Sticker? {
+    for (field in type.javaClass.fields) {
+        when (val value = runCatching { field.get(type) }.getOrNull()) {
+            is TdApi.Gift -> return value.sticker
+            is TdApi.UpgradedGift -> return value.model?.sticker
+            is TdApi.Sticker -> return value
+        }
+    }
+    return null
+}
+
+internal data class Peer(val id: Long, val title: String, val photoFileId: Int, val minithumb: ByteArray?)
+
+@Composable
+internal fun rememberPeer(graph: AppGraph, sender: TdApi.MessageSender?): Peer? {
+    val peer by produceState<Peer?>(null, sender) {
+        value = when (sender) {
+            is TdApi.MessageSenderUser -> runCatching { graph.td.send(TdApi.GetUser(sender.userId)) }.getOrNull()?.let {
+                Peer(it.id, listOf(it.firstName, it.lastName).filter { s -> s.isNotBlank() }.joinToString(" "), it.profilePhoto?.small?.id ?: 0, it.profilePhoto?.minithumbnail?.data)
+            }
+            is TdApi.MessageSenderChat -> runCatching { graph.td.send(TdApi.GetChat(sender.chatId)) }.getOrNull()?.let {
+                Peer(it.id, it.title, it.photo?.small?.id ?: 0, it.photo?.minithumbnail?.data)
+            }
+            else -> null
+        }
+    }
+    return peer
 }
 
 @Composable
-private fun TransactionRow(tx: TdApi.StarTransaction, snapshot: com.pixelgram.android.td.StoreSnapshot) {
+private fun PeerAvatar(graph: AppGraph, peer: Peer, size: androidx.compose.ui.unit.Dp) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    com.pixelgram.android.ui.components.Avatar(
+        title = peer.title,
+        seed = peer.id,
+        path = snapshot.files[peer.photoFileId],
+        minithumb = peer.minithumb,
+        size = size,
+        onNeedFile = if (peer.photoFileId != 0) ({ graph.store.requestFileAsync(peer.photoFileId) }) else null,
+    )
+}
+
+@Composable
+private fun TxSticker(graph: AppGraph, sticker: TdApi.Sticker, size: androidx.compose.ui.unit.Dp) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(size))
+}
+
+private val TxShortDate = java.text.SimpleDateFormat("MMM d, HH:mm:ss", java.util.Locale.getDefault())
+private val TxLongDate = java.text.SimpleDateFormat("d MMMM yyyy, HH:mm:ss", java.util.Locale.getDefault())
+
+private fun TdApi.StarTransaction.incoming() = starAmount.starCount > 0 || (starAmount.starCount == 0L && starAmount.nanostarCount > 0)
+
+@Composable
+private fun TxAmount(tx: TdApi.StarTransaction, style: androidx.compose.ui.text.TextStyle, star: androidx.compose.ui.unit.Dp) {
+    val incoming = tx.incoming()
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text((if (incoming) "+" else "") + stars(tx.starAmount), style = style, color = if (incoming) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error)
+        Icon(Icons.Rounded.Star, null, tint = StarGold[0], modifier = Modifier.size(star))
+    }
+}
+
+@Composable
+private fun TransactionRow(graph: AppGraph, tx: TdApi.StarTransaction, snapshot: com.pixelgram.android.td.StoreSnapshot, onClick: () -> Unit) {
     val context = LocalContext.current
-    val incoming = tx.starAmount.starCount > 0 || (tx.starAmount.starCount == 0L && tx.starAmount.nanostarCount > 0)
-    val (title, subtitle) = describe(context, tx, snapshot)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Star, null, tint = StarGold[1])
+    val (label, _) = describe(context, tx, snapshot)
+    val peer = rememberPeer(graph, txPeer(tx.type))
+    val sticker = txSticker(tx.type)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)) {
+        if (peer != null) PeerAvatar(graph, peer, 48.dp)
+        else Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(StarGold)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Star, null, tint = Color.White)
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(tx.date * 1000L)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(peer?.title?.takeIf { it.isNotBlank() } ?: label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (peer != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (sticker != null) TxSticker(graph, sticker, 18.dp)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(TxShortDate.format(java.util.Date(tx.date * 1000L)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val amount = (if (incoming) "+" else "") + stars(tx.starAmount)
-        Text(amount, style = MaterialTheme.typography.titleMedium, color = if (incoming) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error)
-        Icon(Icons.Rounded.Star, null, tint = StarGold[0], modifier = Modifier.size(18.dp))
+        TxAmount(tx, MaterialTheme.typography.titleMedium, 18.dp)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TransactionSheet(graph: AppGraph, tx: TdApi.StarTransaction, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val snapshot by graph.store.snapshot.collectAsState()
+    val (label, _) = describe(context, tx, snapshot)
+    val other = rememberPeer(graph, txPeer(tx.type))
+    val me = rememberPeer(graph, remember { TdApi.MessageSenderUser(snapshot.meId) })
+    val sticker = txSticker(tx.type)
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val copied = stringResource(R.string.stars_tx_copied)
+    val (from, to) = if (tx.incoming()) other to me else me to other
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            when {
+                sticker != null -> TxSticker(graph, sticker, 140.dp)
+                other != null -> PeerAvatar(graph, other, 96.dp)
+                else -> GradientMark(Icons.Rounded.Star, StarGold, 96.dp)
+            }
+            Text(label, style = MaterialTheme.typography.headlineSmallEmphasized, textAlign = TextAlign.Center)
+            TxAmount(tx, MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), 28.dp)
+            Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    @Composable
+                    fun Line(name: Int, content: @Composable () -> Unit) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            Text(stringResource(name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(110.dp))
+                            Box(Modifier.weight(1f)) { content() }
+                        }
+                    }
+                    @Composable
+                    fun PeerLine(peer: Peer) = Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PeerAvatar(graph, peer, 28.dp)
+                        Text(peer.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val divider = @Composable { androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)) }
+                    if (from != null) { Line(R.string.stars_tx_from) { PeerLine(from) }; divider() }
+                    if (to != null) { Line(R.string.stars_tx_to) { PeerLine(to) }; divider() }
+                    Line(R.string.stars_tx_id) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(tx.id, style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), modifier = Modifier.weight(1f))
+                            IconButton(onClick = {
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(tx.id))
+                                Notice.show(copied)
+                            }) { Icon(Icons.Rounded.ContentCopy, stringResource(R.string.stars_tx_id)) }
+                        }
+                    }
+                    divider()
+                    Line(R.string.stars_tx_date) { Text(TxLongDate.format(java.util.Date(tx.date * 1000L)), style = MaterialTheme.typography.titleSmall) }
+                }
+            }
+            if (tx.isRefund) Text(stringResource(R.string.stars_tx_refund), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            androidx.compose.material3.TextButton(onClick = { openUrl(context, "https://telegram.org/tos/stars") }) { Text(stringResource(R.string.stars_tos)) }
+            Button(onClick = onDismiss, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(stringResource(android.R.string.ok), style = MaterialTheme.typography.titleMedium) }
+        }
     }
 }
 
@@ -598,3 +769,4 @@ fun EmojiStatusHost(onPremium: () -> Unit) {
         }
     }
 }
+val BusinessIcon get() = androidx.compose.material.icons.Icons.Rounded.Storefront

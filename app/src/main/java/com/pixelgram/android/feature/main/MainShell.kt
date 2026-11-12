@@ -94,6 +94,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     var list by rememberSaveable { mutableStateOf(LIST_MAIN) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    com.pixelgram.android.nav.BackBlock(drawer.isOpen)
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
     BackHandler(enabled = !drawer.isOpen && (tab != MainTab.Chats || list == LIST_ARCHIVE)) {
         if (list == LIST_ARCHIVE) list = LIST_MAIN else tab = MainTab.Chats
