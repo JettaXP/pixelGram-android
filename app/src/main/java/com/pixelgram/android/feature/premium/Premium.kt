@@ -638,6 +638,40 @@ fun PaymentHost() {
     var busy by remember(invoice) { mutableStateOf(false) }
     val close = { PaymentRequest.current = null }
     val done = stringResource(R.string.pay_done)
+    var web by remember(invoice) { mutableStateOf<String?>(null) }
+    LaunchedEffect(form) { (((form?.type as? TdApi.PaymentFormTypeRegular)?.paymentProvider) as? TdApi.PaymentProviderOther)?.url?.let { web = it } }
+    val finish = {
+        Notice.show(done)
+        PaymentRequest.completed++
+        web = null
+        close()
+    }
+    web?.let { url ->
+        PaymentWebDialog(
+            url = url,
+            title = form?.productInfo?.title.orEmpty(),
+            onCredentials = { json ->
+                val loaded = form
+                if (loaded != null) {
+                    busy = true
+                    web = null
+                    scope.launch {
+                        runCatching { graph.td.send(TdApi.SendPaymentForm(invoice, loaded.id, "", "", TdApi.InputCredentialsNew(json, false), 0)) }
+                            .onSuccess { result ->
+                                busy = false
+                                if (result.verificationUrl.isNotBlank()) web = result.verificationUrl else finish()
+                            }
+                            .onFailure {
+                                busy = false
+                                error = it.message
+                            }
+                    }
+                }
+            },
+            onFinished = { finish() },
+            onDismiss = { web = null },
+        )
+    }
     ModalBottomSheet(onDismissRequest = close) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val loaded = form
@@ -686,11 +720,9 @@ fun PaymentHost() {
                                 val verify = stringResource(R.string.card_verify)
                                 CardForm(graph, invoice, loaded, type) { url ->
                                     if (url != null) {
-                                        openUrl(context, url)
                                         Notice.show(verify)
-                                    } else Notice.show(done)
-                                    PaymentRequest.completed++
-                                    close()
+                                        web = url
+                                    } else finish()
                                 }
                             } else {
                                 val total = type.invoice.priceParts.sumOf { it.amount }
@@ -699,7 +731,11 @@ fun PaymentHost() {
                                 Button(
                                     onClick = {
                                         scope.launch {
-                                            val target = url ?: runCatching {
+                                            if (url != null) {
+                                                web = url
+                                                return@launch
+                                            }
+                                            val target = runCatching {
                                                 when (invoice) {
                                                     is TdApi.InputInvoiceName -> graph.td.send(TdApi.GetInternalLink(TdApi.InternalLinkTypeInvoice(invoice.name), true)).url
                                                     is TdApi.InputInvoiceMessage -> graph.td.send(TdApi.GetMessageLink().apply { chatId = invoice.chatId; messageId = invoice.messageId }).link
@@ -712,8 +748,11 @@ fun PaymentHost() {
                                     },
                                     shapes = ButtonDefaults.shapes(),
                                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                                ) { Text(stringResource(R.string.pay_card_open), style = MaterialTheme.typography.titleMedium) }
-                                Text(stringResource(R.string.pay_card_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                ) {
+                                    if (busy) LoadingIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                                    else Text(stringResource(R.string.pay_card_open), style = MaterialTheme.typography.titleMedium)
+                                }
+                                if (url == null) Text(stringResource(R.string.pay_card_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                             }
                         }
                         else -> Text(stringResource(R.string.pay_unavailable), textAlign = TextAlign.Center)
