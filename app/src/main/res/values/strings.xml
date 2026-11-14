@@ -691,4 +691,16 @@
         <item quantity="one">%1$d year old</item>
         <item quantity="other">%1$d years old</item>
     </plurals>
+    <string name="settings_copy_link">Copy link</string>
+    <string name="settings_link_copied">Link copied</string>
+    <string name="update_version">%1$s (build %2$d)</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_latest">You have the latest version</string>
+    <string name="update_available">Build %1$d is available</string>
+    <string name="update_downloading">Downloading build %1$d</string>
+    <string name="update_ready">Build %1$d is ready</string>
+    <string name="update_failed">Couldn\'t check for updates</string>
+    <string name="update_download">Download</string>
+    <string name="update_install">Install</string>
+    <string name="update_check">Check for updates</string>
 </resources>

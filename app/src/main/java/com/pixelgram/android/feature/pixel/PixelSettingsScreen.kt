@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.pixel
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.SystemUpdate
 import com.pixelgram.android.settings.DrawerEntry
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.background
@@ -162,10 +166,10 @@ internal fun HomePage(open: (String) -> Unit) {
         Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     SettingsGroup(stringResource(R.string.pixel_categories)) {
-        SettingsItem(stringResource(R.string.pixel_general), SegmentPosition.Top, stringResource(R.string.pixel_general_sub), Icons.Rounded.Tune, onClick = { open("general") })
-        SettingsItem(stringResource(R.string.pixel_appearance), SegmentPosition.Middle, stringResource(R.string.pixel_appearance_sub), Icons.Rounded.Palette, onClick = { open("appearance") })
-        SettingsItem(stringResource(R.string.pixel_chats), SegmentPosition.Middle, stringResource(R.string.pixel_chats_sub), Icons.Rounded.Chat, onClick = { open("chats") })
-        SettingsItem(stringResource(R.string.pixel_about), SegmentPosition.Bottom, stringResource(R.string.pixel_about_sub), Icons.Rounded.Info, onClick = { open("about") })
+        SettingsItem(stringResource(R.string.pixel_general), SegmentPosition.Top, stringResource(R.string.pixel_general_sub), Icons.Rounded.Tune, onClick = { open("general") }, link = "pg://pixel/general")
+        SettingsItem(stringResource(R.string.pixel_appearance), SegmentPosition.Middle, stringResource(R.string.pixel_appearance_sub), Icons.Rounded.Palette, onClick = { open("appearance") }, link = "pg://pixel/appearance")
+        SettingsItem(stringResource(R.string.pixel_chats), SegmentPosition.Middle, stringResource(R.string.pixel_chats_sub), Icons.Rounded.Chat, onClick = { open("chats") }, link = "pg://pixel/chats")
+        SettingsItem(stringResource(R.string.pixel_about), SegmentPosition.Bottom, stringResource(R.string.pixel_about_sub), Icons.Rounded.Info, onClick = { open("about") }, link = "pg://pixel/about")
     }
 }
 
@@ -433,6 +437,7 @@ internal fun AboutPage() {
         PixelLogo(88.dp)
         Text(stringResource(R.string.pixel_about_text), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    UpdateCard()
     SettingsGroup(stringResource(R.string.support_title)) {
         SettingsItem(stringResource(R.string.support_entry), SegmentPosition.Single, stringResource(R.string.support_entry_sub), Icons.Rounded.Favorite, onClick = { SupportProject.open = true })
     }
@@ -442,7 +447,7 @@ internal fun AboutPage() {
         SettingsItem(stringResource(R.string.pixel_source), SegmentPosition.Bottom, "GitHub", Icons.Rounded.Code, onClick = { uri.openUri("https://github.com/JettaXP") })
     }
     SettingsGroup(stringResource(R.string.pixel_info)) {
-        SettingsItem(stringResource(R.string.pixel_version), SegmentPosition.Top, BuildConfig.VERSION_NAME, Icons.Rounded.Info)
+        SettingsItem(stringResource(R.string.pixel_version), SegmentPosition.Top, stringResource(R.string.update_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), Icons.Rounded.Info)
         SettingsItem(stringResource(R.string.pixel_credits), SegmentPosition.Bottom, stringResource(R.string.pixel_credits_sub), Icons.Rounded.Palette)
     }
 }
@@ -699,6 +704,94 @@ private fun BubblePreview(settings: AppearanceSettings) {
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun UpdateCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val graph = com.pixelgram.android.LocalGraph.current
+    val updater = com.pixelgram.android.update.Updater
+    val state = updater.state
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (state is com.pixelgram.android.update.UpdateState.Idle) updater.check(graph.scope) }
+    androidx.compose.material3.Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.padding(20.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(
+                    Modifier.size(48.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (state) {
+                        is com.pixelgram.android.update.UpdateState.Checking -> androidx.compose.material3.LoadingIndicator(Modifier.size(32.dp))
+                        else -> Icon(
+                            when (state) {
+                                is com.pixelgram.android.update.UpdateState.Latest -> Icons.Rounded.CheckCircle
+                                is com.pixelgram.android.update.UpdateState.Failed -> Icons.Rounded.ErrorOutline
+                                else -> Icons.Rounded.SystemUpdate
+                            },
+                            null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    val title = when (state) {
+                        is com.pixelgram.android.update.UpdateState.Idle, is com.pixelgram.android.update.UpdateState.Checking -> stringResource(R.string.update_checking)
+                        is com.pixelgram.android.update.UpdateState.Latest -> stringResource(R.string.update_latest)
+                        is com.pixelgram.android.update.UpdateState.Available -> stringResource(R.string.update_available, state.build)
+                        is com.pixelgram.android.update.UpdateState.Downloading -> stringResource(R.string.update_downloading, state.build)
+                        is com.pixelgram.android.update.UpdateState.Ready -> stringResource(R.string.update_ready, state.build)
+                        is com.pixelgram.android.update.UpdateState.Failed -> stringResource(R.string.update_failed)
+                    }
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    val sub = when (state) {
+                        is com.pixelgram.android.update.UpdateState.Available -> if (state.size > 0) "%.1f MB".format(state.size / 1048576.0) else null
+                        is com.pixelgram.android.update.UpdateState.Downloading -> "${(state.progress * 100).toInt()}%"
+                        is com.pixelgram.android.update.UpdateState.Failed -> state.message
+                        else -> stringResource(R.string.update_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+                    }
+                    if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (state is com.pixelgram.android.update.UpdateState.Available && state.notes.isNotBlank()) {
+                androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                    Text(state.notes, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth().padding(12.dp))
+                }
+            }
+            if (state is com.pixelgram.android.update.UpdateState.Downloading) {
+                androidx.compose.material3.LinearWavyProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                when (state) {
+                    is com.pixelgram.android.update.UpdateState.Available -> androidx.compose.material3.Button(
+                        onClick = { updater.download(context, graph.scope) },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.update_download)) }
+                    is com.pixelgram.android.update.UpdateState.Downloading -> androidx.compose.material3.OutlinedButton(
+                        onClick = { updater.cancel() },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.action_cancel)) }
+                    is com.pixelgram.android.update.UpdateState.Ready -> androidx.compose.material3.Button(
+                        onClick = { updater.install(context, state.file) },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.update_install)) }
+                    is com.pixelgram.android.update.UpdateState.Checking -> Unit
+                    else -> androidx.compose.material3.FilledTonalButton(
+                        onClick = { updater.check(graph.scope) },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.update_check)) }
                 }
             }
         }

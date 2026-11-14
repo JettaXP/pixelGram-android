@@ -120,6 +120,8 @@ class Notifier(private val context: Context, private val td: TdClient, private v
         )
         val notification = NotificationCompat.Builder(context, if (group) ChannelGroups else ChannelPrivate)
             .setSmallIcon(R.drawable.ic_pixelgram)
+            .setColor(accentColor(context))
+            .setColorized(false)
             .setStyle(style)
             .setLargeIcon(avatar)
             .setContentIntent(open)
@@ -137,6 +139,8 @@ class Notifier(private val context: Context, private val td: TdClient, private v
                 SummaryId,
                 NotificationCompat.Builder(context, if (group) ChannelGroups else ChannelPrivate)
                     .setSmallIcon(R.drawable.ic_pixelgram)
+            .setColor(accentColor(context))
+            .setColorized(false)
                     .setGroup(GroupKey)
                     .setGroupSummary(true)
                     .setAutoCancel(true)
@@ -257,6 +261,8 @@ class KeepAliveService : android.app.Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, Notifier.ChannelService)
             .setSmallIcon(R.drawable.ic_pixelgram)
+            .setColor(accentColor(this))
+            .setColorized(false)
             .setContentTitle(getString(R.string.notify_connected))
             .setContentText(getString(R.string.notify_connected_sub))
             .setContentIntent(open)
@@ -279,3 +285,6 @@ class KeepAliveService : android.app.Service() {
         }
     }
 }
+
+internal fun accentColor(context: Context): Int =
+    if (Build.VERSION.SDK_INT >= 31) context.getColor(android.R.color.system_accent1_400) else 0xFF7C9A5A.toInt()

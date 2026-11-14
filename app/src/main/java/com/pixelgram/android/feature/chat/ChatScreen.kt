@@ -1,5 +1,10 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.indication
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import java.io.File
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.rounded.Visibility
@@ -655,6 +660,7 @@ internal fun MessageBubble(
 ) {
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val big = prefs.bubbleRadius.dp
     val small = prefs.bubbleTailRadius.dp
     val shape = if (message.outgoing) {
@@ -711,7 +717,37 @@ internal fun MessageBubble(
                 .widthIn(max = 320.dp)
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .clip(shape)
-                .combinedClickable(onClick = { onTap(bounds) }, onLongClick = { onLongPress(bounds) }, onDoubleClick = if (selecting) null else onDoubleTap),
+                .pointerInput(selecting) {
+                    val doubleWindow = 220L
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
+                        interaction.tryEmit(press)
+                        val pointAt = { y: Float -> androidx.compose.ui.geometry.Rect(bounds.left, bounds.top + y, bounds.right, bounds.top + y) }
+                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) { waitForUpOrCancellation() }
+                        interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                        if (up == null) {
+                            if (currentEvent.changes.any { it.pressed }) {
+                                onLongPress(pointAt(down.position.y))
+                                currentEvent.changes.forEach { it.consume() }
+                                while (currentEvent.changes.any { it.pressed }) awaitPointerEvent()
+                            }
+                            return@awaitEachGesture
+                        }
+                        if (selecting) {
+                            onTap(pointAt(up.position.y))
+                            return@awaitEachGesture
+                        }
+                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                        if (second != null) {
+                            waitForUpOrCancellation()
+                            onDoubleTap()
+                        } else {
+                            onTap(pointAt(up.position.y))
+                        }
+                    }
+                }
+                .indication(interaction, androidx.compose.material3.ripple()),
         ) {
             Column(Modifier.padding(4.dp)) {
                 if (senderName != null) {
@@ -2079,6 +2115,16 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                     "tg-credits",
                     androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)),
                 ) { com.pixelgram.android.feature.pixel.Credits.open = true },
+                match.range.first,
+                match.range.last + 1,
+            )
+        }
+        com.pixelgram.android.nav.PixelLinks.Pattern.findAll(text).forEach { match ->
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    "pg-link",
+                    androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)),
+                ) { com.pixelgram.android.nav.PendingNav.link = match.value },
                 match.range.first,
                 match.range.last + 1,
             )

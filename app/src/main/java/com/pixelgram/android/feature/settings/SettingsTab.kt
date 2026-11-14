@@ -100,6 +100,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     iconShape = androidx.compose.material3.MaterialShapes.Cookie12Sided.toShape(),
                     position = SegmentPosition.Single,
                     onClick = { navigator.open(PixelSettingsKey()) },
+                    link = "pg://pixel",
                 )
             }
             SettingsGroup {
@@ -114,6 +115,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                         iconShape = section.shape(),
                         position = segmentPosition(index, sections.size),
                         onClick = { navigator.open(SettingsSectionKey(section.name)) },
+                        link = "pg://settings/" + section.name.lowercase(),
                     )
                 }
             }
@@ -126,6 +128,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Top,
                     onClick = { navigator.open(com.pixelgram.android.nav.PremiumKey) },
+                    link = "pg://premium",
                 )
                 SettingsItem(
                     title = stringResource(R.string.stars_title),
@@ -134,6 +137,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Middle,
                     onClick = { navigator.open(com.pixelgram.android.nav.StarsKey) },
+                    link = "pg://stars",
                 ) { balance?.let { Text(com.pixelgram.android.feature.premium.stars(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 SettingsItem(
                     title = stringResource(R.string.business_title),
@@ -142,6 +146,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Bottom,
                     onClick = { navigator.open(com.pixelgram.android.nav.BusinessKey) },
+                    link = "pg://business",
                 )
             }
             SettingsGroup {

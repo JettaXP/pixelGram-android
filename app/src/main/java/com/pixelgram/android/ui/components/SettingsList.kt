@@ -1,5 +1,6 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,8 +96,13 @@ fun SettingsItem(
     onLongClick: (() -> Unit)? = null,
     pill: Boolean = false,
     headlineContent: (@Composable () -> Unit)? = null,
+    link: String? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
+    val linkDialog = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (link != null && linkDialog.value) SettingLinkDialog(title, link) { linkDialog.value = false }
+    @Suppress("NAME_SHADOWING")
+    val onLongClick = onLongClick ?: if (link != null) ({ linkDialog.value = true }) else null
     val (index, count) = position.index()
     val shapes = ListItemDefaults.segmentedShapes(index, count)
     val leading: (@Composable () -> Unit)? = if (icon != null || painter != null) {
@@ -195,6 +201,36 @@ fun PixelSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: B
                 contentDescription = null,
                 modifier = Modifier.size(SwitchDefaults.IconSize),
             )
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SettingLinkDialog(title: String, link: String, onDismiss: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val copied = androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_link_copied)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(androidx.compose.material.icons.Icons.Rounded.Link, null) },
+        title = { Text(title) },
+        text = {
+            androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                Text(link, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(
+                onClick = {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
+                    Notice.show(copied)
+                    onDismiss()
+                },
+                shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+            ) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_copy_link)) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.action_cancel)) }
         },
     )
 }

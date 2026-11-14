@@ -49,6 +49,24 @@ import kotlinx.serialization.Serializable
 
 object PendingNav {
     var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
+    var link by androidx.compose.runtime.mutableStateOf<String?>(null)
+}
+
+object PixelLinks {
+    val Pattern = Regex("pg://(settings|premium|stars|business|pixel)(/[A-Za-z_]+)?", RegexOption.IGNORE_CASE)
+
+    fun key(link: String): NavKey? {
+        val match = Pattern.matchEntire(link.trim()) ?: return null
+        val sub = match.groupValues[2].removePrefix("/")
+        return when (match.groupValues[1].lowercase()) {
+            "settings" -> if (sub.isEmpty()) SettingsKey else com.pixelgram.android.feature.settings.SettingsSection.entries.firstOrNull { it.name.equals(sub, true) }?.let { SettingsSectionKey(it.name) } ?: SettingsKey
+            "premium" -> PremiumKey
+            "stars" -> StarsKey
+            "business" -> BusinessKey
+            "pixel" -> PixelSettingsKey(sub.lowercase())
+            else -> null
+        }
+    }
 }
 
 class Navigator(private val stack: MutableList<NavKey>) {
@@ -104,6 +122,12 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     com.pixelgram.android.feature.pixel.SupportSheet()
     com.pixelgram.android.feature.premium.PaymentHost()
     com.pixelgram.android.feature.premium.EmojiStatusHost { navigator.open(PremiumKey) }
+    androidx.compose.runtime.LaunchedEffect(PendingNav.link) {
+        PendingNav.link?.let { link ->
+            PendingNav.link = null
+            PixelLinks.key(link)?.let { navigator.open(it) }
+        }
+    }
     androidx.compose.runtime.LaunchedEffect(PendingNav.chat) {
         PendingNav.chat?.let { id ->
             PendingNav.chat = null
@@ -189,6 +213,7 @@ private fun rememberBackGesture(stack: List<NavKey>): BackGesture {
                     val committed = currentStack.value.lastOrNull()?.toString() != gesture.closingKey
                     if (committed) {
                         androidx.compose.animation.core.animate(0f, 1f, animationSpec = tween(CommitMs, easing = CommitEasing)) { v, _ -> gesture.commit = v }
+                        kotlinx.coroutines.delay(1_500)
                     } else {
                         androidx.compose.animation.core.animate(gesture.progress, 0f, animationSpec = tween(250, easing = CommitEasing)) { v, _ -> gesture.progress = v }
                     }
@@ -205,6 +230,15 @@ private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
 private class BackFollowDecorator(private val gesture: BackGesture) : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
     decorate = { entry ->
         val key = entry.contentKey.toString()
+        androidx.compose.runtime.DisposableEffect(key) {
+            onDispose {
+                val closing = gesture.closingKey?.let { key == it || key.startsWith("$it:") } == true
+                if (closing && !gesture.dragging && gesture.commit > 0f) {
+                    gesture.job?.cancel()
+                    gesture.reset()
+                }
+            }
+        }
         val scrim = androidx.compose.ui.graphics.Color.Black
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier
@@ -232,7 +266,7 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
                         alpha = (1f - 5f * c).coerceAtLeast(0f)
                         shadowElevation = 12.dp.toPx() * p * (1f - c)
                     } else {
-                        val s = lerp(EnteringScale, EnteringScale * ClosingScale, p)
+                        val s = EnteringScale
                         val scale = lerp(s, 1f, c)
                         scaleX = scale
                         scaleY = scale
@@ -254,8 +288,8 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
     },
 )
 
-private const val ClosingScale = 0.85f
-private const val EnteringScale = 0.95f
+private const val ClosingScale = 0.9f
+private const val EnteringScale = 0.9f
 private const val ScrimAlpha = 0.35f
 private const val CommitMs = 320
 private const val FollowShare = 0.35f

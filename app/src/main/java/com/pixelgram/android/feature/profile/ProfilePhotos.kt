@@ -43,7 +43,18 @@ import org.drinkless.tdlib.TdApi
 fun ProfilePhotosScreen(graph: AppGraph, userId: Long, navigator: Navigator) {
     val snapshot by graph.store.snapshot.collectAsState()
     val photos by produceState<List<TdApi.ChatPhoto>?>(null, userId) {
-        value = runCatching { graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 100)).photos.toList() }.getOrDefault(emptyList())
+        value = if (userId < 0) {
+            val history = runCatching {
+                graph.td.send(TdApi.SearchChatMessages(userId, null, "", null, 0, 0, 100, TdApi.SearchMessagesFilterChatPhoto())).messages.mapNotNull { (it.content as? TdApi.MessageChatChangePhoto)?.photo }
+            }.getOrDefault(emptyList())
+            if (history.isNotEmpty()) history else {
+                val chat = runCatching { graph.td.send(TdApi.GetChat(userId)) }.getOrNull()
+                val info = chat?.photo
+                if (info == null) emptyList() else listOf(TdApi.ChatPhoto(info.small.id.toLong(), 0, info.minithumbnail, arrayOf(TdApi.PhotoSize("c", info.big, 640, 640, IntArray(0))), null, null, null))
+            }
+        } else {
+            runCatching { graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 100)).photos.toList() }.getOrDefault(emptyList())
+        }
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         val list = photos

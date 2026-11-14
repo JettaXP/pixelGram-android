@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.aspectRatio
@@ -243,16 +244,24 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
             Column {
                 if (banner != null) {
                     var ratio by remember(banner) { mutableStateOf(3f) }
-                    coil.compose.AsyncImage(
-                        model = banner,
-                        contentDescription = null,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        onSuccess = { state ->
-                            val size = state.painter.intrinsicSize
-                            if (size.width > 0f && size.height > 0f) ratio = (size.width / size.height).coerceIn(1f, 4f)
-                        },
-                        modifier = Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(28.dp, 28.dp, 8.dp, 8.dp)),
-                    )
+                    val fade = MaterialTheme.colorScheme.surfaceContainerHigh
+                    Box(Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(28.dp, 28.dp, 0.dp, 0.dp))) {
+                        coil.compose.AsyncImage(
+                            model = banner,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            onSuccess = { state ->
+                                val size = state.painter.intrinsicSize
+                                if (size.width > 0f && size.height > 0f) ratio = (size.width / size.height).coerceIn(1f, 4f)
+                            },
+                            modifier = Modifier.matchParentSize(),
+                        )
+                        Box(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.55f).background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent, fade.copy(alpha = 0.6f), fade)),
+                            ),
+                        )
+                    }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
