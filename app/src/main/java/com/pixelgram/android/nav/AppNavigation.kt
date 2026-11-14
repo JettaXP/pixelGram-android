@@ -87,15 +87,19 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHighest)) {
     NavDisplay(
         backStack = stack,
-        onBack = { navigator.back() },
+        onBack = {
+            if (gesture.dragging) gesture.popped = true
+            navigator.back()
+        },
         transitionSpec = {
             slideInHorizontally(tween(320)) { it } togetherWith fadeOut(tween(200))
         },
         popTransitionSpec = {
-            fadeIn(tween(200)) togetherWith slideOutHorizontally(tween(320)) { it }
+            if (gesture.closingKey != null) androidx.compose.animation.EnterTransition.None togetherWith fadeOut(tween(ExitMs, easing = androidx.compose.animation.core.LinearEasing), targetAlpha = 0.99f)
+            else fadeIn(tween(200)) togetherWith slideOutHorizontally(tween(320)) { it }
         },
         predictivePopTransitionSpec = {
-            androidx.compose.animation.EnterTransition.None togetherWith fadeOut(tween(CommitMs + 200), targetAlpha = 0.99f)
+            androidx.compose.animation.EnterTransition.None togetherWith fadeOut(tween(ExitMs, easing = androidx.compose.animation.core.LinearEasing), targetAlpha = 0.99f)
         },
         entryDecorators = listOf(
             androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator(),
@@ -159,6 +163,8 @@ fun BackBlock(enabled: Boolean) {
 
 class BackGesture {
     var progress by androidx.compose.runtime.mutableFloatStateOf(0f)
+    var raw = 0f
+    var popped = false
     var commit by androidx.compose.runtime.mutableFloatStateOf(0f)
     var startY by androidx.compose.runtime.mutableFloatStateOf(Float.NaN)
     var touchY by androidx.compose.runtime.mutableFloatStateOf(Float.NaN)
@@ -176,11 +182,12 @@ class BackGesture {
         closingKey = null
         enteringKey = null
         dragging = false
+        popped = false
     }
 }
 
-private val GestureEasing = androidx.compose.animation.core.CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-private val CommitEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private val GestureEasing = androidx.compose.animation.core.CubicBezierEasing(0.1f, 0.1f, 0f, 1f)
+private val CommitEasing = androidx.compose.animation.core.CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
 @Composable
 private fun rememberBackGesture(stack: List<NavKey>): BackGesture {
@@ -203,16 +210,22 @@ private fun rememberBackGesture(stack: List<NavKey>): BackGesture {
                     gesture.fromLeft = event.swipeEdge != androidx.navigationevent.NavigationEvent.EDGE_RIGHT
                     gesture.startY = event.touchY
                 }
+                if (event.progress <= 0f && gesture.raw > 0.05f) return@collect
                 gesture.touchY = event.touchY
                 val raw = ((event.progress - 0.015f) / 0.985f).coerceIn(0f, 1f)
+                gesture.raw = event.progress
                 gesture.progress = GestureEasing.transform(raw)
             } else if (gesture.dragging) {
                 gesture.dragging = false
                 gesture.job = scope.launch {
-                    repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-                    val committed = currentStack.value.lastOrNull()?.toString() != gesture.closingKey
+                    val started = System.nanoTime()
+                    if (!gesture.popped) androidx.compose.runtime.withFrameNanos { }
+                    val committed = gesture.popped || currentStack.value.lastOrNull()?.toString() != gesture.closingKey
                     if (committed) {
-                        androidx.compose.animation.core.animate(0f, 1f, animationSpec = tween(CommitMs, easing = CommitEasing)) { v, _ -> gesture.commit = v }
+                        val spent = ((System.nanoTime() - started) / 1_000_000).toInt()
+                        val remaining = (ExitMs * (1f - gesture.raw.coerceIn(0f, 1f))).toInt() - spent - 24
+                        val duration = remaining.coerceIn(120, CommitMs)
+                        androidx.compose.animation.core.animate(0f, 1f, animationSpec = tween(duration, easing = CommitEasing)) { v, _ -> gesture.commit = v }
                         kotlinx.coroutines.delay(1_500)
                     } else {
                         androidx.compose.animation.core.animate(gesture.progress, 0f, animationSpec = tween(250, easing = CommitEasing)) { v, _ -> gesture.progress = v }
@@ -230,15 +243,6 @@ private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
 private class BackFollowDecorator(private val gesture: BackGesture) : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
     decorate = { entry ->
         val key = entry.contentKey.toString()
-        androidx.compose.runtime.DisposableEffect(key) {
-            onDispose {
-                val closing = gesture.closingKey?.let { key == it || key.startsWith("$it:") } == true
-                if (closing && !gesture.dragging && gesture.commit > 0f) {
-                    gesture.job?.cancel()
-                    gesture.reset()
-                }
-            }
-        }
         val scrim = androidx.compose.ui.graphics.Color.Black
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier
@@ -255,15 +259,15 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
                     val limit = size.height * FollowLimit
                     val follow = shift.coerceIn(-limit, limit) * (p * 4f).coerceAtMost(1f)
                     if (closing) {
-                        val s = lerp(1f, ClosingScale, p)
-                        val scale = lerp(s, 1f, c)
+                                        val s = lerp(1f, ClosingScale, p)
+                        val scale = lerp(s, s * 0.96f, c)
                         scaleX = scale
                         scaleY = scale
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (gesture.fromLeft) 1f else 0f, 0.5f)
                         val base = (if (gesture.fromLeft) -edge else edge) * p
-                        translationX = base + (if (gesture.fromLeft) 1f else -1f) * (w * (1f - s) + 96.dp.toPx()) * c
+                        translationX = base + (if (gesture.fromLeft) 1f else -1f) * (w * 0.22f) * c
                         translationY = follow * (1f - c)
-                        alpha = (1f - 5f * c).coerceAtLeast(0f)
+                        alpha = (1f - c).coerceIn(0f, 1f)
                         shadowElevation = 12.dp.toPx() * p * (1f - c)
                     } else {
                         val s = EnteringScale
@@ -291,6 +295,7 @@ private class BackFollowDecorator(private val gesture: BackGesture) : androidx.n
 private const val ClosingScale = 0.9f
 private const val EnteringScale = 0.9f
 private const val ScrimAlpha = 0.35f
-private const val CommitMs = 320
+private const val CommitMs = 340
+private const val ExitMs = 700
 private const val FollowShare = 0.35f
 private const val FollowLimit = 0.08f

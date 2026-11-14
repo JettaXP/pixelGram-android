@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
@@ -82,95 +84,120 @@ fun ProfileHeader(
     val banner = banners[userId]
     val surface = MaterialTheme.colorScheme.surface
     val shown by animateFloatAsState(if (banner != null) 1f else 0f, MaterialTheme.motionScheme.slowEffectsSpec(), label = "banner")
-    Box(Modifier.fillMaxWidth()) {
-        if (banner != null) {
-            Box(Modifier.fillMaxWidth().aspectRatio(BannerRatio)) {
-                AsyncImage(
-                    model = banner,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize().graphicsLayer { alpha = shown },
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val statusTop = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+    var infoHeight by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0.dp) }
+    val path = localPhoto ?: snapshot.files[photoFileId]
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val e = expand().coerceIn(0f, 1f)
+        val full = maxWidth
+        val avatarTop = statusTop + 64.dp
+        val collapsedHeight = avatarTop + AvatarSize + 14.dp + infoHeight
+        val height = collapsedHeight + (maxOf(full, collapsedHeight) - collapsedHeight) * e
+        val size = AvatarSize + (full - AvatarSize) * e
+        val top = avatarTop * (1f - e)
+        Box(Modifier.fillMaxWidth().height(height + 12.dp * e)) {
+            if (banner != null) {
+                Box(Modifier.fillMaxWidth().aspectRatio(BannerRatio).graphicsLayer { alpha = shown * (1f - e) }) {
+                    AsyncImage(model = banner, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to surface)))
+                }
+            }
+            val baseShape = com.pixelgram.android.ui.theme.LocalAvatarShape.current
+            val shape = if (e > 0f) RoundedCornerShape((size / 2) * (1f - e) * (1f - e)) else baseShape
+            Box(Modifier.align(Alignment.TopCenter).offset(y = top)) {
+                androidx.compose.runtime.CompositionLocalProvider(com.pixelgram.android.ui.theme.LocalAvatarShape provides shape) {
+                    Avatar(
+                        title = title,
+                        seed = userId,
+                        path = path,
+                        minithumb = if (icon != null) null else minithumb,
+                        size = size,
+                        icon = icon,
+                        modifier = Modifier.clickable(onClick = onAvatarClick),
+                        onNeedFile = { graph.store.requestFileAsync(photoFileId) },
+                    )
+                }
+                if (showCamera && e < 0.05f) {
+                    androidx.compose.material3.FilledIconButton(
+                        onClick = onAvatarClick,
+                        modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
+                    ) {
+                        Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
+                    }
+                }
+            }
+            if (e > 0f) {
+                Box(
+                    Modifier.align(Alignment.TopCenter).offset(y = top).size(size).graphicsLayer { alpha = e }.background(
+                        Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.55f)),
+                    ),
                 )
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to surface)))
+                Column(Modifier.align(Alignment.TopStart).offset(y = top + size - 76.dp).padding(start = 20.dp, end = 20.dp).graphicsLayer { alpha = ((e - 0.5f) * 2f).coerceIn(0f, 1f) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, style = MaterialTheme.typography.headlineSmallEmphasized, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        NameBadges(userId, verified, 24.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = false, official = official)
+                    }
+                    if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = Color.White.copy(alpha = 0.85f))
+                }
             }
-        }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).height(64.dp).padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = avatarTop + AvatarSize + 14.dp)
+                    .fillMaxWidth()
+                    .onSizeChanged { infoHeight = with(density) { it.height.toDp() } }
+                    .graphicsLayer { alpha = (1f - e * 2.5f).coerceIn(0f, 1f) },
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                topStart()
-                Spacer(Modifier.weight(1f))
-                topEnd()
+                Row(Modifier.padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.animation.AnimatedContent(
+                        title,
+                        transitionSpec = {
+                            (androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 }) togetherWith
+                                (androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 })
+                        },
+                        label = "profile-title",
+                        modifier = Modifier.weight(1f, fill = false),
+                    ) { value ->
+                        Text(value, style = MaterialTheme.typography.headlineSmallEmphasized, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                    }
+                    NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = true, official = official)
+                }
+                if (!subtitle.isNullOrBlank()) {
+                    androidx.compose.animation.AnimatedContent(subtitle, label = "profile-subtitle") { value ->
+                        Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
-            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val e = expand().coerceIn(0f, 1f)
-                val full = maxWidth
-                val size = 120.dp + (full - 120.dp) * e
-                val baseShape = com.pixelgram.android.ui.theme.LocalAvatarShape.current
-                val shape = if (e > 0f) RoundedCornerShape((size / 2) * (1f - e) + 0.dp) else baseShape
-                Box {
-                    androidx.compose.runtime.CompositionLocalProvider(com.pixelgram.android.ui.theme.LocalAvatarShape provides shape) {
-                        Avatar(
-                            title = title,
-                            seed = userId,
-                            path = localPhoto ?: snapshot.files[photoFileId],
-                            minithumb = if (icon != null) null else minithumb,
-                            size = size,
-                            icon = icon,
-                            modifier = Modifier.clickable(onClick = onAvatarClick),
-                            onNeedFile = { graph.store.requestFileAsync(photoFileId) },
-                        )
-                    }
-                    if (showCamera && e < 0.05f) {
-                        androidx.compose.material3.FilledIconButton(
-                            onClick = onAvatarClick,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
-                        ) {
-                            Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
-                        }
-                    }
+            val tint = androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.onSurface, Color.White, e)
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides tint) {
+                Row(
+                    Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).height(64.dp).padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    topStart()
+                    Spacer(Modifier.weight(1f))
+                    topEnd()
                 }
             }
             val pullLoader = loader().coerceIn(0f, 1f)
             if (pullLoader > 0f || refreshing) {
-                Box(Modifier.fillMaxWidth().height(64.dp * (if (refreshing) 1f else pullLoader)), contentAlignment = Alignment.Center) {
+                val shift = if (refreshing) 1f else pullLoader
+                Box(
+                    Modifier.align(Alignment.TopCenter).offset(y = (-64).dp + (statusTop + 76.dp) * shift),
+                ) {
                     @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-                    if (refreshing) androidx.compose.material3.ContainedLoadingIndicator(Modifier.size(48.dp))
-                    else androidx.compose.material3.ContainedLoadingIndicator(progress = { pullLoader }, modifier = Modifier.size(48.dp).graphicsLayer { alpha = pullLoader; scaleX = pullLoader; scaleY = pullLoader })
+                    if (refreshing) androidx.compose.material3.ContainedLoadingIndicator(Modifier.size(52.dp))
+                    else androidx.compose.material3.ContainedLoadingIndicator(progress = { pullLoader }, modifier = Modifier.size(52.dp))
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.animation.AnimatedContent(
-                    title,
-                    transitionSpec = {
-                        (androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 }) togetherWith
-                            (androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 })
-                    },
-                    label = "profile-title",
-                    modifier = Modifier.weight(1f, fill = false),
-                ) { value ->
-                    Text(
-                        value,
-                        style = MaterialTheme.typography.headlineSmallEmphasized,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = true, official = official)
-            }
-            if (!subtitle.isNullOrBlank()) {
-                androidx.compose.animation.AnimatedContent(subtitle, label = "profile-subtitle") { value ->
-                    Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
+private val AvatarSize = 120.dp
 private const val BannerRatio = 3f
 
 @Composable

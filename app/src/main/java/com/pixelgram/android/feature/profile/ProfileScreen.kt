@@ -199,10 +199,11 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
 
                 override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
                     if (pull.value <= 0f) return androidx.compose.ui.unit.Velocity.Zero
-                    val stage = if (expanded) 0f else expandDistance
-                    val loaderAmount = (pull.value - stage) / loaderDistance
-                    if (!expanded && pull.value / expandDistance > 0.5f) expanded = true
-                    if (loaderAmount >= 1f) refresh()
+                    if (expanded) {
+                        if (pull.value / loaderDistance >= 1f) refresh()
+                    } else if (pull.value / expandDistance > 0.4f) {
+                        expanded = true
+                    }
                     pull.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f))
                     return available
                 }
@@ -229,7 +230,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
                 localPhoto = user?.localPhoto,
                 expand = { if (expanded) expandedAmount else maxOf(expandedAmount, pull.value / expandDistance) },
-                loader = { (pull.value - (if (expanded) 0f else expandDistance)) / loaderDistance },
+                loader = { if (expanded) pull.value / loaderDistance else 0f },
                 refreshing = refreshing,
                 topStart = {
                     if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
@@ -588,10 +589,6 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
                         if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.matchParentSize())
                     }
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Rounded.MusicNote, null, tint = content.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
-                            Text(stringResource(R.string.profile_music), style = MaterialTheme.typography.labelMedium, color = content.copy(alpha = 0.8f))
-                        }
                         Text(audio.title.ifBlank { audio.fileName }, style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (audio.performer.isNotBlank()) Text(audio.performer, style = MaterialTheme.typography.bodyMedium, color = content.copy(alpha = 0.8f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }

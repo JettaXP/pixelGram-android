@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.test.performTextInput
@@ -123,10 +124,22 @@ class Screens {
         }
         repeat(10) { rule.mainClock.advanceTimeBy(32) }
         val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        if (System.getenv("PB_FRAMES") != null) {
+            rule.runOnUiThread { dispatcher.onBackPressed() }
+            repeat(12) { i ->
+                rule.mainClock.advanceTimeBy(48)
+                File(dir, "pb_$i.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 60, it) }
+            }
+            return
+        }
         File(dir, "predictive_back.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     @Test fun settingsScreen() = shoot("settings_screen", graph(), listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.SettingsKey))
+
+    @Test fun profileExpanded() = shoot("profile_expanded", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ProfileKey(2))) {
+        rule.onRoot().performTouchInput { swipeDown(startY = centerY - 300f, endY = centerY + 700f, durationMillis = 400) }
+    }
 
     @Test fun luhn() {
         check(com.pixelgram.android.feature.premium.Card.luhn("4242424242424242"))
