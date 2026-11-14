@@ -671,4 +671,24 @@
     <string name="stars_tx_gift_received">Received gift</string>
     <string name="stars_tx_unknown">Unknown user</string>
     <string name="stars_fragment_only">TON · Fragment</string>
+    <string name="profile_tab_members">Members</string>
+    <string name="profile_tab_posts">Posts</string>
+    <string name="profile_tab_gifts">Gifts</string>
+    <string name="profile_tab_media">Media</string>
+    <string name="profile_tab_files">Files</string>
+    <string name="profile_tab_music">Music</string>
+    <string name="profile_tab_voice">Voice</string>
+    <string name="profile_tab_links">Links</string>
+    <string name="profile_tab_groups">Groups</string>
+    <string name="profile_owner">Owner</string>
+    <string name="profile_admin">Admin</string>
+    <string name="profile_channel">Channel</string>
+    <string name="profile_discussion">Discussion</string>
+    <string name="profile_personal_channel">Channel</string>
+    <string name="profile_first_name">First name</string>
+    <string name="profile_last_name">Last name</string>
+    <plurals name="profile_age">
+        <item quantity="one">%1$d year old</item>
+        <item quantity="other">%1$d years old</item>
+    </plurals>
 </resources>

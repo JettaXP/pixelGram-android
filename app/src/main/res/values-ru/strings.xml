@@ -684,4 +684,26 @@
     <string name="stars_tx_gift_received">Полученный подарок</string>
     <string name="stars_tx_unknown">Неизвестный пользователь</string>
     <string name="stars_fragment_only">TON · Fragment</string>
+    <string name="profile_tab_members">Участники</string>
+    <string name="profile_tab_posts">Истории</string>
+    <string name="profile_tab_gifts">Подарки</string>
+    <string name="profile_tab_media">Медиа</string>
+    <string name="profile_tab_files">Файлы</string>
+    <string name="profile_tab_music">Музыка</string>
+    <string name="profile_tab_voice">Голосовые</string>
+    <string name="profile_tab_links">Ссылки</string>
+    <string name="profile_tab_groups">Группы</string>
+    <string name="profile_owner">Владелец</string>
+    <string name="profile_admin">Админ</string>
+    <string name="profile_channel">Канал</string>
+    <string name="profile_discussion">Обсуждение</string>
+    <string name="profile_personal_channel">Канал</string>
+    <string name="profile_first_name">Имя</string>
+    <string name="profile_last_name">Фамилия</string>
+    <plurals name="profile_age">
+        <item quantity="one">%1$d год</item>
+        <item quantity="few">%1$d года</item>
+        <item quantity="many">%1$d лет</item>
+        <item quantity="other">%1$d лет</item>
+    </plurals>
 </resources>

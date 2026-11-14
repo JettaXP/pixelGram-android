@@ -1,5 +1,10 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.ui.draw.blur
+import androidx.compose.material3.toShape
+import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
@@ -110,6 +115,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     var full by remember { mutableStateOf<TdApi.UserFullInfo?>(null) }
     var showQr by remember { mutableStateOf(false) }
     var collectible by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(userId) {
         if (userId != 0L) full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull()
@@ -167,9 +173,9 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             )
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (self) {
-                    ProfileAction(Icons.Rounded.AddAPhoto, stringResource(R.string.profile_set_photo), pickAvatar)
-                    ProfileAction(Icons.Rounded.Edit, stringResource(R.string.profile_edit)) { navigator.open(SettingsSectionKey("Account")) }
-                    if (onOpenSettings != null) ProfileAction(Icons.Rounded.Settings, stringResource(R.string.profile_settings), onOpenSettings)
+                    ProfileAction(Icons.Rounded.AddAPhoto, stringResource(R.string.profile_set_photo), onClick = pickAvatar)
+                    ProfileAction(Icons.Rounded.Edit, stringResource(R.string.profile_edit)) { editing = true }
+                    if (onOpenSettings != null) ProfileAction(Icons.Rounded.Settings, stringResource(R.string.profile_settings), onClick = onOpenSettings)
                 } else if (userId != 0L) {
                     ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) {
                         scope.launch {
@@ -182,44 +188,15 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     ProfileAction(Icons.Rounded.Call, stringResource(R.string.profile_call)) { android.widget.Toast.makeText(context, soon, android.widget.Toast.LENGTH_SHORT).show() }
                     ProfileAction(Icons.Rounded.Videocam, stringResource(R.string.profile_video)) { android.widget.Toast.makeText(context, soon, android.widget.Toast.LENGTH_SHORT).show() }
                     val privateChat = graph.store.chat(userId)
-                    val muted = (privateChat?.notificationSettings?.muteFor ?: 0) > 0
-                    ProfileAction(if (muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff, stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute)) {
-                        scope.launch {
-                            runCatching {
-                                graph.td.send(TdApi.SetChatNotificationSettings(userId, TdApi.ChatNotificationSettings().apply {
-                                    useDefaultMuteFor = false
-                                    muteFor = if (muted) 0 else Int.MAX_VALUE
-                                    useDefaultSound = true
-                                    useDefaultShowPreview = true
-                                    useDefaultMuteStories = true
-                                    useDefaultShowStoryPoster = true
-                                    useDefaultDisablePinnedMessageNotifications = true
-                                    useDefaultDisableMentionNotifications = true
-                                }))
-                            }
-                        }
-                    }
+                    MuteAction(graph, userId, (privateChat?.notificationSettings?.muteFor ?: 0) > 0)
                 }
             }
             if (group != null && chat != null) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) { navigator.open(ChatKey(chatId)) }
-                    val muted = chat.notificationSettings.muteFor > 0
-                    ProfileAction(if (muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff, stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute)) {
-                        scope.launch {
-                            runCatching {
-                                graph.td.send(TdApi.SetChatNotificationSettings(chatId, TdApi.ChatNotificationSettings().apply {
-                                    useDefaultMuteFor = false
-                                    muteFor = if (muted) 0 else Int.MAX_VALUE
-                                    useDefaultSound = true
-                                    useDefaultShowPreview = true
-                                    useDefaultMuteStories = true
-                                    useDefaultShowStoryPoster = true
-                                    useDefaultDisablePinnedMessageNotifications = true
-                                    useDefaultDisableMentionNotifications = true
-                                }))
-                            }
-                        }
+                    MuteAction(graph, chatId, chat.notificationSettings.muteFor > 0)
+                    groupFull?.linkedChatId?.takeIf { it != 0L }?.let { linked ->
+                        ProfileAction(if (group.isChannel) Icons.AutoMirrored.Rounded.Chat else Icons.Rounded.Campaign, stringResource(if (group.isChannel) R.string.profile_discussion else R.string.profile_channel)) { navigator.open(ChatKey(linked)) }
                     }
                     val member = supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true
                     ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
@@ -292,6 +269,10 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 }
             }
             val birthday = full?.birthdate
+            full?.personalChatId?.takeIf { it != 0L }?.let { personal ->
+                Spacer(Modifier.height(16.dp))
+                PersonalChannelCard(graph, personal) { navigator.open(ChatKey(personal)) }
+            }
             Spacer(Modifier.height(8.dp))
             SettingsGroup {
                 val context = LocalContext.current
@@ -306,8 +287,8 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     if (bio.isNotBlank()) add("bio")
                     names.forEach { add("u:$it") }
                     if (phone.isNotBlank()) add("phone")
-                    if (birthday != null) add("birthday")
                     if (userId != 0L) add("id")
+                    if (birthday != null) add("birthday")
                 }
                 rows.forEachIndexed { index, row ->
                     val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
@@ -353,7 +334,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                         }
                         row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, pill = true, onLongClick = { copy(userId.toString()) })
                         row == "birthday" -> SettingsItem(
-                            listOfNotNull(birthday!!.day.toString(), java.text.DateFormatSymbols.getInstance().months[birthday.month - 1], birthday.year.takeIf { it > 0 }?.toString()).joinToString(" "),
+                            birthdayText(LocalContext.current, birthday!!),
                             position,
                             stringResource(R.string.profile_birthday),
                             Icons.Rounded.Cake,
@@ -362,9 +343,22 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     }
                 }
             }
+            if (user?.deleted != true) {
+                ProfileTabs(
+                    graph,
+                    navigator,
+                    userId,
+                    chatId,
+                    full,
+                    supergroupId = group?.supergroupId ?: 0L,
+                    isChannel = group?.isChannel == true,
+                    onOpenUser = { navigator.open(com.pixelgram.android.nav.ProfileKey(it)) },
+                )
+            }
             Spacer(Modifier.height(24.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current))
         }
     }
+    if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
     if (showQr && username != null) {
         val context = LocalContext.current
@@ -393,20 +387,84 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun RowScope.ProfileAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    androidx.compose.material3.FilledTonalButton(
-        onClick = onClick,
-        shapes = ButtonDefaults.shapes(),
-        contentPadding = PaddingValues(vertical = 12.dp),
-        modifier = Modifier.weight(1f),
+private fun RowScope.ProfileAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    checked: Boolean = false,
+    shake: Int = 0,
+    onClick: () -> Unit,
+) {
+    val rotation = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(shake) {
+        if (shake == 0) return@LaunchedEffect
+        for (angle in floatArrayOf(-22f, 18f, -12f, 8f, -4f, 0f)) rotation.animateTo(angle, androidx.compose.animation.core.tween(70))
+    }
+    val container by androidx.compose.animation.animateColorAsState(
+        if (checked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "action-container",
+    )
+    val content by androidx.compose.animation.animateColorAsState(
+        if (checked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "action-content",
+    )
+    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        androidx.compose.material3.Button(
+            onClick = onClick,
+            shapes = ButtonDefaults.shapes(),
+            colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+        ) {
+            val spatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+            androidx.compose.animation.AnimatedContent(
+                icon,
+                transitionSpec = {
+                    (androidx.compose.animation.scaleIn(spatial, initialScale = 0.4f) + androidx.compose.animation.fadeIn()) togetherWith
+                        (androidx.compose.animation.scaleOut(targetScale = 0.4f) + androidx.compose.animation.fadeOut())
+                },
+                label = "action-icon",
+            ) { current ->
+                Icon(current, null, modifier = Modifier.graphicsLayer { rotationZ = rotation.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.1f) })
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun RowScope.MuteAction(graph: AppGraph, chatId: Long, initiallyMuted: Boolean) {
+    val scope = rememberCoroutineScope()
+    var muted by remember(chatId, initiallyMuted) { mutableStateOf(initiallyMuted) }
+    var shake by remember { mutableStateOf(0) }
+    ProfileAction(
+        if (muted) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+        stringResource(if (muted) R.string.profile_unmute else R.string.profile_mute),
+        checked = muted,
+        shake = shake,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null)
-            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        muted = !muted
+        shake++
+        val target = muted
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.SetChatNotificationSettings(chatId, TdApi.ChatNotificationSettings().apply {
+                    useDefaultMuteFor = false
+                    muteFor = if (target) Int.MAX_VALUE else 0
+                    useDefaultSound = true
+                    useDefaultShowPreview = true
+                    useDefaultMuteStories = true
+                    useDefaultShowStoryPoster = true
+                    useDefaultDisablePinnedMessageNotifications = true
+                    useDefaultDisableMentionNotifications = true
+                }))
+            }.onFailure { muted = !target }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
     val graph = com.pixelgram.android.LocalGraph.current
@@ -427,36 +485,62 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
     }
     val container by androidx.compose.animation.animateColorAsState(scheme?.primaryContainer ?: MaterialTheme.colorScheme.primaryContainer, label = "card")
     val content by androidx.compose.animation.animateColorAsState(scheme?.onPrimaryContainer ?: MaterialTheme.colorScheme.onPrimaryContainer, label = "card-content")
-    androidx.compose.material3.Card(
+    val music by graph.music.state.collectAsState()
+    val current = music.track?.fileId == audio.audio.id
+    val playing = current && music.playing
+    androidx.compose.material3.Surface(
         onClick = onClick,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = container, contentColor = content),
+        color = container,
+        contentColor = content,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
-        androidx.compose.material3.ListItem(
-            colors = androidx.compose.material3.ListItemDefaults.colors(
-                containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                headlineColor = content,
-                supportingColor = content.copy(alpha = 0.8f),
-                overlineColor = content.copy(alpha = 0.8f),
-            ),
-            leadingContent = {
-                Box(
-                    Modifier.size(64.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(content.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.MusicNote, null, tint = content)
-                    if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp))
+        Box {
+            if (cover != null) {
+                coil.compose.AsyncImage(
+                    model = cover,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.matchParentSize().graphicsLayer { alpha = 0.22f }.then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp) else Modifier),
+                )
+            }
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(
+                        Modifier.size(72.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(content.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Rounded.MusicNote, null, tint = content)
+                        if (cover != null) coil.compose.AsyncImage(model = cover, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Rounded.MusicNote, null, tint = content.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
+                            Text(stringResource(R.string.profile_music), style = MaterialTheme.typography.labelMedium, color = content.copy(alpha = 0.8f))
+                        }
+                        Text(audio.title.ifBlank { audio.fileName }, style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (audio.performer.isNotBlank()) Text(audio.performer, style = MaterialTheme.typography.bodyMedium, color = content.copy(alpha = 0.8f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                    androidx.compose.material3.FilledIconButton(
+                        onClick = {
+                            if (current) graph.music.toggle() else onClick()
+                        },
+                        shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+                        colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(containerColor = content, contentColor = container),
+                        modifier = Modifier.size(52.dp),
+                    ) { com.pixelgram.android.feature.player.PlayPauseMorph(playing, 26.dp) }
                 }
-            },
-            overlineContent = { Text(stringResource(R.string.profile_music)) },
-            headlineContent = { Text(audio.title.ifBlank { audio.fileName }, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1) },
-            supportingContent = if (audio.performer.isNotBlank()) {
-                { Text(audio.performer, maxLines = 1) }
-            } else {
-                null
-            },
-        )
+                if (current && music.duration > 0) {
+                    androidx.compose.material3.LinearWavyProgressIndicator(
+                        progress = { (music.position.toFloat() / music.duration).coerceIn(0f, 1f) },
+                        color = content,
+                        trackColor = content.copy(alpha = 0.2f),
+                        amplitude = { if (playing) 1f else 0f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -720,4 +804,133 @@ private fun UsernameSheet(graph: AppGraph, name: String, onDismiss: () -> Unit) 
 private fun formatAmount(value: Long, decimals: Int): String {
     val scaled = java.math.BigDecimal.valueOf(value).movePointLeft(decimals).stripTrailingZeros()
     return java.text.NumberFormat.getNumberInstance().apply { maximumFractionDigits = decimals }.format(scaled)
+}
+
+internal fun birthdayText(context: android.content.Context, birthday: TdApi.Birthdate): String {
+    val month = java.text.DateFormatSymbols.getInstance().months[birthday.month - 1]
+    val base = if (birthday.year > 0) "${birthday.day} $month ${birthday.year}" else "${birthday.day} $month"
+    if (birthday.year <= 0) return base
+    val now = java.util.Calendar.getInstance()
+    var age = now.get(java.util.Calendar.YEAR) - birthday.year
+    val month0 = now.get(java.util.Calendar.MONTH) + 1
+    if (month0 < birthday.month || (month0 == birthday.month && now.get(java.util.Calendar.DAY_OF_MONTH) < birthday.day)) age--
+    return base + " (" + context.resources.getQuantityString(R.plurals.profile_age, age, age) + ")"
+}
+
+@Composable
+private fun PersonalChannelCard(graph: AppGraph, chatId: Long, onClick: () -> Unit) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    val chat by produceState<TdApi.Chat?>(null, chatId) { value = runCatching { graph.td.send(TdApi.GetChat(chatId)) }.getOrNull() }
+    val info by produceState<TdApi.Supergroup?>(null, chat) {
+        value = (chat?.type as? TdApi.ChatTypeSupergroup)?.let { runCatching { graph.td.send(TdApi.GetSupergroup(it.supergroupId)) }.getOrNull() }
+    }
+    val c = chat ?: return
+    val last = c.lastMessage
+    val preview = last?.let { com.pixelgram.android.td.contentPreview(it.content).second }.orEmpty()
+    androidx.compose.material3.Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.profile_personal_channel), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                info?.memberCount?.takeIf { it > 0 }?.let { count ->
+                    androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Text(
+                            androidx.compose.ui.res.pluralStringResource(R.plurals.chat_subscribers, count, count),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                val photo = c.photo?.small
+                com.pixelgram.android.ui.components.Avatar(c.title, c.id, photo?.let { snapshot.files[it.id] }, c.photo?.minithumbnail?.data, 56.dp, onNeedFile = { photo?.let { graph.store.requestFileAsync(it.id) } })
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(c.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (last != null) Text(
+                            java.text.DateFormat.getDateInstance(java.text.DateFormat.SHORT).format(java.util.Date(last.date * 1000L)),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (preview.isNotBlank()) Text(preview, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun EditProfileSheet(graph: AppGraph, full: TdApi.UserFullInfo?, onDismiss: () -> Unit) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    val me = snapshot.users[snapshot.meId]
+    var first by remember { mutableStateOf(me?.firstName.orEmpty()) }
+    var last by remember { mutableStateOf(me?.lastName.orEmpty()) }
+    var bio by remember { mutableStateOf(full?.bio?.text.orEmpty()) }
+    var day by remember { mutableStateOf(full?.birthdate?.day?.toString().orEmpty()) }
+    var month by remember { mutableStateOf(full?.birthdate?.month?.toString().orEmpty()) }
+    var year by remember { mutableStateOf(full?.birthdate?.year?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.profile_edit), style = MaterialTheme.typography.titleLargeEmphasized)
+            androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.profile_first_name)) }, singleLine = true, shape = shape, modifier = Modifier.fillMaxWidth())
+            androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.profile_last_name)) }, singleLine = true, shape = shape, modifier = Modifier.fillMaxWidth())
+            androidx.compose.material3.OutlinedTextField(
+                bio,
+                { bio = it.take(140) },
+                label = { Text(stringResource(R.string.profile_bio)) },
+                supportingText = { Text("${bio.length}/140") },
+                minLines = 2,
+                shape = shape,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(stringResource(R.string.profile_birthday), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val digits = { s: String, n: Int -> s.filter { it.isDigit() }.take(n) }
+                val numeric = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                androidx.compose.material3.OutlinedTextField(day, { day = digits(it, 2) }, placeholder = { Text("DD") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1f))
+                Text("/")
+                androidx.compose.material3.OutlinedTextField(month, { month = digits(it, 2) }, placeholder = { Text("MM") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1f))
+                Text("/")
+                androidx.compose.material3.OutlinedTextField(year, { year = digits(it, 4) }, placeholder = { Text("YYYY") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1.4f))
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            Button(
+                onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        val result = runCatching {
+                            graph.td.send(TdApi.SetName(first.trim(), last.trim()))
+                            if (bio != full?.bio?.text.orEmpty()) graph.td.send(TdApi.SetBio(bio.trim()))
+                            val d = day.toIntOrNull()
+                            val m = month.toIntOrNull()
+                            val birth = if (d != null && m != null && d in 1..31 && m in 1..12) TdApi.Birthdate(d, m, year.toIntOrNull() ?: 0) else null
+                            val old = full?.birthdate
+                            if (birth?.day != old?.day || birth?.month != old?.month || birth?.year != old?.year) graph.td.send(TdApi.SetBirthdate(birth))
+                        }
+                        busy = false
+                        result.onSuccess { onDismiss() }.onFailure { error = it.message }
+                    }
+                },
+                enabled = !busy && first.isNotBlank(),
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+            ) {
+                if (busy) androidx.compose.material3.LoadingIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else Text(stringResource(R.string.business_save), style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
 }

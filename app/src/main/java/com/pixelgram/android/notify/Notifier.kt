@@ -36,6 +36,7 @@ object AppVisibility {
 class Notifier(private val context: Context, private val td: TdClient, private val store: TdStore, scope: CoroutineScope) {
     private val manager = NotificationManagerCompat.from(context)
     private val history = ConcurrentHashMap<Long, MutableList<Line>>()
+    private val scopes = ConcurrentHashMap<Class<*>, TdApi.ScopeNotificationSettings>()
 
     private class Line(val text: String, val time: Long, val sender: String, val senderId: Long)
 
@@ -45,6 +46,7 @@ class Notifier(private val context: Context, private val td: TdClient, private v
             td.updates.collect { update ->
                 when (update) {
                     is TdApi.UpdateNewMessage -> runCatching { onMessage(update.message) }
+                    is TdApi.UpdateScopeNotificationSettings -> scopes[update.scope.javaClass] = update.notificationSettings
                     is TdApi.UpdateChatReadInbox -> if (update.unreadCount == 0) clear(update.chatId)
                     else -> Unit
                 }
@@ -52,12 +54,27 @@ class Notifier(private val context: Context, private val td: TdClient, private v
         }
     }
 
-    private fun onMessage(message: TdApi.Message) {
+    private suspend fun scopeSettings(chat: TdApi.Chat): TdApi.ScopeNotificationSettings? {
+        val scope: TdApi.NotificationSettingsScope = when (val type = chat.type) {
+            is TdApi.ChatTypePrivate, is TdApi.ChatTypeSecret -> TdApi.NotificationSettingsScopePrivateChats()
+            is TdApi.ChatTypeSupergroup -> if (type.isChannel) TdApi.NotificationSettingsScopeChannelChats() else TdApi.NotificationSettingsScopeGroupChats()
+            else -> TdApi.NotificationSettingsScopeGroupChats()
+        }
+        scopes[scope.javaClass]?.let { return it }
+        return runCatching { td.send(TdApi.GetScopeNotificationSettings(scope)) }.getOrNull()?.also { scopes[scope.javaClass] = it }
+    }
+
+    private suspend fun onMessage(message: TdApi.Message) {
         if (message.isOutgoing || message.sendingState != null) return
         if (AppVisibility.foreground && AppVisibility.openChat == message.chatId) return
         if (System.currentTimeMillis() / 1000 - message.date > StaleSeconds) return
-        val chat = store.chat(message.chatId) ?: return
-        if (chat.notificationSettings.muteFor > 0) return
+        val chat = runCatching { td.send(TdApi.GetChat(message.chatId)) }.getOrNull() ?: store.chat(message.chatId) ?: return
+        val settings = chat.notificationSettings
+        val muted = if (settings.useDefaultMuteFor) (scopeSettings(chat)?.muteFor ?: 0) > 0 else settings.muteFor > 0
+        if (muted) {
+            val mentionsOff = if (settings.useDefaultDisableMentionNotifications) scopeSettings(chat)?.disableMentionNotifications ?: false else settings.disableMentionNotifications
+            if (!message.containsUnreadMention || mentionsOff) return
+        }
         if (message.content is TdApi.MessageChatJoinByLink || message.content is TdApi.MessagePinMessage && chat.type is TdApi.ChatTypeSupergroup) return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= 33) return
         val senderId = (message.senderId as? TdApi.MessageSenderUser)?.userId ?: (message.senderId as? TdApi.MessageSenderChat)?.chatId ?: 0L

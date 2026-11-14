@@ -725,20 +725,14 @@ internal fun MessageBubble(
                     )
                 }
                 if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick)
-                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
-                if (photos.isNotEmpty()) PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
-                (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
-                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay)
-                (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
-                (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
-                val meta: @Composable () -> Unit = {
+                val meta: @Composable (Color) -> Unit = { tint ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (message.views > 0) {
-                            Icon(Icons.Rounded.Visibility, stringResource(R.string.message_views), Modifier.size(13.dp), tint = onContainer.copy(alpha = 0.7f))
-                            Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f), modifier = Modifier.padding(end = 4.dp))
+                            Icon(Icons.Rounded.Visibility, stringResource(R.string.message_views), Modifier.size(13.dp), tint = tint)
+                            Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = tint, modifier = Modifier.padding(end = 4.dp))
                         }
-                        if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
-                        Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.7f))
+                        if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = tint)
+                        Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = tint)
                         if (message.outgoing) {
                             Icon(
                                 when {
@@ -749,24 +743,38 @@ internal fun MessageBubble(
                                 },
                                 null,
                                 Modifier.size(14.dp),
-                                tint = if (message.failed) MaterialTheme.colorScheme.error else onContainer.copy(alpha = 0.7f),
+                                tint = if (message.failed) MaterialTheme.colorScheme.error else tint,
                             )
                         }
                     }
                 }
-                Row(
-                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
-                    if (bigEmoji != null && !prefs.zalgoFilter) {
+                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
+                val mediaOnly = photos.isNotEmpty() && message.text.isBlank() && message.reactions.isEmpty()
+                if (photos.isNotEmpty()) Box {
+                    PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
+                    if (mediaOnly) {
+                        Surface(shape = RoundedCornerShape(10.dp), color = Color.Black.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
+                            Box(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) { meta(Color.White) }
+                        }
+                    }
+                }
+                (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
+                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay)
+                (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
+                (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
+                val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
+                if (bigEmoji != null && !prefs.zalgoFilter) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             bigEmoji.forEach { (id, alt) -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = BigEmojiSize) }
                         }
-                    } else if (message.text.isNotBlank()) {
-                        val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
-                        val entities = if (prefs.zalgoFilter) emptyList() else message.entities
+                        if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
+                    }
+                } else if (message.text.isNotBlank()) {
+                    val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
+                    val entities = if (prefs.zalgoFilter) emptyList() else message.entities
+                    val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
+                    TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)) {
                         MessageText(
                             text,
                             entities,
@@ -774,10 +782,12 @@ internal fun MessageBubble(
                             onContainer,
                             MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
                             prefs.messageFontSize.toFloat(),
-                            Modifier.weight(1f, fill = false),
+                            onLastLine = { lastLine.floatValue = it },
                         )
+                        if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
                     }
-                    if (message.reactions.isEmpty()) meta()
+                } else if (message.reactions.isEmpty() && !mediaOnly) {
+                    Box(Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
                 }
                 if (message.reactions.isNotEmpty()) {
                     ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
@@ -813,7 +823,7 @@ internal fun MessageBubble(
                                 }
                             }
                         }
-                        meta()
+                        meta(onContainer.copy(alpha = 0.7f))
                     }
                 }
             }
@@ -1820,6 +1830,32 @@ private const val HighlightMs = 1_400L
 private const val QuoteLines = 3
 
 @Composable
+private fun TextWithMeta(lastLine: Float, showMeta: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val text = measurables[0].measure(loose)
+        val meta = if (showMeta && measurables.size > 1) measurables[1].measure(loose) else null
+        if (meta == null) return@Layout layout(text.width, text.height) { text.place(0, 0) }
+        val gap = 8.dp.roundToPx()
+        val last = if (lastLine < 0f) text.width.toFloat() else lastLine
+        val inline = last + gap + meta.width <= constraints.maxWidth
+        val width: Int
+        val height: Int
+        if (inline) {
+            width = maxOf(text.width, (last + gap + meta.width).toInt())
+            height = text.height
+        } else {
+            width = maxOf(text.width, meta.width)
+            height = text.height + meta.height
+        }
+        layout(width, height) {
+            text.place(0, 0)
+            meta.place(width - meta.width, height - meta.height)
+        }
+    }
+}
+
+@Composable
 private fun ReactionFlow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
         val gap = 4.dp.roundToPx()
@@ -1902,12 +1938,15 @@ private fun MessageText(
     style: androidx.compose.ui.text.TextStyle,
     fontSize: Float,
     modifier: Modifier = Modifier,
+    onLastLine: (Float) -> Unit = {},
 ) {
     val parts = remember(text, entities) { splitQuotes(text, entities) }
     if (parts.size == 1 && parts[0].quote == null) {
-        PlainText(text, entities, link, content, style, fontSize, modifier)
+        PlainText(text, entities, link, content, style, fontSize, modifier, onLastLine = onLastLine)
         return
     }
+    val lastPart = parts.lastOrNull { text.substring(it.start, it.end).trim('\n').isNotEmpty() }
+    if (lastPart?.quote != null) onLastLine(Float.MAX_VALUE)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         parts.forEach { part ->
             val raw = text.substring(part.start, part.end)
@@ -1916,7 +1955,7 @@ private fun MessageText(
             if (piece.isEmpty()) return@forEach
             val local = slice(entities, part.start + trimStart, part.start + trimStart + piece.length)
             if (part.quote == null) {
-                PlainText(piece, local, link, content, style, fontSize)
+                PlainText(piece, local, link, content, style, fontSize, onLastLine = if (part === lastPart) onLastLine else ({}))
             } else {
                 QuoteBlock(part.quote is TdApi.TextEntityTypeExpandableBlockQuote, content) { lines ->
                     PlainText(piece, local, link, content, style, fontSize, maxLines = lines)
@@ -1936,11 +1975,13 @@ private fun PlainText(
     fontSize: Float,
     modifier: Modifier = Modifier,
     maxLines: Int = Int.MAX_VALUE,
+    onLastLine: (Float) -> Unit = {},
 ) {
+    val report: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { layout -> onLastLine(layout.getLineRight(layout.lineCount - 1)) }
     val inline = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) }
     val hasSpoiler = remember(entities) { entities.any { it.type is TdApi.TextEntityTypeSpoiler } }
     if (!hasSpoiler) {
-        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, modifier = modifier)
+        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, modifier = modifier, onTextLayout = report)
         return
     }
     var revealed by remember(text) { mutableStateOf(false) }
@@ -1948,10 +1989,10 @@ private fun PlainText(
     val radius by androidx.compose.animation.core.animateDpAsState(if (revealed) 0.dp else SpoilerBlur, MaterialTheme.motionScheme.slowEffectsSpec(), label = "spoiler")
     Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
         when {
-            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
-            !blurSupported -> Text(formatted(text, entities, link, content, SpoilerMode.Block), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
+            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
+            !blurSupported -> Text(formatted(text, entities, link, content, SpoilerMode.Block), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
             else -> {
-                Text(formatted(text, entities, link, content, SpoilerMode.Hidden), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline)
+                Text(formatted(text, entities, link, content, SpoilerMode.Hidden), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
                 Text(
                     formatted(text, entities, link, content, SpoilerMode.Only),
                     style = style,
