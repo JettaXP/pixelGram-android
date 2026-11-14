@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chats
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -225,7 +226,22 @@ fun ChatsTab(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
+                        val connection by graph.store.connection.collectAsState()
+                        val status = when (connection) {
+                            is TdApi.ConnectionStateWaitingForNetwork -> stringResource(R.string.connection_waiting)
+                            is TdApi.ConnectionStateConnecting, is TdApi.ConnectionStateConnectingToProxy -> stringResource(R.string.connection_connecting)
+                            is TdApi.ConnectionStateUpdating -> stringResource(R.string.connection_updating)
+                            else -> null
+                        }
+                        androidx.compose.animation.AnimatedContent(
+                            status,
+                            transitionSpec = {
+                                (androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 }) togetherWith
+                                    (androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 })
+                            },
+                            label = "connection-title",
+                        ) { line ->
+                        if (line != null) Text(line, style = MaterialTheme.typography.titleLargeEmphasized) else Text(
                             when {
                                 archive -> stringResource(R.string.drawer_archive)
                                 appearance.folderTitle == FolderTitle.Icons && folder != 0 -> tabs.firstOrNull { it.id == folder }?.title ?: stringResource(R.string.app_name)
@@ -233,6 +249,7 @@ fun ChatsTab(
                             },
                             style = MaterialTheme.typography.titleLargeEmphasized,
                         )
+                        }
                         if (storyOwners.isNotEmpty()) {
                             com.pixelgram.android.feature.stories.StoryStack(
                                 graph,
@@ -288,9 +305,18 @@ fun ChatsTab(
                         appearance.folderTitle,
                         onSelect = { id ->
                             val index = tabs.indexOfFirst { it.id == id }
-                            if (id == folder) scrollTop++ else if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
+                            if (id == folder) scrollTop++ else if (index >= 0) scope.launch { pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         },
+                        position = { pager.currentPage + pager.currentPageOffsetFraction },
                     )
+                }
+                val connection by graph.store.connection.collectAsState()
+                androidx.compose.animation.AnimatedVisibility(
+                    connection !is TdApi.ConnectionStateReady,
+                    enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+                ) {
+                    androidx.compose.material3.LinearWavyProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
                 }
                 com.pixelgram.android.ui.components.MiniPlayer()
             }

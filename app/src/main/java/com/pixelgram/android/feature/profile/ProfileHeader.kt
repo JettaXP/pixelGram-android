@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,6 +72,9 @@ fun ProfileHeader(
     topEnd: @Composable RowScope.() -> Unit = {},
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     localPhoto: String? = null,
+    expand: () -> Float = { 0f },
+    loader: () -> Float = { 0f },
+    refreshing: Boolean = false,
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
     val banners by graph.remote.banners.collectAsState()
@@ -98,40 +103,68 @@ fun ProfileHeader(
                 Spacer(Modifier.weight(1f))
                 topEnd()
             }
-            Box {
-                Avatar(
-                    title = title,
-                    seed = userId,
-                    path = localPhoto ?: snapshot.files[photoFileId],
-                    minithumb = if (icon != null) null else minithumb,
-                    size = 120.dp,
-                    icon = icon,
-                    modifier = Modifier.clickable(onClick = onAvatarClick),
-                    onNeedFile = { graph.store.requestFileAsync(photoFileId) },
-                )
-                if (showCamera) {
-                    androidx.compose.material3.FilledIconButton(
-                        onClick = onAvatarClick,
-                        modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
-                    ) {
-                        Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val e = expand().coerceIn(0f, 1f)
+                val full = maxWidth
+                val size = 120.dp + (full - 120.dp) * e
+                val baseShape = com.pixelgram.android.ui.theme.LocalAvatarShape.current
+                val shape = if (e > 0f) RoundedCornerShape((size / 2) * (1f - e) + 0.dp) else baseShape
+                Box {
+                    androidx.compose.runtime.CompositionLocalProvider(com.pixelgram.android.ui.theme.LocalAvatarShape provides shape) {
+                        Avatar(
+                            title = title,
+                            seed = userId,
+                            path = localPhoto ?: snapshot.files[photoFileId],
+                            minithumb = if (icon != null) null else minithumb,
+                            size = size,
+                            icon = icon,
+                            modifier = Modifier.clickable(onClick = onAvatarClick),
+                            onNeedFile = { graph.store.requestFileAsync(photoFileId) },
+                        )
                     }
+                    if (showCamera && e < 0.05f) {
+                        androidx.compose.material3.FilledIconButton(
+                            onClick = onAvatarClick,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
+                        ) {
+                            Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+            val pullLoader = loader().coerceIn(0f, 1f)
+            if (pullLoader > 0f || refreshing) {
+                Box(Modifier.fillMaxWidth().height(64.dp * (if (refreshing) 1f else pullLoader)), contentAlignment = Alignment.Center) {
+                    @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+                    if (refreshing) androidx.compose.material3.ContainedLoadingIndicator(Modifier.size(48.dp))
+                    else androidx.compose.material3.ContainedLoadingIndicator(progress = { pullLoader }, modifier = Modifier.size(48.dp).graphicsLayer { alpha = pullLoader; scaleX = pullLoader; scaleY = pullLoader })
                 }
             }
             Spacer(Modifier.height(14.dp))
             Row(Modifier.padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                androidx.compose.animation.AnimatedContent(
                     title,
-                    style = MaterialTheme.typography.headlineSmallEmphasized,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 }) togetherWith
+                            (androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 })
+                    },
+                    label = "profile-title",
                     modifier = Modifier.weight(1f, fill = false),
-                )
+                ) { value ->
+                    Text(
+                        value,
+                        style = MaterialTheme.typography.headlineSmallEmphasized,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = true, official = official)
             }
             if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.animation.AnimatedContent(subtitle, label = "profile-subtitle") { value ->
+                    Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Spacer(Modifier.height(16.dp))
         }

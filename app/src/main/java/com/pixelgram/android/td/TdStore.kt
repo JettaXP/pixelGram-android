@@ -148,6 +148,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private val dirty = MutableStateFlow(0L)
     private val snapshotFlow = MutableStateFlow(StoreSnapshot())
     val snapshot: StateFlow<StoreSnapshot> = snapshotFlow.asStateFlow()
+    private val connectionFlow = MutableStateFlow<TdApi.ConnectionState>(TdApi.ConnectionStateReady())
+    val connection: StateFlow<TdApi.ConnectionState> = connectionFlow.asStateFlow()
 
     init {
         EmojiTaps.client = td
@@ -161,6 +163,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
 
     private fun apply(update: TdApi.Object) {
         when (update) {
+            is TdApi.UpdateConnectionState -> connectionFlow.value = update.state
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
             is TdApi.UpdateAnimatedEmojiMessageClicked -> EmojiTaps.received(update.chatId, update.messageId, update.sticker)
             is TdApi.UpdateChatTitle -> chats[update.chatId]?.title = update.title

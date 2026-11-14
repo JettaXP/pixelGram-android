@@ -17,7 +17,7 @@ fun credential(name: String): String? =
 
 val appVersionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 val hasReleaseKey = credential("RELEASE_STORE_FILE") != null
-val appVersionName = "0.1.0"
+val appVersionName = "0.2.0"
 
 android {
     namespace = "com.pixelgram.android"

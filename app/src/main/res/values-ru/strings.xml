@@ -718,4 +718,8 @@
     <string name="update_download">Скачать</string>
     <string name="update_install">Установить</string>
     <string name="update_check">Проверить обновления</string>
+    <string name="connection_waiting">Ожидание сети…</string>
+    <string name="connection_connecting">Соединение…</string>
+    <string name="connection_updating">Обновление…</string>
+    <string name="date_go">Перейти</string>
 </resources>

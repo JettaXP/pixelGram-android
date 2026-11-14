@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.indication
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -215,6 +216,32 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             }
         }
     }
+    var datePicker by remember { mutableStateOf<Int?>(null) }
+    datePicker?.let { start ->
+        val pickerState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = start * 1000L,
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= System.currentTimeMillis()
+            },
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { datePicker = null },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val millis = pickerState.selectedDateMillis
+                    datePicker = null
+                    if (millis != null) jumpScope.launch {
+                        val zone = ZoneId.systemDefault()
+                        val day = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                        val target = day.atStartOfDay(zone).toEpochSecond().toInt() + 86_399
+                        val found = runCatching { graph.td.send(TdApi.GetChatMessageByDate(chatId, target)) }.getOrNull()
+                        if (found != null) jumpTo(found.id)
+                    }
+                }) { Text(stringResource(R.string.date_go)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { datePicker = null }) { Text(stringResource(R.string.action_cancel)) } },
+        ) { androidx.compose.material3.DatePicker(pickerState) }
+    }
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
     val newest = ui.messages.firstOrNull()?.id
@@ -358,7 +385,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     val joinsAbove = older != null && !older.service && older.senderId == message.senderId && message.date - older.date < 300
                     val joinsBelow = newer != null && !newer.service && newer.senderId == message.senderId && newer.date - message.date < 300
                     Column(Modifier.animateItem()) {
-                        if (older == null || !sameDay(older.date, message.date)) DayChip(message.date)
+                        if (older == null || !sameDay(older.date, message.date)) DayChip(message.date) { datePicker = message.date }
                         if (message.service) {
                             ServiceMessage(message, senderName(snapshot, message.senderId, chat)) { id -> snapshot.users[id]?.name ?: "" }
                         } else {
@@ -545,15 +572,48 @@ private fun sameDay(a: Int, b: Int): Boolean {
 }
 
 @Composable
-private fun DayChip(date: Int) {
+internal fun WavyLine(modifier: Modifier, color: Color, reverse: Boolean = false) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
+    val phase by transition.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "wave-phase")
+    androidx.compose.foundation.Canvas(modifier.height(10.dp)) {
+        val wave = 14.dp.toPx()
+        val amp = 2.2.dp.toPx()
+        val mid = size.height / 2
+        val path = androidx.compose.ui.graphics.Path()
+        val shift = (if (reverse) -phase else phase) * wave
+        var x = 0f
+        path.moveTo(0f, mid)
+        while (x <= size.width) {
+            val fade = (minOf(x, size.width - x) / (size.width * 0.25f)).coerceIn(0f, 1f)
+            path.lineTo(x, mid + amp * fade * kotlin.math.sin(((x + shift) / wave) * 2f * Math.PI.toFloat()).toFloat())
+            x += 2f
+        }
+        drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun WavyRow(content: @Composable () -> Unit) {
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        WavyLine(Modifier.weight(1f).padding(end = 8.dp), line)
+        Box(Modifier.widthIn(max = 280.dp)) { content() }
+        WavyLine(Modifier.weight(1f).padding(start = 8.dp), line, reverse = true)
+    }
+}
+
+@Composable
+private fun DayChip(date: Int, onClick: () -> Unit = {}) {
     Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+        WavyRow {
         SuggestionChip(
-            onClick = {},
+            onClick = onClick,
             label = { Text(dayHeader(date)) },
             shape = androidx.compose.foundation.shape.CircleShape,
             border = null,
             colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         )
+        }
     }
 }
 
@@ -562,16 +622,18 @@ private fun ServiceMessage(message: UiMessage, sender: String, name: (Long) -> S
     val context = androidx.compose.ui.platform.LocalContext.current
     val described = remember(message.content, sender) { serviceText(context, message.content, sender, name) }
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
-        SuggestionChip(
-            onClick = {},
-            label = { Text(described ?: message.text.ifBlank { stringResource(R.string.preview_service) }, maxLines = 3, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-            shape = androidx.compose.foundation.shape.CircleShape,
-            border = null,
-            colors = SuggestionChipDefaults.suggestionChipColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
+        WavyRow {
+            SuggestionChip(
+                onClick = {},
+                label = { Text(described ?: message.text.ifBlank { stringResource(R.string.preview_service) }, maxLines = 3, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                shape = androidx.compose.foundation.shape.CircleShape,
+                border = null,
+                colors = SuggestionChipDefaults.suggestionChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.blur
 import androidx.compose.material3.toShape
 import androidx.compose.material.icons.rounded.Campaign
@@ -120,6 +121,9 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     LaunchedEffect(userId) {
         if (userId != 0L) full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull()
     }
+    LaunchedEffect(userId) {
+        if (userId != 0L) graph.td.updates.collect { u -> if (u is TdApi.UpdateUserFullInfo && u.userId == userId) full = u.userFullInfo }
+    }
     val bio = full?.bio?.text.orEmpty()
     val opener = com.pixelgram.android.nav.rememberLinkOpener(graph, navigator)
     val self = userId != 0L && userId == snapshot.meId
@@ -129,9 +133,13 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val group = (chat?.type as? TdApi.ChatTypeSupergroup)?.takeIf { userId == 0L }
     val supergroup by produceState<TdApi.Supergroup?>(null, group?.supergroupId) {
         value = group?.let { runCatching { graph.td.send(TdApi.GetSupergroup(it.supergroupId)) }.getOrNull() }
+        val id = group?.supergroupId ?: return@produceState
+        graph.td.updates.collect { u -> if (u is TdApi.UpdateSupergroup && u.supergroup.id == id) value = u.supergroup }
     }
     val groupFull by produceState<TdApi.SupergroupFullInfo?>(null, group?.supergroupId) {
         value = group?.let { runCatching { graph.td.send(TdApi.GetSupergroupFullInfo(it.supergroupId)) }.getOrNull() }
+        val id = group?.supergroupId ?: return@produceState
+        graph.td.updates.collect { u -> if (u is TdApi.UpdateSupergroupFullInfo && u.supergroupId == id) value = u.supergroupFullInfo }
     }
     val channelMembers = groupFull?.memberCount ?: supergroup?.memberCount ?: 0
     val channelSubtitle = if (group != null && channelMembers > 0) {
@@ -142,7 +150,70 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     Scaffold(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val expandDistance = with(density) { 220.dp.toPx() }
+        val loaderDistance = with(density) { 120.dp.toPx() }
+        val pull = remember { androidx.compose.animation.core.Animatable(0f) }
+        var expanded by remember { mutableStateOf(false) }
+        var refreshing by remember { mutableStateOf(false) }
+        val scroll = rememberScrollState()
+        val refresh: () -> Unit = {
+            refreshing = true
+            scope.launch {
+                runCatching {
+                    if (userId != 0L) {
+                        graph.td.send(TdApi.GetUser(userId))
+                        full = graph.td.send(TdApi.GetUserFullInfo(userId))
+                        graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 1))
+                    } else if (chatId != 0L) {
+                        graph.td.send(TdApi.GetChat(chatId))
+                        group?.let { graph.td.send(TdApi.GetSupergroupFullInfo(it.supergroupId)) }
+                    }
+                }
+                kotlinx.coroutines.delay(600)
+                refreshing = false
+            }
+        }
+        val connection = remember(expanded) {
+            object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                    if (available.y < 0 && pull.value > 0f) {
+                        val used = maxOf(available.y, -pull.value)
+                        scope.launch { pull.snapTo(pull.value + used) }
+                        return androidx.compose.ui.geometry.Offset(0f, used)
+                    }
+                    if (available.y < 0 && expanded && scroll.value == 0) {
+                        expanded = false
+                        return androidx.compose.ui.geometry.Offset(0f, available.y)
+                    }
+                    return androidx.compose.ui.geometry.Offset.Zero
+                }
+
+                override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                    if (available.y > 0 && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && !refreshing) {
+                        scope.launch { pull.snapTo(pull.value + available.y * 0.5f) }
+                        return androidx.compose.ui.geometry.Offset(0f, available.y)
+                    }
+                    return androidx.compose.ui.geometry.Offset.Zero
+                }
+
+                override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                    if (pull.value <= 0f) return androidx.compose.ui.unit.Velocity.Zero
+                    val stage = if (expanded) 0f else expandDistance
+                    val loaderAmount = (pull.value - stage) / loaderDistance
+                    if (!expanded && pull.value / expandDistance > 0.5f) expanded = true
+                    if (loaderAmount >= 1f) refresh()
+                    pull.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f))
+                    return available
+                }
+            }
+        }
+        val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+        val expandedAmount by androidx.compose.animation.core.animateFloatAsState(if (expanded) 1f else 0f, spatial, label = "avatar-expand")
+        Column(
+            Modifier.fillMaxSize().padding(padding).nestedScroll(connection).verticalScroll(scroll),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) } ?: channelSubtitle
             ProfileHeader(
                 graph = graph,
@@ -157,6 +228,9 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) else if (userId == 0L && chat?.photo != null) navigator.open(ProfilePhotosKey(chatId)) },
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
                 localPhoto = user?.localPhoto,
+                expand = { if (expanded) expandedAmount else maxOf(expandedAmount, pull.value / expandDistance) },
+                loader = { (pull.value - (if (expanded) 0f else expandDistance)) / loaderDistance },
+                refreshing = refreshing,
                 topStart = {
                     if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                     else IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }

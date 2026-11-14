@@ -122,6 +122,7 @@ fun FolderChips(
     mode: FolderTitle,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    position: (() -> Float)? = null,
 ) {
     if (tabs.size < 2) return
     val scroll = rememberScrollState()
@@ -141,10 +142,11 @@ fun FolderChips(
             .horizontalScroll(scroll)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        tabs.forEach { tab ->
+        tabs.forEachIndexed { index, tab ->
             FolderPill(
                 tab = tab,
                 selected = tab.id == selected,
+                amount = position?.let { pos -> { (1f - kotlin.math.abs(pos() - index)).coerceIn(0f, 1f) } },
                 mode = mode,
                 onClick = { onSelect(tab.id) },
                 modifier = Modifier.onPlaced {
@@ -158,11 +160,14 @@ fun FolderChips(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit, modifier: Modifier) {
+private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit, modifier: Modifier, amount: (() -> Float)? = null) {
     val colors = MaterialTheme.colorScheme
     val fade = tween<Color>(SwitchMs, easing = FastOutSlowInEasing)
-    val container by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, fade, label = "pill-container")
-    val content by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, fade, label = "pill-content")
+    val animatedContainer by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, fade, label = "pill-container")
+    val animatedContent by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, fade, label = "pill-content")
+    val fraction = amount?.invoke()
+    val container = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.surfaceContainerHigh, colors.primaryContainer, fraction) else animatedContainer
+    val content = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.onSurfaceVariant, colors.onPrimaryContainer, fraction) else animatedContent
     val dip = remember { Animatable(1f) }
     var first by remember { mutableStateOf(true) }
     LaunchedEffect(selected) {

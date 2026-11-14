@@ -703,4 +703,8 @@
     <string name="update_download">Download</string>
     <string name="update_install">Install</string>
     <string name="update_check">Check for updates</string>
+    <string name="connection_waiting">Waiting for network…</string>
+    <string name="connection_connecting">Connecting…</string>
+    <string name="connection_updating">Updating…</string>
+    <string name="date_go">Go</string>
 </resources>
