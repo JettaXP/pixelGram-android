@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -97,17 +98,24 @@ object Updater {
                             val buffer = ByteArray(64 * 1024)
                             var done = 0L
                             while (true) {
+                                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                                 val read = input.read(buffer)
                                 if (read < 0) break
                                 output.write(buffer, 0, read)
                                 done += read
-                                if (total > 0) state = UpdateState.Downloading(available.build, (done.toFloat() / total).coerceIn(0f, 1f), available.version)
+                                if (total > 0 && kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive != false) state = UpdateState.Downloading(available.build, (done.toFloat() / total).coerceIn(0f, 1f), available.version)
                             }
                         }
                     }
                     conn.disconnect()
                     UpdateState.Ready(available.build, target, available.version)
-                }.getOrElse { UpdateState.Failed(it.message ?: "error") }
+                }.getOrElse {
+                    if (it is kotlinx.coroutines.CancellationException) {
+                        File(context.filesDir, "updates").listFiles()?.forEach { f -> f.delete() }
+                        throw it
+                    }
+                    UpdateState.Failed(it.message ?: "error")
+                }
             }
         }
     }
