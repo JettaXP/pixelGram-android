@@ -150,6 +150,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private val dirty = MutableStateFlow(0L)
     private val snapshotFlow = MutableStateFlow(StoreSnapshot())
     val snapshot: StateFlow<StoreSnapshot> = snapshotFlow.asStateFlow()
+    private val savedTopicsFlow = kotlinx.coroutines.flow.MutableStateFlow<Map<Long, TdApi.SavedMessagesTopic>>(emptyMap())
+    val savedTopics: StateFlow<Map<Long, TdApi.SavedMessagesTopic>> = savedTopicsFlow.asStateFlow()
     private val connectionFlow = MutableStateFlow<TdApi.ConnectionState>(TdApi.ConnectionStateReady())
     val connection: StateFlow<TdApi.ConnectionState> = connectionFlow.asStateFlow()
 
@@ -165,6 +167,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
 
     private fun apply(update: TdApi.Object) {
         when (update) {
+            is TdApi.UpdateSavedMessagesTopic -> savedTopicsFlow.value = savedTopicsFlow.value + (update.topic.id to update.topic)
             is TdApi.UpdateConnectionState -> connectionFlow.value = update.state
             is TdApi.UpdateAccentColors -> AccentColors.update(update.colors)
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat

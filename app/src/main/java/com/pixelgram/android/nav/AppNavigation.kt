@@ -47,10 +47,13 @@ import kotlinx.serialization.Serializable
 @Serializable data object StarsKey : NavKey
 @Serializable data object BusinessKey : NavKey
 @Serializable data object SettingsKey : NavKey
+@Serializable data object SavedKey : NavKey
+@Serializable data class SavedTopicKey(val topicId: Long) : NavKey
 
 object PendingNav {
     var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
     var link by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var jump by androidx.compose.runtime.mutableStateOf<Pair<Long, Long>?>(null)
 }
 
 object PixelLinks {
@@ -127,6 +130,8 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
             entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator, key.topicId) }
             entry<ForumKey> { key -> com.pixelgram.android.feature.chat.ForumScreen(graph, key.chatId, navigator) }
             entry<ProfileKey> { key -> ProfileScreen(graph, key.userId, key.chatId, navigator) }
+            entry<SavedKey> { com.pixelgram.android.feature.profile.SavedScreen(graph, navigator) }
+            entry<SavedTopicKey> { key -> com.pixelgram.android.feature.profile.SavedTopicScreen(graph, navigator, key.topicId) }
             entry<PixelSettingsKey> { key -> PixelSettingsScreen(graph, key.page, navigator) }
             entry<SessionsKey> { SessionsScreen(graph, navigator) }
             entry<SearchKey> { com.pixelgram.android.feature.search.SearchScreen(graph, navigator) }

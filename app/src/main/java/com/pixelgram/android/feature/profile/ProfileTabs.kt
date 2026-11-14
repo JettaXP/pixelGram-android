@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -174,16 +176,36 @@ private fun cellShape(index: Int, count: Int, columns: Int): RoundedCornerShape 
     )
 }
 
+object MediaSelection {
+    val items = androidx.compose.runtime.mutableStateListOf<TdApi.Message>()
+    fun toggle(message: TdApi.Message) {
+        val index = items.indexOfFirst { it.id == message.id && it.chatId == message.chatId }
+        if (index >= 0) items.removeAt(index) else items.add(message)
+    }
+    fun has(message: TdApi.Message) = items.any { it.id == message.id && it.chatId == message.chatId }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun Thumb(graph: AppGraph, file: TdApi.File?, mini: ByteArray?, shape: RoundedCornerShape, video: Boolean, onClick: () -> Unit) {
+private fun Thumb(graph: AppGraph, file: TdApi.File?, mini: ByteArray?, shape: RoundedCornerShape, video: Boolean, selected: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val snapshot by graph.store.snapshot.collectAsState()
     val path = file?.let { snapshot.files[it.id] ?: it.local.path.takeIf { p -> it.local.isDownloadingCompleted && p.isNotEmpty() } }
     if (file != null && path == null) androidx.compose.runtime.LaunchedEffect(file.id) { graph.store.requestFileAsync(file.id) }
-    Box(Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable(onClick = onClick)) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val inset by androidx.compose.animation.core.animateDpAsState(if (selected) 8.dp else 0.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "sel")
+    Box(Modifier.fillMaxSize().padding(inset).clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).combinedClickable(
+        onClick = onClick,
+        onLongClick = onLongClick?.let { long -> { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); long() } },
+    )) {
         AsyncImage(model = path?.let { java.io.File(it) } ?: mini, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         if (video) {
             Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.45f), contentColor = Color.White, modifier = Modifier.align(Alignment.Center).size(32.dp)) {
                 Icon(Icons.Rounded.PlayArrow, null, modifier = Modifier.padding(4.dp))
+            }
+        }
+        if (selected) {
+            Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -313,12 +335,24 @@ private suspend fun search(graph: AppGraph, userId: Long, chatId: Long, filter: 
 private fun MediaGrid(graph: AppGraph, navigator: Navigator, userId: Long, chatId: Long) {
     val messages by produceState<List<TdApi.Message>?>(null, userId, chatId) { value = search(graph, userId, chatId, ProfileTab.Media.filter()) }
     val list = messages ?: return Loading()
+    var viewer by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val ui = androidx.compose.runtime.remember(list) { with(com.pixelgram.android.feature.chat.ChatUiMapper) { list.map { it.ui() } } }
+    val snapshot by graph.store.snapshot.collectAsState()
+    viewer?.let { start ->
+        val photos = ui.filter { it.content is TdApi.MessagePhoto }
+        val at = photos.indexOfFirst { it.id == ui[start].id }
+        if (at >= 0) com.pixelgram.android.feature.chat.PhotoViewer(photos, at, snapshot.files, graph.store::requestFileAsync) { viewer = null }
+        else { viewer = null; navigator.open(ChatKey(list[start].chatId)); com.pixelgram.android.nav.PendingNav.jump = list[start].chatId to list[start].id }
+    }
     Grid(list.withIndex().toList()) { (index, message) ->
         val shape = cellShape(index, list.size, 3)
-        val open = { navigator.open(ChatKey(message.chatId)) }
+        val selecting = MediaSelection.items.isNotEmpty()
+        val open = { if (selecting) MediaSelection.toggle(message) else viewer = index }
+        val long = { MediaSelection.toggle(message) }
+        val selected = MediaSelection.has(message)
         when (val content = message.content) {
-            is TdApi.MessagePhoto -> Thumb(graph, content.photo.thumb(), content.photo.minithumbnail?.data, shape, false, open)
-            is TdApi.MessageVideo -> Thumb(graph, content.video.thumbnail?.file, content.video.minithumbnail?.data, shape, true, open)
+            is TdApi.MessagePhoto -> Thumb(graph, content.photo.thumb(), content.photo.minithumbnail?.data, shape, false, selected, long, open)
+            is TdApi.MessageVideo -> Thumb(graph, content.video.thumbnail?.file, content.video.minithumbnail?.data, shape, true, selected, long, open)
             else -> Box(Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh))
         }
     }
@@ -343,7 +377,14 @@ private fun MessageList(graph: AppGraph, navigator: Navigator, userId: Long, cha
                 else -> Triple(Icons.Rounded.Link, "", "")
             }
             androidx.compose.material3.SegmentedListItem(
-                onClick = { navigator.open(ChatKey(message.chatId)) },
+                onClick = {
+                    if (MediaSelection.items.isNotEmpty()) MediaSelection.toggle(message) else {
+                        navigator.open(ChatKey(message.chatId))
+                        com.pixelgram.android.nav.PendingNav.jump = message.chatId to message.id
+                    }
+                },
+                onLongClick = { MediaSelection.toggle(message) },
+                selected = MediaSelection.has(message),
                 shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, list.size),
                 colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
                 leadingContent = {
@@ -365,3 +406,16 @@ private fun size(bytes: Long): String = when {
 }
 
 private fun date(seconds: Int): String = java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(seconds * 1000L))
+
+internal val SavedMediaTabs = listOf(R.string.profile_tab_media, R.string.profile_tab_files, R.string.profile_tab_links, R.string.profile_tab_music, R.string.profile_tab_voice)
+
+@Composable
+internal fun SavedMediaTab(graph: AppGraph, navigator: Navigator, chatId: Long, index: Int) {
+    when (index) {
+        0 -> MediaGrid(graph, navigator, 0L, chatId)
+        1 -> MessageList(graph, navigator, 0L, chatId, ProfileTab.Files)
+        2 -> MessageList(graph, navigator, 0L, chatId, ProfileTab.Links)
+        3 -> MessageList(graph, navigator, 0L, chatId, ProfileTab.Music)
+        else -> MessageList(graph, navigator, 0L, chatId, ProfileTab.Voice)
+    }
+}

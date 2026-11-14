@@ -461,7 +461,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
     }
 }
 
-private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
+internal fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
     val (text, entities) = when (val c = content) {
         is TdApi.MessageText -> c.text.text to c.text.entities.toList()
         is TdApi.MessagePhoto -> c.caption.text to c.caption.entities.toList()
@@ -520,3 +520,7 @@ private fun isService(content: TdApi.MessageContent): Boolean = when (content) {
 }
 
 private const val RevealPages = 30
+
+object ChatUiMapper {
+    fun TdApi.Message.ui(): UiMessage = toUi(Long.MAX_VALUE).copy(chatId = chatId)
+}

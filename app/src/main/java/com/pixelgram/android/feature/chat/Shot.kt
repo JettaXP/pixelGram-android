@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -137,6 +138,13 @@ fun MessageShotDialog(messages: List<UiMessage>, group: Boolean, onSend: (String
                             )
                         }
                     }
+                    Box(
+                        Modifier.matchParentSize().pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial).changes.forEach { if (it.pressed != it.previousPressed) it.consume() }
+                            }
+                        },
+                    )
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(names, onClick = { names = !names }, label = { Text(stringResource(R.string.shot_names)) })
@@ -152,11 +160,12 @@ fun MessageShotDialog(messages: List<UiMessage>, group: Boolean, onSend: (String
                             }
                         },
                         shapes = ButtonDefaults.shapes(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(Icons.Rounded.Download, null)
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.shot_save))
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.shot_save), maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = {
@@ -168,16 +177,17 @@ fun MessageShotDialog(messages: List<UiMessage>, group: Boolean, onSend: (String
                             }
                         },
                         shapes = ButtonDefaults.shapes(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(Icons.Rounded.Share, null)
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.shot_share))
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.shot_share), maxLines = 1, softWrap = false)
                     }
-                    Button(onClick = { picking = true }, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) {
+                    Button(onClick = { picking = true }, shapes = ButtonDefaults.shapes(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp), modifier = Modifier.weight(1f)) {
                         Icon(Icons.AutoMirrored.Rounded.Send, null)
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.shot_send))
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.shot_send), maxLines = 1, softWrap = false)
                     }
                 }
             }

@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.automirrored.rounded.Forward
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.input.pointer.pointerInput
@@ -525,6 +528,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     }
     }
     }
+    MediaSelectionBar(graph, navigator)
     if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
     if (showQr && username != null) ProfileQrSheet(username) { showQr = false }
@@ -1101,3 +1105,66 @@ internal fun ProfileQrSheet(username: String, onDismiss: () -> Unit) {
             }
         }
     }
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun MediaSelectionBar(graph: AppGraph, navigator: Navigator) {
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { MediaSelection.items.clear() } }
+    val items = MediaSelection.items
+    com.pixelgram.android.nav.BackHandler(enabled = items.isNotEmpty()) { items.clear() }
+    var forwarding by remember { mutableStateOf<List<TdApi.Message>?>(null) }
+    var deleting by remember { mutableStateOf<List<TdApi.Message>?>(null) }
+    val scope = rememberCoroutineScope()
+    androidx.compose.animation.AnimatedVisibility(
+        items.isNotEmpty(),
+        enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
+        exit = androidx.compose.animation.fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
+    ) {
+        androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp)) {
+                IconButton(onClick = { items.clear() }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
+                androidx.compose.animation.AnimatedContent(items.size, label = "sel-count") { n -> Text(n.toString(), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 8.dp)) }
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                androidx.compose.animation.AnimatedVisibility(items.size == 1) {
+                    IconButton(onClick = {
+                        val m = items.first()
+                        items.clear()
+                        navigator.open(ChatKey(m.chatId))
+                        com.pixelgram.android.nav.PendingNav.jump = m.chatId to m.id
+                    }) { Icon(Icons.Rounded.Visibility, stringResource(R.string.media_show_in_chat)) }
+                }
+                IconButton(onClick = { forwarding = items.toList() }) { Icon(Icons.AutoMirrored.Rounded.Forward, stringResource(R.string.action_forward)) }
+                IconButton(onClick = { deleting = items.toList() }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
+            }
+        }
+    }
+    forwarding?.let { list ->
+        com.pixelgram.android.feature.chat.ForwardPicker(
+            onPick = { target ->
+                val ui = with(com.pixelgram.android.feature.chat.ChatUiMapper) { list.sortedBy { it.id }.map { it.ui() } }
+                com.pixelgram.android.feature.chat.ForwardDrafts.map[target] = com.pixelgram.android.feature.chat.ForwardDraft(list.first().chatId, ui)
+                forwarding = null
+                items.clear()
+                navigator.open(ChatKey(target))
+            },
+            onDismiss = { forwarding = null },
+        )
+    }
+    deleting?.let { list ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(androidx.compose.ui.res.pluralStringResource(R.plurals.media_delete_title, list.size, list.size)) },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        deleting = null
+                        items.clear()
+                        scope.launch { list.groupBy { it.chatId }.forEach { (chat, ms) -> runCatching { graph.td.send(TdApi.DeleteMessages(chat, ms.map { it.id }.toLongArray(), true)) } } }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}

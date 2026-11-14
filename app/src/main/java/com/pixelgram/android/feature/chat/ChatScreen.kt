@@ -231,6 +231,13 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             }
         }
     }
+    LaunchedEffect(com.pixelgram.android.nav.PendingNav.jump) {
+        val (target, message) = com.pixelgram.android.nav.PendingNav.jump ?: return@LaunchedEffect
+        if (target != chatId) return@LaunchedEffect
+        com.pixelgram.android.nav.PendingNav.jump = null
+        kotlinx.coroutines.delay(300)
+        jumpTo(message)
+    }
     var datePicker by remember { mutableStateOf<Int?>(null) }
     datePicker?.let { start ->
         val pickerState = androidx.compose.material3.rememberDatePickerState(
@@ -303,7 +310,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = if (saved) Modifier else Modifier.clickable { navigator.open(ProfileKey(privateUserId, chatId)) },
+                        modifier = Modifier.clickable { navigator.open(if (saved) com.pixelgram.android.nav.SavedKey else ProfileKey(privateUserId, chatId)) },
                     ) {
                         Text(
                             when {
@@ -348,7 +355,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 },
                 actions = {
-                    IconButton(onClick = { if (!saved) navigator.open(ProfileKey(privateUserId, chatId)) }, enabled = !saved, modifier = Modifier.size(48.dp)) {
+                    IconButton(onClick = { navigator.open(if (saved) com.pixelgram.android.nav.SavedKey else ProfileKey(privateUserId, chatId)) }, modifier = Modifier.size(48.dp)) {
                         Avatar(
                             title = ui.title,
                             seed = chatId,
@@ -978,7 +985,7 @@ internal fun MessageBubble(
                     val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
                     val entities = if (prefs.zalgoFilter) emptyList() else message.entities
                     val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
-                    TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)) {
+                    TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(horizontal = 10.dp, vertical = 5.dp)) {
                         MessageText(
                             text,
                             entities,
@@ -1382,7 +1389,7 @@ private fun GifView(animation: TdApi.Animation, files: Map<Int, String>, onNeedF
 }
 
 @Composable
-private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onClose: () -> Unit) {
+internal fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onClose: () -> Unit) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onClose,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -2153,17 +2160,17 @@ private fun TextWithMeta(lastLine: Float, showMeta: Boolean, modifier: Modifier 
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
         val text = measurables[0].measure(loose)
         val meta = if (showMeta && measurables.size > 1) measurables[1].measure(loose) else null
-        if (meta == null) return@Layout layout(text.width, text.height) { text.place(0, 0) }
+        if (meta == null) return@Layout layout(maxOf(text.width, constraints.minWidth), text.height) { text.place(0, 0) }
         val gap = 8.dp.roundToPx()
         val last = if (lastLine < 0f) text.width.toFloat() else lastLine
         val inline = last + gap + meta.width <= constraints.maxWidth
         val width: Int
         val height: Int
         if (inline) {
-            width = maxOf(text.width, (last + gap + meta.width).toInt())
+            width = maxOf(text.width, (last + gap + meta.width).toInt(), constraints.minWidth)
             height = text.height
         } else {
-            width = maxOf(text.width, meta.width)
+            width = maxOf(text.width, meta.width, constraints.minWidth)
             height = text.height + meta.height
         }
         layout(width, height) {
@@ -2589,6 +2596,7 @@ private fun compactCount(value: Int, exact: Boolean): String = when {
 }
 
 private const val FillWidth = "fill-width"
+private const val StretchWidth = "stretch-width"
 
 private const val AlignEnd = "align-end"
 
@@ -2599,18 +2607,23 @@ private fun WidestColumn(modifier: Modifier = Modifier, content: @Composable () 
         val placeables = arrayOfNulls<androidx.compose.ui.layout.Placeable>(measurables.size)
         var widest = 0
         measurables.forEachIndexed { i, m ->
-            if (m.layoutId != FillWidth) {
+            if (m.layoutId != FillWidth && m.layoutId != StretchWidth) {
                 val p = m.measure(loose)
                 placeables[i] = p
                 widest = maxOf(widest, p.width)
             }
         }
+        measurables.forEach { m ->
+            if (m.layoutId == StretchWidth) widest = maxOf(widest, m.maxIntrinsicWidth(constraints.maxHeight.coerceAtMost(10_000)).coerceAtMost(constraints.maxWidth))
+        }
+        var full = widest
+        measurables.forEach { m ->
+            if (m.layoutId == FillWidth) full = maxOf(full, m.maxIntrinsicWidth(constraints.maxHeight.coerceAtMost(10_000)).coerceAtMost(constraints.maxWidth))
+        }
+        full = full.coerceAtMost(constraints.maxWidth)
         measurables.forEachIndexed { i, m ->
-            if (m.layoutId == FillWidth) {
-                val want = m.maxIntrinsicWidth(constraints.maxHeight.coerceAtMost(10_000)).coerceAtMost(constraints.maxWidth)
-                val width = maxOf(widest, want).coerceAtMost(constraints.maxWidth)
-                val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(width).copy(maxHeight = constraints.maxHeight))
-                placeables[i] = p
+            if (m.layoutId == FillWidth || m.layoutId == StretchWidth) {
+                placeables[i] = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(full).copy(maxHeight = constraints.maxHeight))
             }
         }
         val width = maxOf(placeables.maxOfOrNull { it?.width ?: 0 } ?: 0, constraints.minWidth)

@@ -759,4 +759,22 @@
     <string name="shot_failed">Could not save</string>
     <string name="crash_title">pixelGram crashed last time</string>
     <string name="crash_copy">Copy log</string>
+    <string name="media_show_in_chat">Show in chat</string>
+    <plurals name="media_delete_title">
+        <item quantity="one">Delete %d message?</item>
+        <item quantity="other">Delete %d messages?</item>
+    </plurals>
+    <string name="saved_tab_chats">Chats</string>
+    <string name="saved_my_notes">My Notes</string>
+    <string name="saved_author_hidden">Author Hidden</string>
+    <string name="saved_chat">Chat</string>
+    <string name="saved_hidden_note">Senders of these messages restricted to link their name when forwarding.</string>
+    <plurals name="saved_chats">
+        <item quantity="one">%d chat</item>
+        <item quantity="other">%d chats</item>
+    </plurals>
+    <plurals name="saved_messages_count">
+        <item quantity="one">%d saved message</item>
+        <item quantity="other">%d saved messages</item>
+    </plurals>
 </resources>

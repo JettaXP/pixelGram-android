@@ -776,4 +776,28 @@
     <string name="shot_failed">Не удалось сохранить</string>
     <string name="crash_title">pixelGram упал в прошлый раз</string>
     <string name="crash_copy">Скопировать лог</string>
+    <string name="media_show_in_chat">Показать в чате</string>
+    <plurals name="media_delete_title">
+        <item quantity="one">Удалить %d сообщение?</item>
+        <item quantity="few">Удалить %d сообщения?</item>
+        <item quantity="many">Удалить %d сообщений?</item>
+        <item quantity="other">Удалить %d сообщений?</item>
+    </plurals>
+    <string name="saved_tab_chats">Чаты</string>
+    <string name="saved_my_notes">Мои заметки</string>
+    <string name="saved_author_hidden">Автор скрыт</string>
+    <string name="saved_chat">Чат</string>
+    <string name="saved_hidden_note">Отправители этих сообщений запретили указывать своё имя при пересылке.</string>
+    <plurals name="saved_chats">
+        <item quantity="one">%d чат</item>
+        <item quantity="few">%d чата</item>
+        <item quantity="many">%d чатов</item>
+        <item quantity="other">%d чатов</item>
+    </plurals>
+    <plurals name="saved_messages_count">
+        <item quantity="one">%d сохранённое сообщение</item>
+        <item quantity="few">%d сохранённых сообщения</item>
+        <item quantity="many">%d сохранённых сообщений</item>
+        <item quantity="other">%d сохранённых сообщений</item>
+    </plurals>
 </resources>

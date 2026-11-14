@@ -164,7 +164,11 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 val drawerPull = remember(openDrawer) {
                     object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
                         var pulled = 0f
+                        var locked = false
                         override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset(available.x, 0f)
+                            if (consumed.x != 0f) locked = true
+                            if (locked) return androidx.compose.ui.geometry.Offset(available.x, 0f)
                             if (openDrawer == null || available.x <= 0f) {
                                 pulled = 0f
                                 return androidx.compose.ui.geometry.Offset.Zero
@@ -177,7 +181,16 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                             return androidx.compose.ui.geometry.Offset(available.x, 0f)
                         }
 
+                        override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                            if (locked) {
+                                locked = false
+                                pulled = 0f
+                            }
+                            return androidx.compose.ui.unit.Velocity.Zero
+                        }
+
                         override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                            if (consumed.x != 0f) return androidx.compose.ui.unit.Velocity(available.x, 0f)
                             pulled = 0f
                             return if (openDrawer != null && available.x > 0f) androidx.compose.ui.unit.Velocity(available.x, 0f) else androidx.compose.ui.unit.Velocity.Zero
                         }
