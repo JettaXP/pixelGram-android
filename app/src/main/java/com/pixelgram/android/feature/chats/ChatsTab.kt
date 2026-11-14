@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chats
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.width
@@ -392,12 +393,15 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             modifier = Modifier.fillMaxSize(),
         ) {
+            val pinnedCount = rows.takeWhile { it.pinned }.size
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 var itemBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+                val inPinned = index < pinnedCount
+                if (index == pinnedCount && pinnedCount > 0) Spacer(Modifier.height(10.dp))
                 ChatListItem(
                     row = row,
-                    index = index,
-                    count = rows.size,
+                    index = if (inPinned) index else index - pinnedCount,
+                    count = if (inPinned) pinnedCount else rows.size - pinnedCount,
                     onClick = { navigator.open(if (row.forum) com.pixelgram.android.nav.ForumKey(row.id) else ChatKey(row.id)) },
                     onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
                     onLongClick = {
@@ -811,13 +815,20 @@ private fun TypingLine() {
 @Composable
 internal fun TypingDots(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     val flow = androidx.compose.animation.core.rememberInfiniteTransition(label = "dots")
-    val phase by flow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
-    androidx.compose.foundation.Canvas(modifier.size(width = 18.dp, height = 8.dp)) {
-        val r = size.height / 2.6f
-        for (i in 0..2) {
-            val wave = ((phase - i * 0.18f) % 1f + 1f) % 1f
-            val lift = kotlin.math.sin(wave * Math.PI.toFloat()).coerceAtLeast(0f)
-            drawCircle(color.copy(alpha = 0.4f + 0.6f * lift), r * (0.8f + 0.3f * lift), androidx.compose.ui.geometry.Offset(r + i * (size.width - 2 * r) / 2f, size.height / 2f))
+    val phase by flow.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)), label = "phase")
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = modifier.height(14.dp)) {
+        repeat(3) { dot ->
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .graphicsLayer {
+                        val local = ((phase - dot * 0.16f) % 1f + 1f) % 1f
+                        val wave = if (local < 0.5f) kotlin.math.sin(local * 2 * Math.PI).toFloat() else 0f
+                        translationY = -wave * 4.dp.toPx()
+                        alpha = 0.45f + 0.55f * wave
+                    }
+                    .background(color, androidx.compose.foundation.shape.CircleShape),
+            )
         }
     }
 }

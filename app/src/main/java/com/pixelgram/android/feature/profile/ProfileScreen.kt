@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -152,6 +156,69 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     } else {
         null
     }
+    val swipeChat = when {
+        self || onOpenDrawer != null -> 0L
+        chatId != 0L -> chatId
+        userId != 0L -> userId
+        else -> 0L
+    }
+    val swipe = remember { androidx.compose.animation.core.Animatable(0f) }
+    val swipeDensity = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
+    val widthPx = constraints.maxWidth.toFloat()
+    if (swipeChat != 0L && swipe.value < 0f) {
+        val reveal = (-swipe.value / (widthPx * 0.3f)).coerceIn(0f, 1f)
+        androidx.compose.material3.Surface(
+            shape = CircleShape,
+            color = if (reveal >= 1f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 20.dp).graphicsLayer {
+                alpha = reveal
+                scaleX = 0.6f + 0.4f * reveal
+                scaleY = 0.6f + 0.4f * reveal
+            },
+        ) {
+            Icon(
+                Icons.AutoMirrored.Rounded.Chat,
+                null,
+                tint = if (reveal >= 1f) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(14.dp).size(24.dp),
+            )
+        }
+    }
+    val swipeModifier = if (swipeChat == 0L) Modifier else Modifier
+        .graphicsLayer {
+            translationX = swipe.value
+            val f = (-swipe.value / widthPx).coerceIn(0f, 1f)
+            scaleX = 1f - 0.08f * f
+            scaleY = 1f - 0.08f * f
+            shape = RoundedCornerShape(32.dp * (f * 4f).coerceAtMost(1f))
+            clip = f > 0f
+        }
+        .pointerInput(swipeChat) {
+            val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+            detectHorizontalDragGestures(
+                onDragStart = { tracker.resetTracking() },
+                onDragEnd = {
+                    val velocity = tracker.calculateVelocity().x
+                    val go = swipe.value < -widthPx * 0.3f || velocity < -with(swipeDensity) { 900.dp.toPx() }
+                    scope.launch {
+                        if (go) {
+                            swipe.animateTo(-widthPx, androidx.compose.animation.core.spring(stiffness = 1400f))
+                            navigator.toChat(swipeChat)
+                            swipe.snapTo(0f)
+                        } else {
+                            swipe.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 700f))
+                        }
+                    }
+                },
+                onDragCancel = { scope.launch { swipe.animateTo(0f) } },
+            ) { change, amount ->
+                tracker.addPosition(change.uptimeMillis, change.position)
+                change.consume()
+                scope.launch { swipe.snapTo((swipe.value + amount).coerceIn(-widthPx, 0f)) }
+            }
+        }
+    Box(swipeModifier) {
     Scaffold(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
@@ -455,6 +522,8 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
         )
         }
+    }
+    }
     }
     if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }

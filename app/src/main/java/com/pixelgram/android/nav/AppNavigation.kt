@@ -78,6 +78,10 @@ class Navigator(private val stack: MutableList<NavKey>) {
     fun back() {
         if (stack.size > 1) stack.removeAt(stack.lastIndex)
     }
+
+    fun toChat(chatId: Long) {
+        if (stack.size >= 2 && stack[stack.lastIndex - 1] == ChatKey(chatId)) back() else open(ChatKey(chatId))
+    }
 }
 
 @Composable
@@ -105,11 +109,11 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         },
         transitionSpec = {
             if (EtgBack.phase != EtgBack.Idle) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
-            else androidx.navigation3.ui.defaultTransitionSpec<NavKey>()(this)
+            else NavMotion.forward()
         },
         popTransitionSpec = {
             if (EtgBack.phase != EtgBack.Idle) androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
-            else androidx.navigation3.ui.defaultPopTransitionSpec<NavKey>()(this)
+            else NavMotion.backward()
         },
         predictivePopTransitionSpec = {
             fadeIn(tween(HoldMs), initialAlpha = 0.999f) togetherWith fadeOut(tween(HoldMs), targetAlpha = 0.999f)
@@ -162,7 +166,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     }
 }
 
-private const val HoldMs = 1_500
+private const val HoldMs = 600
 
 object EtgBack {
     const val Idle = 0
@@ -351,6 +355,20 @@ private class EtgBackDecorator : androidx.navigation3.runtime.NavEntryDecorator<
                         if (a > 0f) drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = a))
                     }
                 },
-        ) { entry.Content() }
+        ) { if (!EtgBack.matches(key, EtgBack.hidden)) entry.Content() }
     },
 )
+
+object NavMotion {
+    private val spatial = androidx.compose.animation.core.spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.9f, stiffness = 1400f)
+    private val effects = androidx.compose.animation.core.spring<Float>(dampingRatio = 1f, stiffness = 3800f)
+    private const val Shift = 0.12f
+
+    fun forward(): androidx.compose.animation.ContentTransform =
+        (androidx.compose.animation.slideInHorizontally(spatial) { (it * Shift).toInt() } + fadeIn(effects)) togetherWith
+            (androidx.compose.animation.slideOutHorizontally(spatial) { -(it * Shift).toInt() } + fadeOut(effects))
+
+    fun backward(): androidx.compose.animation.ContentTransform =
+        (androidx.compose.animation.slideInHorizontally(spatial) { -(it * Shift).toInt() } + fadeIn(effects)) togetherWith
+            (androidx.compose.animation.slideOutHorizontally(spatial) { (it * Shift).toInt() } + fadeOut(effects))
+}

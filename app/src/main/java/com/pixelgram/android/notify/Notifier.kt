@@ -92,12 +92,28 @@ class Notifier(private val context: Context, private val td: TdClient, private v
     private fun show(chat: TdApi.Chat, lines: List<Line>) {
         val group = chat.type !is TdApi.ChatTypePrivate && chat.type !is TdApi.ChatTypeSecret
         val me = Person.Builder().setName(context.getString(R.string.notify_you)).build()
-        val avatar = chatAvatar(chat)
+        val avatar = chatAvatar(chat) ?: letterAvatar(chat.title, chat.id)
+        val avatarIcon = IconCompat.createWithBitmap(avatar)
+        val chatPerson = Person.Builder().setName(chat.title).setKey(chat.id.toString()).setIcon(avatarIcon).setImportant(true).build()
+        val shortcutIntent = Intent(context, MainActivity::class.java).setAction(OpenChatAction).putExtra(ExtraChat, chat.id)
+        runCatching {
+            androidx.core.content.pm.ShortcutManagerCompat.pushDynamicShortcut(
+                context,
+                androidx.core.content.pm.ShortcutInfoCompat.Builder(context, chat.id.toString())
+                    .setShortLabel(chat.title.ifBlank { "Chat" })
+                    .setLongLived(true)
+                    .setIcon(avatarIcon)
+                    .setIntent(shortcutIntent)
+                    .setPerson(chatPerson)
+                    .setCategories(setOf("android.shortcut.conversation"))
+                    .build(),
+            )
+        }
         val style = NotificationCompat.MessagingStyle(me).setGroupConversation(group)
         if (group) style.conversationTitle = chat.title
         lines.forEach { line ->
             val person = Person.Builder().setName(line.sender).setKey(line.senderId.toString())
-                .apply { if (!group && avatar != null) setIcon(IconCompat.createWithBitmap(avatar)) }
+                .apply { if (!group) setIcon(avatarIcon) }
                 .build()
             style.addMessage(line.text, line.time, person)
         }
@@ -129,6 +145,18 @@ class Notifier(private val context: Context, private val td: TdClient, private v
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setGroup(GroupKey)
             .setShortcutId(chat.id.toString())
+            .setBubbleMetadata(
+                runCatching {
+                    NotificationCompat.BubbleMetadata.Builder(
+                        PendingIntent.getActivity(
+                            context, id + 2,
+                            Intent(context, com.pixelgram.android.BubbleActivity::class.java).setAction(OpenChatAction).putExtra(ExtraChat, chat.id).setData(android.net.Uri.parse("pixelgram://bubble/" + chat.id)),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                        ),
+                        avatarIcon,
+                    ).setDesiredHeight(640).setSuppressNotification(com.pixelgram.android.notify.AppVisibility.openChat == chat.id).build()
+                }.getOrNull(),
+            )
             .setNumber(chat.unreadCount)
             .addAction(NotificationCompat.Action.Builder(R.drawable.ic_pixelgram, context.getString(R.string.notify_reply), reply).addRemoteInput(replyInput).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build())
             .addAction(NotificationCompat.Action.Builder(R.drawable.ic_pixelgram, context.getString(R.string.notify_mark_read), read).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ).build())
@@ -158,6 +186,23 @@ class Notifier(private val context: Context, private val td: TdClient, private v
         }
         val bitmap = runCatching { BitmapFactory.decodeFile(path) }.getOrNull() ?: return null
         return circle(bitmap)
+    }
+
+    private fun letterAvatar(title: String, seed: Long): Bitmap {
+        val size = 192
+        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        val palette = intArrayOf(0xFFE57373.toInt(), 0xFFF06292.toInt(), 0xFFBA68C8.toInt(), 0xFF7986CB.toInt(), 0xFF4FC3F7.toInt(), 0xFF4DB6AC.toInt(), 0xFF81C784.toInt(), 0xFFFFB74D.toInt())
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = palette[((seed % palette.size + palette.size) % palette.size).toInt()] }
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.color = android.graphics.Color.WHITE
+        paint.textSize = size * 0.42f
+        paint.textAlign = android.graphics.Paint.Align.CENTER
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        val letter = title.trim().firstOrNull()?.uppercase() ?: "?"
+        val y = size / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(letter, size / 2f, y, paint)
+        return out
     }
 
     private fun circle(source: Bitmap): Bitmap {

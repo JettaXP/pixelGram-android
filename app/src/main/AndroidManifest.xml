@@ -34,6 +34,14 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.Pixelgram.Starting"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".BubbleActivity"
+            android:allowEmbedded="true"
+            android:documentLaunchMode="always"
+            android:exported="false"
+            android:resizeableActivity="true"
+            android:theme="@style/Theme.Pixelgram"
+            android:windowSoftInputMode="adjustResize" />
         <activity-alias
             android:name=".LauncherDefault"
             android:enabled="true"

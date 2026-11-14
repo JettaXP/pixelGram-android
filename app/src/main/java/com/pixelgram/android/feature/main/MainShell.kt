@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.draw.clip
@@ -152,25 +153,51 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
         val floating = appearance.navBarStyle == NavBarStyle.Expressive
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
             CompositionLocalProvider(LocalBottomBarPadding provides if (floating) barHeight else 0.dp) {
-                val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
                 val order = appearance.navTabs
-                val tabStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-                AnimatedContent(
-                    targetState = tab,
-                    transitionSpec = {
-                        val forward = order.indexOf(targetState) > order.indexOf(initialState)
-                        val shift: (Int) -> Int = { full -> (if (forward) full else -full) / 6 }
-                        (androidx.compose.animation.slideInHorizontally(spatial) { shift(it) } + fadeIn(effects)) togetherWith
-                            (androidx.compose.animation.slideOutHorizontally(spatial) { -shift(it) } + fadeOut(effects))
-                    },
-                    label = "main-tab",
+                val pager = androidx.compose.foundation.pager.rememberPagerState(order.indexOf(tab).coerceAtLeast(0)) { order.size }
+                LaunchedEffect(pager.settledPage, order) { order.getOrNull(pager.settledPage)?.let { if (it != tab) tab = it } }
+                LaunchedEffect(tab, order) {
+                    val index = order.indexOf(tab)
+                    if (index >= 0 && index != pager.currentPage && !pager.isScrollInProgress) pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 700f))
+                }
+                val openDrawer: (() -> Unit)? = if (appearance.showDrawer) ({ scope.launch { drawer.open() } }) else null
+                val drawerPull = remember(openDrawer) {
+                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        var pulled = 0f
+                        override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                            if (openDrawer == null || available.x <= 0f) {
+                                pulled = 0f
+                                return androidx.compose.ui.geometry.Offset.Zero
+                            }
+                            pulled += available.x
+                            if (pulled > with(density) { 48.dp.toPx() }) {
+                                pulled = 0f
+                                openDrawer()
+                            }
+                            return androidx.compose.ui.geometry.Offset(available.x, 0f)
+                        }
+
+                        override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                            pulled = 0f
+                            return if (openDrawer != null && available.x > 0f) androidx.compose.ui.unit.Velocity(available.x, 0f) else androidx.compose.ui.unit.Velocity.Zero
+                        }
+                    }
+                }
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pager,
+                    key = { order[it].name },
+                    beyondViewportPageCount = 0,
                     modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
-                ) { current ->
-                    val openDrawer: (() -> Unit)? = if (appearance.showDrawer) ({ scope.launch { drawer.open() } }) else null
-                    tabStates.SaveableStateProvider(current.name) {
+                ) { page ->
+                    val current = order[page]
+                    Box(
+                        Modifier.fillMaxSize().graphicsLayer {
+                            val offset = ((pager.currentPage - page) + pager.currentPageOffsetFraction).let { kotlin.math.abs(it) }.coerceIn(0f, 1f)
+                            alpha = 1f - offset * 0.35f
+                        },
+                    ) {
                     when (current) {
-                        MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
+                        MainTab.Chats -> Box(Modifier.nestedScroll(drawerPull)) { ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN }) }
                         MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
                         MainTab.Profile -> {
                             val me by graph.store.snapshot.collectAsState()
