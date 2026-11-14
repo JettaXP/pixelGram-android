@@ -6,7 +6,7 @@ import org.drinkless.tdlib.TdApi
 enum class PreviewKind { Text, Photo, Video, Gif, Sticker, Voice, VideoNote, Audio, File, Poll, Location, Contact, Service, Other }
 
 @Immutable
-data class MessagePreview(val sender: String?, val kind: PreviewKind, val text: String, val entities: List<TdApi.TextEntity> = emptyList())
+data class MessagePreview(val sender: String?, val kind: PreviewKind, val text: String, val entities: List<TdApi.TextEntity> = emptyList(), val thumb: ByteArray? = null, val thumbFileId: Int = 0, val playable: Boolean = false)
 
 internal fun previewOf(message: TdApi.Message, chat: TdApi.Chat, users: Map<Long, TdApi.User>): MessagePreview {
     val sender = when (val from = message.senderId) {
@@ -24,7 +24,15 @@ internal fun previewOf(message: TdApi.Message, chat: TdApi.Chat, users: Map<Long
         else -> null
     }
     val entities = formatted?.let { f -> LocalPremiumEmoji.incoming(f.text, f.entities.toList()).filter { it.type is TdApi.TextEntityTypeCustomEmoji } }.orEmpty()
-    return MessagePreview(if (message.isOutgoing) null else sender, kind, text, entities)
+    val (thumb, thumbFile) = when (val c = message.content) {
+        is TdApi.MessagePhoto -> c.photo.minithumbnail?.data to (c.photo.sizes.firstOrNull { it.type == "m" } ?: c.photo.sizes.firstOrNull())?.photo?.id
+        is TdApi.MessageVideo -> c.video.minithumbnail?.data to c.video.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
+        is TdApi.MessageAnimation -> c.animation.minithumbnail?.data to c.animation.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
+        is TdApi.MessageVideoNote -> c.videoNote.minithumbnail?.data to c.videoNote.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
+        else -> null to null
+    }
+    val playable = message.content is TdApi.MessageVideo || message.content is TdApi.MessageVideoNote
+    return MessagePreview(if (message.isOutgoing) null else sender, kind, text, entities, thumb, thumbFile ?: 0, playable)
 }
 
 internal fun contentPreview(content: TdApi.MessageContent): Pair<PreviewKind, String> = when (content) {
@@ -43,3 +51,5 @@ internal fun contentPreview(content: TdApi.MessageContent): Pair<PreviewKind, St
     is TdApi.MessageContact -> PreviewKind.Contact to listOf(content.contact.firstName, content.contact.lastName).joinToString(" ").trim()
     else -> PreviewKind.Service to ""
 }
+
+internal fun contentPreviewLabel(content: TdApi.MessageContent): String = contentPreview(content).second

@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.layout.isImeVisible
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.nav.ChatKey
 import androidx.compose.ui.layout.layoutId
@@ -14,6 +15,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import java.io.File
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.automirrored.rounded.Forward
@@ -208,6 +210,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
     var deleting by remember { mutableStateOf<List<UiMessage>?>(null) }
     var forwardingAll by remember { mutableStateOf<List<UiMessage>?>(null) }
+    var shooting by remember { mutableStateOf<List<UiMessage>?>(null) }
     val appearance by graph.appearance.state.collectAsState()
     val listState = rememberLazyListState()
     val jumpScope = rememberCoroutineScope()
@@ -293,6 +296,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     },
                     onForward = { forwardingAll = selected },
                     onDelete = { deleting = selected },
+                    onShot = { shooting = selected },
                 )
             } else TopAppBar(
                 title = {
@@ -577,6 +581,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     shape = CircleShape,
                 ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
             }
+            ui.pinned?.let { pin -> PinnedBar(pin, Modifier.align(Alignment.TopCenter)) { jumpTo(pin.id) } }
         }
     }
     viewer?.let { (list, index) ->
@@ -593,6 +598,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             onForward = { forwarding = message },
             onDelete = { deleting = listOf(message) },
             onSelect = { selecting = message },
+            onShot = { shooting = listOf(message) },
         )
     }
     selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
@@ -605,6 +611,12 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             },
             onDismiss = { forwarding = null },
         )
+    }
+    shooting?.let { list ->
+        MessageShotDialog(list, group = privateUserId == 0L, onSend = {
+            shooting = null
+            selected = emptyList()
+        }) { shooting = null }
     }
     deleting?.let { list ->
         DeleteDialog(list, controller, privateUserId, snapshot) { done ->
@@ -754,7 +766,7 @@ private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
 }
 
 private val ReplyTrigger = 64.dp
-private val EmojiPanelHeight = 300.dp
+private val EmojiPanelHeight = 340.dp
 private val ReplyLimit = 110.dp
 
 @Composable
@@ -801,7 +813,9 @@ internal fun MessageBubble(
     } else {
         RoundedCornerShape(if (joinsAbove) small else big, big, big, if (joinsBelow) small else big)
     }
-    val baseContainer = if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val bigEmoji = remember(message.text, message.entities, message.content) { bigEmoji(message) }
+    val bare = !prefs.zalgoFilter && (bigEmoji != null || message.content is TdApi.MessageSticker || message.content is TdApi.MessageAnimatedEmoji || message.content is TdApi.MessageVideoNote)
+    val baseContainer = if (bare) Color.Transparent else if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val container by androidx.compose.animation.animateColorAsState(
         if (highlighted) androidx.compose.ui.graphics.lerp(baseContainer, MaterialTheme.colorScheme.tertiary, 0.35f) else baseContainer,
         MaterialTheme.motionScheme.slowEffectsSpec(),
@@ -945,14 +959,20 @@ internal fun MessageBubble(
                 if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay, meta = if (metaInside) ({ meta(onContainer.copy(alpha = 0.7f)) }) else null)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
-                val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
                 if (bigEmoji != null && !prefs.zalgoFilter) {
-                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            bigEmoji.forEach { (id, alt) -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = BigEmojiSize) }
+                    val size = BigEmojiSizes.getOrElse(bigEmoji.size - 1) { BigEmojiSizes.last() }
+                    androidx.compose.foundation.layout.FlowRow(
+                        Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp, if (message.outgoing) Alignment.End else Alignment.Start),
+                    ) {
+                        bigEmoji.forEach { (id, alt) ->
+                            if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = size)
+                            else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+                                Text(alt, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.82f).toSp() }, lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { size.toSp() }, maxLines = 1)
+                            }
                         }
-                        if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
                     }
+                    if (message.reactions.isEmpty()) BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
                 } else if (message.text.isNotBlank()) {
                     val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
                     val entities = if (prefs.zalgoFilter) emptyList() else message.entities
@@ -969,6 +989,8 @@ internal fun MessageBubble(
                         )
                         if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
                     }
+                } else if (bare && bigEmoji == null && message.reactions.isEmpty()) {
+                    BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
                 } else if (message.reactions.isEmpty() && !mediaOnly && !metaInside) {
                     Box(Modifier.layoutId(AlignEnd).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
                 }
@@ -1219,7 +1241,11 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (thumb != null) {
+            val replySticker = (reply.content as? TdApi.MessageSticker)?.sticker
+            if (replySticker != null) {
+                val graph = com.pixelgram.android.LocalGraph.current
+                StickerView(replySticker, files, { graph.store.requestFileAsync(it) }, Modifier.padding(start = 9.dp).size(36.dp))
+            } else if (thumb != null) {
                 AsyncImage(
                     model = thumb.localPath?.let(::File) ?: files[thumb.mediaFileId]?.let(::File) ?: thumb.mediaThumb,
                     contentDescription = null,
@@ -1230,7 +1256,18 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
             Column(Modifier.padding(start = 11.dp, end = 10.dp, top = 6.dp, bottom = 6.dp)) {
                 if (sender.isNotBlank()) Text(sender, style = MaterialTheme.typography.labelLarge, color = main, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    reply.text.ifBlank { if (thumb != null) stringResource(R.string.preview_photo) else stringResource(R.string.preview_service) },
+                    reply.text.ifBlank {
+                        when (val c = reply.content) {
+                            is TdApi.MessageSticker -> stringResource(R.string.preview_sticker) + " " + c.sticker.emoji
+                            is TdApi.MessageVideo -> stringResource(R.string.preview_video)
+                            is TdApi.MessageAnimation -> stringResource(R.string.preview_gif)
+                            is TdApi.MessageVoiceNote -> stringResource(R.string.preview_voice)
+                            is TdApi.MessageVideoNote -> stringResource(R.string.preview_video_note)
+                            is TdApi.MessageDocument -> c.document.fileName
+                            is TdApi.MessageAudio -> stringResource(R.string.preview_audio)
+                            else -> if (thumb != null) stringResource(R.string.preview_photo) else stringResource(R.string.preview_service)
+                        }
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1409,6 +1446,9 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     BackHandler(enabled = emoji) { emoji = false }
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) { if (imeVisible) emoji = false }
     if (attach) AttachSheet(controller, onPhotos = {
         attach = false
     }) { attach = false }
@@ -1614,14 +1654,16 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 }
             }
             AnimatedVisibility(emoji, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { context ->
-                        val themed = android.view.ContextThemeWrapper(context, if (dark) com.google.android.material.R.style.Theme_Material3_Dark_NoActionBar else com.google.android.material.R.style.Theme_Material3_Light_NoActionBar)
-                        androidx.emoji2.emojipicker.EmojiPickerView(themed).apply {
-                            emojiGridColumns = 8
-                            setOnEmojiPickedListener { item -> draft = draft.insert(item.emoji) }
-                        }
+                EmojiStickerPanel(
+                    onEmoji = { draft = draft.insert(it) },
+                    onCustomEmoji = { id, alt -> draft = draft.insert(alt, TdApi.TextEntityTypeCustomEmoji(id)) },
+                    onSticker = {
+                        emoji = false
+                        controller.sendContent(stickerInput(it))
+                    },
+                    onGif = {
+                        emoji = false
+                        controller.sendContent(gifInput(it))
                     },
                     modifier = Modifier.fillMaxWidth().height(EmojiPanelHeight),
                 )
@@ -1802,6 +1844,7 @@ private fun MessageMenu(
     onForward: () -> Unit,
     onDelete: () -> Unit,
     onSelect: () -> Unit,
+    onShot: () -> Unit,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -1876,6 +1919,7 @@ private fun MessageMenu(
                         if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
                         add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
                         add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
+                        add(Triple(Icons.Rounded.PhotoCamera, context.getString(R.string.shot_action)) { close(onShot) })
                     }
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
@@ -2044,6 +2088,7 @@ private fun SelectionTopBar(
     onEdit: () -> Unit,
     onForward: () -> Unit,
     onDelete: () -> Unit,
+    onShot: () -> Unit,
 ) {
     val editable by androidx.compose.runtime.produceState(false, first.id, canEdit) { value = canEdit && controller.canEdit(first) }
     TopAppBar(
@@ -2055,6 +2100,7 @@ private fun SelectionTopBar(
         },
         actions = {
             if (editable) IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, stringResource(R.string.action_edit)) }
+            IconButton(onClick = onShot) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.shot_action)) }
             IconButton(onClick = onForward) { Icon(Icons.AutoMirrored.Rounded.Forward, stringResource(R.string.action_forward)) }
             IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
@@ -2093,7 +2139,6 @@ private fun SelectionBottomBar(canReply: Boolean, onReply: () -> Unit, onForward
     }
 }
 
-private val BigEmojiSize = 64.dp
 private val ReactorSize = 18.dp
 private const val DatePillMs = 1_500L
 private val SpoilerBlur = 7.dp
@@ -2302,17 +2347,51 @@ private fun QuoteBlock(expandable: Boolean, content: Color, body: @Composable (I
     }
 }
 
-private fun bigCustomEmoji(text: String, entities: List<TdApi.TextEntity>): List<Pair<Long, String>>? {
-    val emoji = entities.filter { it.type is TdApi.TextEntityTypeCustomEmoji }.sortedBy { it.offset }
-    if (emoji.isEmpty() || emoji.size > 3) return null
-    val rest = StringBuilder(text)
-    emoji.asReversed().forEach { e ->
-        val start = e.offset.coerceIn(0, rest.length)
-        rest.delete(start, (e.offset + e.length).coerceIn(start, rest.length))
+private fun bigEmoji(message: UiMessage): List<Pair<Long?, String>>? {
+    if (message.content !is TdApi.MessageText) return null
+    val text = message.text
+    if (text.isBlank()) return null
+    val custom = message.entities.filter { it.type is TdApi.TextEntityTypeCustomEmoji }.sortedBy { it.offset }
+    val out = ArrayList<Pair<Long?, String>>()
+    var cursor = 0
+    fun plain(until: Int): Boolean {
+        val chunk = text.substring(cursor, until)
+        val it = java.text.BreakIterator.getCharacterInstance()
+        it.setText(chunk)
+        var start = it.first()
+        var end = it.next()
+        while (end != java.text.BreakIterator.DONE) {
+            val g = chunk.substring(start, end)
+            if (g.isNotBlank()) {
+                if (!com.pixelgram.android.td.LocalPremiumEmoji.isEmoji(g)) return false
+                out += null to g
+            }
+            start = end
+            end = it.next()
+        }
+        return true
     }
-    if (rest.isNotBlank()) return null
-    return emoji.map { e -> (e.type as TdApi.TextEntityTypeCustomEmoji).customEmojiId to text.substring(e.offset.coerceIn(0, text.length), (e.offset + e.length).coerceIn(0, text.length)) }
+    for (e in custom) {
+        val start = e.offset.coerceIn(cursor, text.length)
+        if (!plain(start)) return null
+        val end = (e.offset + e.length).coerceIn(start, text.length)
+        out += (e.type as TdApi.TextEntityTypeCustomEmoji).customEmojiId to text.substring(start, end)
+        cursor = end
+    }
+    if (!plain(text.length)) return null
+    if (out.isEmpty() || out.size > BigEmojiMax) return null
+    return out
 }
+
+@Composable
+private fun BareMeta(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(shape = RoundedCornerShape(10.dp), color = Color.Black.copy(alpha = 0.4f), modifier = modifier.padding(4.dp)) {
+        Box(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) { content() }
+    }
+}
+
+private const val BigEmojiMax = 7
+private val BigEmojiSizes = listOf(112.dp, 88.dp, 72.dp, 60.dp, 52.dp, 46.dp, 40.dp)
 
 private enum class SpoilerMode { Block, Hidden, Only, Shown }
 
@@ -2543,6 +2622,46 @@ private fun WidestColumn(modifier: Modifier = Modifier, content: @Composable () 
                 p.place(x, y)
                 y += p.height
             }
+        }
+    }
+}
+
+@Composable
+private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 2.dp,
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.chat_pinned), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                val text = message.text.replace('\n', ' ').ifBlank { com.pixelgram.android.td.contentPreviewLabel(message.content) }
+                val style = MaterialTheme.typography.bodyMedium
+                val annotated = remember(text, message.entities) {
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        append(text)
+                        message.entities.forEach { e ->
+                            val type = e.type as? TdApi.TextEntityTypeCustomEmoji ?: return@forEach
+                            val start = e.offset.coerceIn(0, text.length)
+                            val end = (e.offset + e.length).coerceIn(start, text.length)
+                            if (end > start) addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
+                        }
+                    }
+                }
+                Text(
+                    annotated,
+                    style = style,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    inlineContent = com.pixelgram.android.ui.components.customEmojiContent(message.entities, text, style.fontSize * 1.15f),
+                )
+            }
+            Icon(Icons.Rounded.PushPin, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
     }
 }

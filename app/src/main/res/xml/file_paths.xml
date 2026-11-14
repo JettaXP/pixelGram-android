@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="stories" path="stories/" />
+    <cache-path name="shots" path="shots/" />
     <files-path name="tdlib" path="." />
 </paths>

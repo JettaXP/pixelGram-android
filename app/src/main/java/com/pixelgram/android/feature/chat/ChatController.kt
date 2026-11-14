@@ -59,6 +59,7 @@ data class ChatUi(
     val members: Int = 0,
     val online: Int = 0,
     val channel: Boolean = false,
+    val pinned: UiMessage? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -97,11 +98,21 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             }.getOrDefault(0)
             ui.value = ui.value.copy(members = members, channel = (chat?.type as? TdApi.ChatTypeSupergroup)?.isChannel == true)
         }
+        loadPinned()
         loadMore()
+    }
+
+    private fun loadPinned() {
+        if (topicId != 0) return
+        scope.launch {
+            val message = runCatching { graph.td.send(TdApi.GetChatPinnedMessage(chatId)) }.getOrNull()
+            ui.value = ui.value.copy(pinned = message?.toUi(readOutbox))
+        }
     }
 
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
+            is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) loadPinned()
             is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && inTopic(update.message)) {
                 messages[update.message.id] = update.message
                 graph.td.fire(TdApi.ViewMessages(chatId, longArrayOf(update.message.id), null, true))

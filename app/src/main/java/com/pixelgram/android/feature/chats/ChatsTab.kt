@@ -57,6 +57,7 @@ import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material3.Badge
@@ -487,10 +488,12 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
 private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val preview = row.preview
     val kindLabel = preview?.kind?.let { previewLabel(it) }
+    val hasThumb = preview?.thumb != null || (preview?.thumbFileId ?: 0) != 0
     val prefix = buildString {
         if (row.outgoing) append(stringResource(R.string.preview_you)).append(": ")
         else if (preview?.sender != null) append(preview.sender).append(": ")
-        if (kindLabel != null) {
+        if (hasThumb) append("\uFFFC ")
+        if (kindLabel != null && !(hasThumb && preview.text.isNotBlank())) {
             append(kindLabel)
             if (preview.text.isNotBlank()) append(", ")
         }
@@ -500,6 +503,8 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val shifted = preview?.entities.orEmpty().map { org.drinkless.tdlib.TdApi.TextEntity(it.offset + prefix.length, it.length, it.type) }
     val annotated = androidx.compose.ui.text.buildAnnotatedString {
         append(body)
+        val at = body.indexOf('\uFFFC')
+        if (hasThumb && at >= 0) addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, "thumb", at, at + 1)
         shifted.forEach { e ->
             val type = e.type as? org.drinkless.tdlib.TdApi.TextEntityTypeCustomEmoji ?: return@forEach
             val start = e.offset.coerceIn(0, body.length)
@@ -514,7 +519,18 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        inlineContent = com.pixelgram.android.ui.components.customEmojiContent(shifted, body, style.fontSize * 1.15f),
+        inlineContent = com.pixelgram.android.ui.components.customEmojiContent(shifted, body, style.fontSize * 1.15f) + if (hasThumb && preview != null) mapOf(
+            "thumb" to androidx.compose.foundation.text.InlineTextContent(androidx.compose.ui.text.Placeholder(style.fontSize * 1.35f, style.fontSize * 1.35f, androidx.compose.ui.text.PlaceholderVerticalAlign.TextCenter)) {
+                val graph = com.pixelgram.android.LocalGraph.current
+                val snapshot by graph.store.snapshot.collectAsState()
+                val path = preview.thumbFileId.takeIf { it != 0 }?.let { snapshot.files[it] }
+                if (path == null && preview.thumbFileId != 0) androidx.compose.runtime.LaunchedEffect(preview.thumbFileId) { graph.store.requestFileAsync(preview.thumbFileId) }
+                Box(Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                    coil.compose.AsyncImage(model = path?.let { java.io.File(it) } ?: preview.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    if (preview.playable) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.7f))
+                }
+            },
+        ) else emptyMap(),
         modifier = modifier,
     )
 }

@@ -744,4 +744,17 @@
         <item quantity="one">Forward message</item>
         <item quantity="other">Forward %d messages</item>
     </plurals>
+    <string name="panel_emoji">Emoji</string>
+    <string name="panel_gifs">GIFs</string>
+    <string name="panel_stickers">Stickers</string>
+    <string name="chat_pinned">Pinned message</string>
+    <string name="shot_action">Shot</string>
+    <string name="shot_title">Message shot</string>
+    <string name="shot_names">Names and avatars</string>
+    <string name="shot_plain">Plain background</string>
+    <string name="shot_save">Save</string>
+    <string name="shot_share">Share</string>
+    <string name="shot_send">Send</string>
+    <string name="shot_saved">Saved to gallery</string>
+    <string name="shot_failed">Could not save</string>
 </resources>

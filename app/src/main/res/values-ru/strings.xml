@@ -761,4 +761,17 @@
         <item quantity="many">Пересылка %d сообщений</item>
         <item quantity="other">Пересылка %d сообщений</item>
     </plurals>
+    <string name="panel_emoji">Эмодзи</string>
+    <string name="panel_gifs">GIF</string>
+    <string name="panel_stickers">Стикеры</string>
+    <string name="chat_pinned">Закреплённое сообщение</string>
+    <string name="shot_action">Снимок</string>
+    <string name="shot_title">Снимок сообщений</string>
+    <string name="shot_names">Имена и аватарки</string>
+    <string name="shot_plain">Простой фон</string>
+    <string name="shot_save">Сохранить</string>
+    <string name="shot_share">Поделиться</string>
+    <string name="shot_send">Отправить</string>
+    <string name="shot_saved">Сохранено в галерею</string>
+    <string name="shot_failed">Не удалось сохранить</string>
 </resources>
