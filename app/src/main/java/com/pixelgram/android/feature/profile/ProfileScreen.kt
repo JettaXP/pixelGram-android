@@ -222,12 +222,12 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             Modifier.fillMaxSize().pullToRefresh(
                 isRefreshing = refreshing,
                 state = ptr,
-                enabled = expanded,
+                enabled = !refreshing,
                 onRefresh = refresh,
             ),
         ) {
         Column(
-            Modifier.fillMaxSize().padding(padding).nestedScroll(connection).verticalScroll(scroll),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(scroll),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) } ?: channelSubtitle

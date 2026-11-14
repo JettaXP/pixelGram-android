@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.animateFloat
@@ -193,6 +194,11 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var menuAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var selected by remember(chatId) { mutableStateOf<List<UiMessage>>(emptyList()) }
     val toggleSelected: (UiMessage) -> Unit = { m -> selected = if (selected.any { it.id == m.id }) selected.filterNot { it.id == m.id } else selected + m }
+    var dragAnchor by remember { mutableStateOf<Long?>(null) }
+    var dragBase by remember { mutableStateOf<List<UiMessage>>(emptyList()) }
+    var dragY by remember { mutableStateOf<Float?>(null) }
+    var listTop by remember { mutableStateOf(0f) }
+    var listBottom by remember { mutableStateOf(0f) }
     androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptyList() }
     var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
@@ -362,11 +368,46 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val edge = with(density) { 96.dp.toPx() }
+            LaunchedEffect(dragY != null) {
+                if (dragY == null) {
+                    dragAnchor = null
+                    return@LaunchedEffect
+                }
+                while (true) {
+                    val y = dragY ?: break
+                    val anchorId = dragAnchor ?: break
+                    val speed = when {
+                        y < listTop + edge -> (listTop + edge - y) / edge
+                        y > listBottom - edge -> -(y - (listBottom - edge)) / edge
+                        else -> 0f
+                    }
+                    if (speed != 0f) listState.scrollBy(speed.coerceIn(-1f, 1f) * 28f)
+                    val local = y - listTop
+                    val hit = listState.layoutInfo.visibleItemsInfo.firstOrNull { item ->
+                        val top = listState.layoutInfo.viewportEndOffset - item.offset - item.size
+                        local >= top && local <= top + item.size
+                    }
+                    val messages = controller.state.value.messages
+                    val from = messages.indexOfFirst { it.id == anchorId }
+                    val to = (hit?.key as? Long)?.let { key -> messages.indexOfFirst { it.id == key } } ?: -1
+                    if (from >= 0 && to >= 0) {
+                        val range = messages.subList(minOf(from, to), maxOf(from, to) + 1).filterNot { it.service }
+                        selected = (dragBase + range).distinctBy { it.id }
+                    }
+                    androidx.compose.runtime.withFrameNanos { }
+                }
+            }
             LazyColumn(
                 state = listState,
                 reverseLayout = true,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                    val r = it.boundsInWindow()
+                    listTop = r.top
+                    listBottom = r.bottom
+                },
             ) {
                 if (appearance.typingBubble) {
                     item(key = "typing", contentType = "typing") {
@@ -453,7 +494,12 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                             menuFor = message
                                         }
                                     },
-                                    onLongPress = { toggleSelected(message) },
+                                    onLongPress = {
+                                        dragBase = selected
+                                        dragAnchor = message.id
+                                        toggleSelected(message)
+                                    },
+                                    onSelectDrag = { y -> dragY = y },
                                     selected = selected.any { it.id == message.id },
                                     selecting = selected.isNotEmpty(),
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
@@ -714,6 +760,7 @@ internal fun MessageBubble(
     reply: UiMessage?,
     replySender: String?,
     onLongPress: (androidx.compose.ui.geometry.Rect) -> Unit = {},
+    onSelectDrag: (Float?) -> Unit = {},
     onDoubleTap: () -> Unit = {},
     onTap: (androidx.compose.ui.geometry.Rect) -> Unit = {},
     selected: Boolean = false,
@@ -734,6 +781,7 @@ internal fun MessageBubble(
     val latestTap by androidx.compose.runtime.rememberUpdatedState(onTap)
     val latestLongPress by androidx.compose.runtime.rememberUpdatedState(onLongPress)
     val latestDoubleTap by androidx.compose.runtime.rememberUpdatedState(onDoubleTap)
+    val latestSelectDrag by androidx.compose.runtime.rememberUpdatedState(onSelectDrag)
     val big = prefs.bubbleRadius.dp
     val small = prefs.bubbleTailRadius.dp
     val shape = if (message.outgoing) {
@@ -796,16 +844,25 @@ internal fun MessageBubble(
                         val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
                         interaction.tryEmit(press)
                         val pointAt = { y: Float -> androidx.compose.ui.geometry.Rect(bounds.left, bounds.top + y, bounds.right, bounds.top + y) }
-                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) { waitForUpOrCancellation() }
+                        var cancelled = false
+                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            waitForUpOrCancellation().also { if (it == null) cancelled = true }
+                        }
                         interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                        if (cancelled) return@awaitEachGesture
                         if (up == null) {
-                            if (currentEvent.changes.any { it.pressed }) {
-                                latestLongPress(pointAt(down.position.y))
-                                do {
-                                    val event = awaitPointerEvent()
-                                    event.changes.forEach { it.consume() }
-                                } while (event.changes.any { it.pressed })
-                            }
+                            val current = currentEvent.changes.firstOrNull { it.id == down.id }
+                            val moved = current != null && (current.position - down.position).getDistance() > viewConfiguration.touchSlop
+                            if (current == null || !current.pressed || current.isConsumed || moved) return@awaitEachGesture
+                            latestLongPress(pointAt(down.position.y))
+                            current.consume()
+                            do {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                latestSelectDrag(bounds.top + change.position.y)
+                                event.changes.forEach { it.consume() }
+                            } while (change.pressed)
+                            latestSelectDrag(null)
                             return@awaitEachGesture
                         }
                         up.consume()
