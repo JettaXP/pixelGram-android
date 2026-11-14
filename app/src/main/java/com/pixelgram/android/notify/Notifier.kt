@@ -298,5 +298,4 @@ object NotificationAccent {
     fun get(context: Context): Int? = cached ?: context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).getInt("color", 0).takeIf { it != 0 }?.also { cached = it }
 }
 
-internal fun accentColor(context: Context): Int =
-    NotificationAccent.get(context) ?: if (Build.VERSION.SDK_INT >= 31) context.getColor(android.R.color.system_accent1_400) else 0xFF7C9A5A.toInt()
+internal fun accentColor(context: Context): Int = 0xFF000000.toInt()
