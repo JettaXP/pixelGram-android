@@ -85,22 +85,24 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     val stack = rememberNavBackStack(*start.toTypedArray())
     val navigator = Navigator(stack)
     val backdrop = androidx.compose.ui.graphics.lerp(androidx.compose.material3.MaterialTheme.colorScheme.surface, androidx.compose.ui.graphics.Color.Black, 0.7f)
+    val dispatcher = androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
+    androidx.compose.runtime.LaunchedEffect(dispatcher) {
+        dispatcher?.transitionState?.collect { state ->
+            PredictiveEdge.dragging = state is androidx.navigationevent.NavigationEventTransitionState.InProgress
+        }
+    }
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(backdrop)) {
     NavDisplay(
         backStack = stack,
         onBack = { navigator.back() },
         predictivePopTransitionSpec = { edge ->
-            val toward = if (edge == androidx.navigationevent.NavigationEvent.EDGE_RIGHT) -1 else 1
-            val enter = fadeIn(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0f at PredictiveMs * 6 / 10; 1f at PredictiveMs using androidx.compose.animation.core.LinearOutSlowInEasing }) +
-                androidx.compose.animation.scaleIn(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0.92f at PredictiveMs * 6 / 10; 1f at PredictiveMs using androidx.compose.animation.core.LinearOutSlowInEasing }, initialScale = 0.92f)
-            val exit = androidx.compose.animation.scaleOut(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0.9f at PredictiveMs / 2 using androidx.compose.animation.core.LinearOutSlowInEasing; 0.9f at PredictiveMs }, targetScale = 0.9f) +
-                slideOutHorizontally(tween(PredictiveMs, easing = androidx.compose.animation.core.LinearEasing)) { (it * 0.08f * toward).toInt() } +
-                fadeOut(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 1f at PredictiveMs / 2; 0f at PredictiveMs * 65 / 100 using androidx.compose.animation.core.FastOutLinearInEasing; 0f at PredictiveMs })
-            enter togetherWith exit
+            PredictiveEdge.fromLeft = edge != androidx.navigationevent.NavigationEvent.EDGE_RIGHT
+            fadeIn(tween(PredictiveMs, easing = androidx.compose.animation.core.LinearEasing), initialAlpha = 0.999f) togetherWith
+                fadeOut(tween(PredictiveMs, easing = androidx.compose.animation.core.LinearEasing), targetAlpha = 0.999f)
         },
         entryDecorators = listOf(
             androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator(),
-            remember { RoundedTransitionDecorator() },
+            remember { PredictiveDecorator() },
         ),
         entryProvider = entryProvider {
             entry<MainKey> { MainShell(graph, navigator) }
@@ -146,21 +148,79 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     }
 }
 
-private class RoundedTransitionDecorator : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
+object PredictiveEdge {
+    var fromLeft = true
+    var dragging by androidx.compose.runtime.mutableStateOf(false)
+    var commit by androidx.compose.runtime.mutableFloatStateOf(0f)
+}
+
+private class PredictiveRun {
+    var root: Any? = null
+    var start: Any? = null
+    var closing = false
+    var seekEnd = -1f
+}
+
+private val DragEasing = androidx.compose.animation.core.CubicBezierEasing(0.1f, 0.1f, 0f, 1f)
+private val CommitEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
+private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+private class PredictiveDecorator : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
     decorate = { entry ->
-        val transition = androidx.navigation3.ui.LocalNavAnimatedContentScope.current.transition
-        val corner by transition.animateDp(transitionSpec = { tween(PredictiveMs / 3) }, label = "entry-corner") { state ->
-            if (state == androidx.compose.animation.EnterExitState.Visible) 0.dp else 28.dp
-        }
+        val child = androidx.navigation3.ui.LocalNavAnimatedContentScope.current.transition
+        val root = child.parentTransition ?: child
+        val run = remember { PredictiveRun() }
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.graphicsLayer {
-                if (corner > 0.dp) {
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(corner)
+                val total = child.totalDurationNanos
+                val f = if (total > 0) (child.playTimeNanos.toFloat() / total).coerceIn(0f, 1f) else 0f
+                val moving = child.currentState != child.targetState
+                val drag = PredictiveEdge.dragging
+                if (drag && moving) {
+                    if (run.root == null) {
+                        run.root = root
+                        run.start = root.currentState
+                        run.closing = child.targetState == androidx.compose.animation.EnterExitState.PostExit
+                    }
+                    run.seekEnd = f
+                } else if (!moving && !drag) {
+                    if (run.closing && run.root != null) PredictiveEdge.commit = 0f
+                    run.root = null
+                    run.seekEnd = -1f
+                }
+                if (run.root == null) return@graphicsLayer
+                val w = size.width
+                val cancelled = !drag && root.targetState == run.start
+                val dragging = drag || cancelled
+                val p = DragEasing.transform(if (dragging) f else run.seekEnd.coerceAtLeast(0f))
+                val c = if (dragging) 0f else {
+                    val window = minOf(1f - run.seekEnd, CommitShare).coerceAtLeast(0.01f)
+                    CommitEasing.transform(((f - run.seekEnd) / window).coerceIn(0f, 1f))
+                }
+                val corner = 28.dp.toPx()
+                if (run.closing) {
+                    if (PredictiveEdge.commit != c) PredictiveEdge.commit = c
+                    val scale = mix(1f, 0.9f, p) * mix(1f, 0.94f, c)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = (if (PredictiveEdge.fromLeft) 1f else -1f) * (w * 0.04f * p + w * 0.06f * c)
+                    alpha = (1f - c * 1.6f).coerceIn(0f, 1f)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(corner * (p * 4f).coerceAtMost(1f))
                     clip = true
+                } else {
+                    val shared = if (dragging) 0f else PredictiveEdge.commit
+                    alpha = shared
+                    val scale = mix(0.92f, 1f, shared)
+                    scaleX = scale
+                    scaleY = scale
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(corner * (1f - shared))
+                    clip = shared < 1f
                 }
             },
         ) { entry.Content() }
     },
 )
 
-private const val PredictiveMs = 500
+private const val PredictiveMs = 1000
+private const val CommitShare = 0.4f
