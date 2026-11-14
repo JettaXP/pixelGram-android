@@ -99,8 +99,18 @@ fun ProfileTabs(graph: AppGraph, navigator: Navigator, userId: Long, chatId: Lon
             }.awaitAll().filterNotNull()
         }
     }
-    val list = tabs ?: return
-    if (list.isEmpty()) return
+    androidx.compose.animation.AnimatedVisibility(
+        visible = !tabs.isNullOrEmpty(),
+        enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()) + androidx.compose.animation.expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()),
+    ) {
+        tabs?.takeIf { it.isNotEmpty() }?.let { TabsBody(graph, navigator, userId, chatId, owner, supergroupId, onOpenUser, it) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TabsBody(graph: AppGraph, navigator: Navigator, userId: Long, chatId: Long, owner: TdApi.MessageSender, supergroupId: Long, onOpenUser: (Long) -> Unit, list: List<ProfileTab>) {
+    Column {
     var selected by rememberSaveable(userId, chatId) { mutableStateOf(0) }
     val tab = list.getOrElse(selected) { list.first() }
     Spacer(Modifier.size(16.dp))
@@ -127,6 +137,7 @@ fun ProfileTabs(graph: AppGraph, navigator: Navigator, userId: Long, chatId: Lon
                 else -> MessageList(graph, navigator, userId, chatId, current)
             }
         }
+    }
     }
 }
 

@@ -127,11 +127,19 @@ fun ChatsTab(
         }
     }
     var folder by rememberSaveable { mutableStateOf(0) }
-    LaunchedEffect(tabs) { if (tabs.isNotEmpty() && tabs.none { it.id == folder }) folder = tabs.first().id }
     val pageCount = tabs.size.coerceAtLeast(1)
     val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.id == folder }.coerceAtLeast(0)) { pageCount }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(pager.currentPage, tabs) { tabs.getOrNull(pager.currentPage)?.let { folder = it.id } }
+    val latestTabs by androidx.compose.runtime.rememberUpdatedState(tabs)
+    LaunchedEffect(pager) {
+        androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { page ->
+            latestTabs.getOrNull(page)?.let { folder = it.id }
+        }
+    }
+    LaunchedEffect(tabs.map { it.id }) {
+        val index = tabs.indexOfFirst { it.id == folder }
+        if (index >= 0 && index != pager.settledPage && !pager.isScrollInProgress) pager.scrollToPage(index)
+    }
     LaunchedEffect(archive) {
         runCatching { graph.td.send(TdApi.LoadActiveStories(if (archive) TdApi.StoryListArchive() else TdApi.StoryListMain())) }
     }
@@ -144,7 +152,6 @@ fun ChatsTab(
     var fabMenu by remember { mutableStateOf(false) }
     var scrollTop by remember { mutableStateOf(0) }
     var newChat by remember { mutableStateOf<Boolean?>(null) }
-    com.pixelgram.android.nav.BackBlock(fabMenu)
     BackHandler(enabled = fabMenu) { fabMenu = false }
     LaunchedEffect(tracker.hidden) { if (tracker.hidden) fabMenu = false }
     if (newMessage) NewMessageSheet(graph, navigator) { newMessage = false }

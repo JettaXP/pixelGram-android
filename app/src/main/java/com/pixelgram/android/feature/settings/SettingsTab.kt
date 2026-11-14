@@ -64,6 +64,8 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
     val appearance by graph.appearance.state.collectAsState()
     val me = snapshot.users[snapshot.meId]
     var confirmLogout by remember { mutableStateOf(false) }
+    var showQr by remember { mutableStateOf(false) }
+    me?.username?.takeIf { showQr }?.let { name -> com.pixelgram.android.feature.profile.ProfileQrSheet(name) { showQr = false } }
     val pickAvatar = com.pixelgram.android.feature.profile.rememberAvatarPicker(graph)
     Scaffold(contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0)) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
@@ -82,7 +84,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     else if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                 },
                 topEnd = {
-                    if (me?.username != null) IconButton(onClick = { navigator.open(ProfileKey(snapshot.meId)) }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
+                    if (me?.username != null) IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
                 },
             )
             if (me != null) {

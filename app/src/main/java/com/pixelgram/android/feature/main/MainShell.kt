@@ -99,7 +99,6 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     var list by rememberSaveable { mutableStateOf(LIST_MAIN) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    com.pixelgram.android.nav.BackBlock(drawer.isOpen)
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
     BackHandler(enabled = !drawer.isOpen && (tab != MainTab.Chats || list == LIST_ARCHIVE)) {
         if (list == LIST_ARCHIVE) list = LIST_MAIN else tab = MainTab.Chats
@@ -156,6 +155,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
                 val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
                 val order = appearance.navTabs
+                val tabStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 AnimatedContent(
                     targetState = tab,
                     transitionSpec = {
@@ -168,6 +168,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
                 ) { current ->
                     val openDrawer: (() -> Unit)? = if (appearance.showDrawer) ({ scope.launch { drawer.open() } }) else null
+                    tabStates.SaveableStateProvider(current.name) {
                     when (current) {
                         MainTab.Chats -> ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN })
                         MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
@@ -176,6 +177,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                             ProfileScreen(graph, me.meId, 0L, navigator, onOpenDrawer = openDrawer, onOpenSettings = { navigator.open(com.pixelgram.android.nav.SettingsKey) })
                         }
                         MainTab.Settings -> SettingsTab(graph, navigator, onOpenDrawer = openDrawer)
+                    }
                     }
                 }
             }

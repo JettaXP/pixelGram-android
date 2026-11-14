@@ -9,6 +9,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.test.performTextInput
@@ -139,6 +140,10 @@ class Screens {
 
     @Test fun profileExpanded() = shoot("profile_expanded", start = listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ProfileKey(2))) {
         rule.onRoot().performTouchInput { swipeDown(startY = centerY - 300f, endY = centerY + 700f, durationMillis = 400) }
+        if (System.getenv("COLLAPSE") != null) {
+            repeat(20) { rule.mainClock.advanceTimeBy(50) }
+            rule.onRoot().performTouchInput { swipeUp(startY = centerY + 400f, endY = centerY - 300f, durationMillis = 300) }
+        }
     }
 
     @Test fun luhn() {

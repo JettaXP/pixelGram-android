@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.blur
 import androidx.compose.material3.toShape
@@ -182,7 +183,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                         scope.launch { pull.snapTo(pull.value + used) }
                         return androidx.compose.ui.geometry.Offset(0f, used)
                     }
-                    if (available.y < 0 && expanded && scroll.value == 0) {
+                    if (available.y < 0 && expanded) {
                         expanded = false
                         return androidx.compose.ui.geometry.Offset(0f, available.y)
                     }
@@ -210,6 +211,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             }
         }
         val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+        LaunchedEffect(scroll) { androidx.compose.runtime.snapshotFlow { scroll.value }.collect { if (it > 0 && expanded) expanded = false } }
         val expandedAmount by androidx.compose.animation.core.animateFloatAsState(if (expanded) 1f else 0f, spatial, label = "avatar-expand")
         Column(
             Modifier.fillMaxSize().padding(padding).nestedScroll(connection).verticalScroll(scroll),
@@ -237,6 +239,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     else IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 },
                 topEnd = {
+                    if (self && username != null) IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
                     if (!self && userId != 0L && user?.deleted != true) {
                         Box {
                             var more by remember { mutableStateOf(false) }
@@ -435,29 +438,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     }
     if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
-    if (showQr && username != null) {
-        val context = LocalContext.current
-        val link = "https://t.me/$username"
-        val qrSheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val qrScope = rememberCoroutineScope()
-        ModalBottomSheet(onDismissRequest = { showQr = false }, sheetState = qrSheet) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                ExpressiveQrCode(link, Modifier.fillMaxWidth(0.85f).aspectRatio(1f))
-                Text("@$username", style = MaterialTheme.typography.titleLargeEmphasized)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { qrScope.launch { qrSheet.hide() }.invokeOnCompletion { showQr = false } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.action_close)) }
-                    Button(
-                        onClick = {
-                            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
-                            context.startActivity(Intent.createChooser(send, null))
-                        },
-                        shapes = ButtonDefaults.shapes(),
-                    ) { Text(stringResource(R.string.action_share)) }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-    }
+    if (showQr && username != null) ProfileQrSheet(username) { showQr = false }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -1005,3 +986,29 @@ private fun EditProfileSheet(graph: AppGraph, full: TdApi.UserFullInfo?, onDismi
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun ProfileQrSheet(username: String, onDismiss: () -> Unit) {
+        val context = LocalContext.current
+        val link = "https://t.me/$username"
+        val qrSheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val qrScope = rememberCoroutineScope()
+        ModalBottomSheet(onDismissRequest = { onDismiss() }, sheetState = qrSheet) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ExpressiveQrCode(link, Modifier.fillMaxWidth(0.85f).aspectRatio(1f))
+                Text("@$username", style = MaterialTheme.typography.titleLargeEmphasized)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { qrScope.launch { qrSheet.hide() }.invokeOnCompletion { onDismiss() } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.action_close)) }
+                    Button(
+                        onClick = {
+                            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link)
+                            context.startActivity(Intent.createChooser(send, null))
+                        },
+                        shapes = ButtonDefaults.shapes(),
+                    ) { Text(stringResource(R.string.action_share)) }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
