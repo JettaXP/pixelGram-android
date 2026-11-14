@@ -135,7 +135,7 @@ private fun HeaderCell(active: Boolean, onClick: () -> Unit, content: @Composabl
 }
 
 @Composable
-private fun EmojiTab(onEmoji: (String) -> Unit, onCustomEmoji: (Long, String) -> Unit) {
+internal fun EmojiTab(onEmoji: (String) -> Unit, onCustomEmoji: (Long, String) -> Unit) {
     val graph = LocalGraph.current
     val sets by produceState(emptyList<TdApi.StickerSetInfo>()) {
         value = runCatching { graph.td.send(TdApi.GetInstalledStickerSets(TdApi.StickerTypeCustomEmoji())).sets.toList() }.getOrDefault(emptyList())

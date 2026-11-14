@@ -20,6 +20,9 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
     private val dir = File(context.filesDir, "banners").apply { mkdirs() }
     private val indexFile = File(dir, "index.json")
     private val badgesFile = File(dir, "badges.tsv")
+    private val ownFile = File(dir, "own-badges.tsv")
+    private var remoteBadges: Map<Long, CustomBadge> = emptyMap()
+    private val own = HashMap<Long, CustomBadge?>()
     private val index = HashMap<Long, String>()
     private val loading = HashSet<Long>()
     private val bannerFlow = MutableStateFlow<Map<Long, File>>(emptyMap())
@@ -34,7 +37,8 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
     init {
         scope.launch(Dispatchers.IO) {
             runCatching { if (indexFile.isFile) parseIndex(indexFile.readText()) }
-            runCatching { if (badgesFile.isFile) badgeFlow.value = parseBadges(badgesFile.readText()) }
+            runCatching { if (ownFile.isFile) parseOwn(ownFile.readText()) }
+            runCatching { if (badgesFile.isFile) setRemote(parseBadges(badgesFile.readText())) }
             runCatching { if (supportersFile.isFile) supporterFlow.value = parseSupporters(supportersFile.readText()) }
             refresh()
         }
@@ -59,7 +63,7 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
                 }
                 runCatching { fetch("$Base/badges.tsv") }.getOrNull()?.let { text ->
                     badgesFile.writeText(text)
-                    badgeFlow.value = parseBadges(text)
+                    setRemote(parseBadges(text))
                 }
             }
         }
@@ -109,6 +113,46 @@ class PixelRemote(context: Context, private val scope: CoroutineScope) {
         val list = Regex("\"custom\"\\s*:\\s*\\[([^\\]]*)\\]").find(text)?.groupValues?.get(1).orEmpty()
         val custom = Regex("(\\d+)").findAll(list).map { it.groupValues[1].toLong() }.toSet()
         return Supporters(numbers, custom)
+    }
+
+    private fun setRemote(map: Map<Long, CustomBadge>) {
+        remoteBadges = map
+        publishBadges()
+    }
+
+    private fun publishBadges() {
+        val merged = HashMap(remoteBadges)
+        synchronized(own) {
+            own.forEach { (id, badge) -> if (badge == null) merged.remove(id) else merged[id] = badge }
+        }
+        badgeFlow.value = merged
+    }
+
+    private fun parseOwn(text: String) {
+        synchronized(own) {
+            text.lines().forEach { row ->
+                val parts = row.split('\t')
+                val userId = parts.getOrNull(0)?.toLongOrNull() ?: return@forEach
+                if (parts.getOrNull(1) == "-") {
+                    own[userId] = null
+                    return@forEach
+                }
+                val customId = parts.getOrNull(1)?.toLongOrNull() ?: return@forEach
+                val emoji = parts.getOrNull(2)?.takeIf { it.isNotBlank() } ?: return@forEach
+                own[userId] = CustomBadge(emoji, customId, clean(parts.getOrNull(3).orEmpty()))
+            }
+        }
+    }
+
+    fun setOwn(userId: Long, badge: CustomBadge?) {
+        synchronized(own) { own[userId] = badge?.copy(text = clean(badge.text)) }
+        publishBadges()
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val text = synchronized(own) { own.entries.joinToString("") { (id, b) -> if (b == null) "$id\t-\n" else "$id\t${b.customEmojiId}\t${b.emoji}\t${b.text}\n" } }
+                ownFile.writeText(text)
+            }
+        }
     }
 
     fun customAllowed(userId: Long): Boolean = userId in BadgeOwners || userId in supporterFlow.value.custom

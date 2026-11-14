@@ -813,4 +813,6 @@
     <string name="reset_all_title">Сбросить все настройки?</string>
     <string name="reset_all_text">Оформление, чаты, курсор и навигация вернутся к значениям по умолчанию. Чаты и аккаунт не затрагиваются.</string>
     <string name="reset_all_done">Настройки сброшены</string>
+    <string name="badge_editor_title">Ваш значок</string>
+    <string name="badge_editor_caption">Подпись</string>
 </resources>

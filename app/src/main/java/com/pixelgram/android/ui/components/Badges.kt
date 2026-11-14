@@ -2,6 +2,7 @@
 
 package com.pixelgram.android.ui.components
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
@@ -125,8 +126,13 @@ fun SupporterBadge(userId: Long, name: String, size: Dp = 18.dp, label: Boolean 
     val supporters by remember { graph.remote.supporters }.collectAsState()
     val badges by remember { graph.remote.badges }.collectAsState()
     val number = supporters.numbers[userId]
-    val custom = badges[userId]?.takeIf { userId in supporters.custom }
+    val custom = badges[userId]?.takeIf { graph.remote.customAllowed(userId) }
+    val meId = graph.store.snapshot.collectAsState().value.meId
+    val editable = userId == meId && graph.remote.customAllowed(userId)
+    var editing by remember(userId) { androidx.compose.runtime.mutableStateOf(false) }
+    if (editing) com.pixelgram.android.feature.pixel.BadgeEditorSheet(userId, custom) { editing = false }
     if (number == null && custom == null) return
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val notice = custom?.text?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.badge_supporter, name.ifBlank { stringResource(R.string.badge_supporter_someone) }, number?.toString().orEmpty())
     var showLabel by remember(userId) { androidx.compose.runtime.mutableStateOf(label && number != null) }
@@ -136,7 +142,15 @@ fun SupporterBadge(userId: Long, name: String, size: Dp = 18.dp, label: Boolean 
             .padding(start = 4.dp)
             .size(size)
             .then(if (custom == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.tertiary) else Modifier)
-            .clickable(interactionSource = null, indication = null) { Notice.show(notice) },
+            .combinedClickable(
+                interactionSource = null,
+                indication = null,
+                onClick = { Notice.show(notice) },
+                onLongClick = if (editable) ({
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    editing = true
+                }) else null,
+            ),
     ) {
         if (custom != null) {
             CustomEmoji(custom, size)

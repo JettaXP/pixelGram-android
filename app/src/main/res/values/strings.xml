@@ -790,4 +790,6 @@
     <string name="reset_all_title">Reset all settings?</string>
     <string name="reset_all_text">Appearance, chat, cursor and navigation settings will return to their defaults. Your chats and account are not affected.</string>
     <string name="reset_all_done">Settings reset</string>
+    <string name="badge_editor_title">Your badge</string>
+    <string name="badge_editor_caption">Caption</string>
 </resources>
