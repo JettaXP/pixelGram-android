@@ -1,6 +1,6 @@
 package com.pixelgram.android.feature.auth
 
-import androidx.activity.compose.BackHandler
+import com.pixelgram.android.nav.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut

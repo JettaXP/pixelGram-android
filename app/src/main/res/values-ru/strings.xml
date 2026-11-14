@@ -711,9 +711,9 @@
     <string name="update_version">%1$s (сборка %2$d)</string>
     <string name="update_checking">Проверяю обновления…</string>
     <string name="update_latest">Установлена последняя версия</string>
-    <string name="update_available">Доступна сборка %1$d</string>
-    <string name="update_downloading">Скачиваю сборку %1$d</string>
-    <string name="update_ready">Сборка %1$d готова</string>
+    <string name="update_available">Доступна версия %1$s</string>
+    <string name="update_downloading">Скачиваю %1$s</string>
+    <string name="update_ready">Версия %1$s готова</string>
     <string name="update_failed">Не удалось проверить обновления</string>
     <string name="update_download">Скачать</string>
     <string name="update_install">Установить</string>
@@ -774,4 +774,6 @@
     <string name="shot_send">Отправить</string>
     <string name="shot_saved">Сохранено в галерею</string>
     <string name="shot_failed">Не удалось сохранить</string>
+    <string name="crash_title">pixelGram упал в прошлый раз</string>
+    <string name="crash_copy">Скопировать лог</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.pixelgram.android.feature.pixel
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.SystemUpdate
@@ -271,6 +272,7 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
                 ToggleButton(
                     checked = settings.themeMode == mode,
                     onCheckedChange = { update { it.copy(themeMode = mode) } },
+                    colors = androidx.compose.material3.ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                     shapes = when (index) {
                         0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                         modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
@@ -328,6 +330,7 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
                 ToggleButton(
                     checked = settings.navBarStyle == style,
                     onCheckedChange = { update { it.copy(navBarStyle = style) } },
+                    colors = androidx.compose.material3.ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                     shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
                     modifier = Modifier.weight(1f),
                 ) {
@@ -350,6 +353,7 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
                 ToggleButton(
                     checked = settings.iconPack == pack,
                     onCheckedChange = { update { it.copy(iconPack = pack) } },
+                    colors = androidx.compose.material3.ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                     shapes = when (index) {
                         0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                         packs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
@@ -726,7 +730,12 @@ private fun UpdateCard() {
     ) {
         Column(Modifier.padding(20.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(
+                if (state is com.pixelgram.android.update.UpdateState.Latest) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.size(30.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(androidx.compose.ui.graphics.Color(0xFF3DDC84)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color(0xFF0B2A12), modifier = Modifier.size(20.dp)) }
+                } else Box(
                     Modifier.size(48.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -747,9 +756,9 @@ private fun UpdateCard() {
                     val title = when (state) {
                         is com.pixelgram.android.update.UpdateState.Idle, is com.pixelgram.android.update.UpdateState.Checking -> stringResource(R.string.update_checking)
                         is com.pixelgram.android.update.UpdateState.Latest -> stringResource(R.string.update_latest)
-                        is com.pixelgram.android.update.UpdateState.Available -> stringResource(R.string.update_available, state.build)
-                        is com.pixelgram.android.update.UpdateState.Downloading -> stringResource(R.string.update_downloading, state.build)
-                        is com.pixelgram.android.update.UpdateState.Ready -> stringResource(R.string.update_ready, state.build)
+                        is com.pixelgram.android.update.UpdateState.Available -> stringResource(R.string.update_available, state.version)
+                        is com.pixelgram.android.update.UpdateState.Downloading -> stringResource(R.string.update_downloading, state.version)
+                        is com.pixelgram.android.update.UpdateState.Ready -> stringResource(R.string.update_ready, state.version)
                         is com.pixelgram.android.update.UpdateState.Failed -> stringResource(R.string.update_failed)
                     }
                     Text(title, style = MaterialTheme.typography.titleMedium)
@@ -816,6 +825,7 @@ private fun CursorSettings(settings: AppearanceSettings, update: ((AppearanceSet
                                     androidx.compose.material3.ToggleButton(
                                         checked = settings.kittyCursor == kitty,
                                         onCheckedChange = { update { s -> s.copy(kittyCursor = kitty) } },
+                                        colors = androidx.compose.material3.ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                                         shapes = if (index == 0) androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes() else androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes(),
                                         modifier = Modifier.weight(1f),
                                     ) { Text(stringResource(label)) }

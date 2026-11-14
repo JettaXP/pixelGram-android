@@ -1,5 +1,8 @@
 package com.pixelgram.android
 
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeLeft
 import android.graphics.Bitmap
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -292,6 +295,37 @@ class Screens {
             remote = TdApi.RemoteFile()
         }))
         shoot(name, graph, listOf(com.pixelgram.android.nav.MainKey, com.pixelgram.android.nav.ChatKey(2)), popup) { action?.invoke(); repeat(10) { Thread.sleep(300); org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); rule.mainClock.advanceTimeBy(50) } }
+    }
+
+    @Test fun profileTabBack() {
+        val graph = graph()
+        graph.appearance.update { it.copy(navTabs = listOf(com.pixelgram.android.feature.main.MainTab.Profile, com.pixelgram.android.feature.main.MainTab.Chats, com.pixelgram.android.feature.main.MainTab.Settings)) }
+        var owner: androidx.activity.OnBackPressedDispatcherOwner? = null
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            owner = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
+            val appearance by graph.appearance.state.collectAsState()
+            PixelTheme(appearance) {
+                CompositionLocalProvider(LocalGraph provides graph) { AppNavigation(graph) }
+            }
+        }
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        rule.onNodeWithContentDescription("Profile").performClick()
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        rule.onRoot().performTouchInput { swipeLeft(startX = centerX + 300f, endX = centerX - 300f, durationMillis = 200) }
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        val dirA = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        File(dirA, "profile_tab_before.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 60, it) }
+        val dispatcher = owner!!.onBackPressedDispatcher
+        rule.runOnUiThread {
+            dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(5f, 1200f, 0f, androidx.activity.BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(400f, 1300f, 0.5f, androidx.activity.BackEventCompat.EDGE_LEFT))
+        }
+        repeat(10) { rule.mainClock.advanceTimeBy(32) }
+        rule.runOnUiThread { dispatcher.onBackPressed() }
+        repeat(30) { rule.mainClock.advanceTimeBy(50) }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        File(dir, "profile_tab_back.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     @Test fun settingsTab() = shoot("settings_tab") { rule.onNodeWithContentDescription("Settings").performClick() }

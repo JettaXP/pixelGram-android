@@ -22,14 +22,14 @@ sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
     data object Latest : UpdateState
-    data class Available(val build: Int, val notes: String, val url: String, val size: Long) : UpdateState
-    data class Downloading(val build: Int, val progress: Float) : UpdateState
-    data class Ready(val build: Int, val file: File) : UpdateState
+    data class Available(val build: Int, val notes: String, val url: String, val size: Long, val version: String = build.toString()) : UpdateState
+    data class Downloading(val build: Int, val progress: Float, val version: String = build.toString()) : UpdateState
+    data class Ready(val build: Int, val file: File, val version: String = build.toString()) : UpdateState
     data class Failed(val message: String) : UpdateState
 }
 
 object Updater {
-    private const val Release = "https://api.github.com/repos/JettaXP/pixelGram-android/releases/tags/alpha"
+    private const val Release = "https://api.github.com/repos/JettaXP/pixelGram-android/releases/latest"
     private val BuildPattern = Regex("build (\\d+)")
 
     var state by mutableStateOf<UpdateState>(UpdateState.Idle)
@@ -60,7 +60,8 @@ object Updater {
                         }
                     }
                     val notes = body.substringAfter("\n", "").trim()
-                    if (build > BuildConfig.VERSION_CODE && url.isNotEmpty()) UpdateState.Available(build, notes, url, size) else UpdateState.Latest
+                    val version = json.optString("tag_name").removePrefix("v").ifBlank { build.toString() }
+                    if (build > BuildConfig.VERSION_CODE && url.isNotEmpty()) UpdateState.Available(build, notes, url, size, version) else UpdateState.Latest
                 }.getOrElse { UpdateState.Failed(it.message ?: "error") }
             }
         }
@@ -68,7 +69,7 @@ object Updater {
 
     fun download(context: Context, scope: CoroutineScope) {
         val available = state as? UpdateState.Available ?: return
-        state = UpdateState.Downloading(available.build, 0f)
+        state = UpdateState.Downloading(available.build, 0f, available.version)
         job = scope.launch {
             state = withContext(Dispatchers.IO) {
                 runCatching {
@@ -95,12 +96,12 @@ object Updater {
                                 if (read < 0) break
                                 output.write(buffer, 0, read)
                                 done += read
-                                if (total > 0) state = UpdateState.Downloading(available.build, (done.toFloat() / total).coerceIn(0f, 1f))
+                                if (total > 0) state = UpdateState.Downloading(available.build, (done.toFloat() / total).coerceIn(0f, 1f), available.version)
                             }
                         }
                     }
                     conn.disconnect()
-                    UpdateState.Ready(available.build, target)
+                    UpdateState.Ready(available.build, target, available.version)
                 }.getOrElse { UpdateState.Failed(it.message ?: "error") }
             }
             (state as? UpdateState.Ready)?.let { install(context, it.file) }

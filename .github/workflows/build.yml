@@ -65,6 +65,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Version
+        run: echo "APP_PATCH=$(( GITHUB_RUN_NUMBER - 62 ))" >> "$GITHUB_ENV"
+
       - uses: actions/download-artifact@v4
         with:
           name: tdlib-native
@@ -130,6 +133,11 @@ jobs:
           version=$(basename "$universal" | sed 's/^pixelgram-//; s/-release\.apk$//')
           cp "$universal" pixelGram-android.apk
           cp "$(ls phone/*.apk | head -n1)" pixelGram-android-arm64.apk
+          notes="$(printf 'pixelGram Android %s, build %s (%s)\n\n%s' "$version" "$GITHUB_RUN_NUMBER" "$(git rev-parse --short HEAD)" "$(git log -1 --pretty=%s)")"
+          gh release create "v$version" pixelGram-android.apk pixelGram-android-arm64.apk \
+            --latest --target "$GITHUB_SHA" \
+            --title "pixelGram Android $version" \
+            --notes "$notes"
           gh release delete alpha --yes --cleanup-tag || true
           gh release create alpha pixelGram-android.apk pixelGram-android-arm64.apk \
             --prerelease --latest=false --target "$GITHUB_SHA" \

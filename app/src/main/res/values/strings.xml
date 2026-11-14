@@ -696,9 +696,9 @@
     <string name="update_version">%1$s (build %2$d)</string>
     <string name="update_checking">Checking for updates…</string>
     <string name="update_latest">You have the latest version</string>
-    <string name="update_available">Build %1$d is available</string>
-    <string name="update_downloading">Downloading build %1$d</string>
-    <string name="update_ready">Build %1$d is ready</string>
+    <string name="update_available">pixelGram %1$s is available</string>
+    <string name="update_downloading">Downloading %1$s</string>
+    <string name="update_ready">pixelGram %1$s is ready</string>
     <string name="update_failed">Couldn\'t check for updates</string>
     <string name="update_download">Download</string>
     <string name="update_install">Install</string>
@@ -757,4 +757,6 @@
     <string name="shot_send">Send</string>
     <string name="shot_saved">Saved to gallery</string>
     <string name="shot_failed">Could not save</string>
+    <string name="crash_title">pixelGram crashed last time</string>
+    <string name="crash_copy">Copy log</string>
 </resources>

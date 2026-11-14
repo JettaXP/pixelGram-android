@@ -677,6 +677,7 @@ private fun ProfileMusicCard(audio: TdApi.Audio, onClick: () -> Unit) {
                         color = content,
                         trackColor = content.copy(alpha = 0.2f),
                         amplitude = { if (playing) 1f else 0f },
+                        waveSpeed = if (playing) androidx.compose.material3.WavyProgressIndicatorDefaults.LinearDeterminateWavelength else 0.dp,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

@@ -1,5 +1,9 @@
 package com.pixelgram.android
 
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +39,7 @@ class MainActivity : ComponentActivity() {
             PixelTheme(appearance) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalGraph provides graph) {
                     if (auth.step == AuthStep.Ready) AppNavigation(graph) else AuthFlow(graph.auth)
+                    CrashReport()
                 }
             }
         }
@@ -57,3 +62,31 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@androidx.compose.runtime.Composable
+private fun CrashReport() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val file = androidx.compose.runtime.remember { java.io.File(context.filesDir, CrashFile) }
+    var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(runCatching { file.takeIf { it.isFile }?.readText() }.getOrNull()) }
+    val shown = text ?: return
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val close = {
+        file.delete()
+        text = null
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = close,
+        title = { androidx.compose.material3.Text(context.getString(R.string.crash_title)) },
+        text = {
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.heightIn(max = 320.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                androidx.compose.material3.Text(shown, style = androidx.compose.material3.MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(onClick = {
+                clipboard.setText(androidx.compose.ui.text.AnnotatedString(shown))
+                close()
+            }) { androidx.compose.material3.Text(context.getString(R.string.crash_copy)) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = close) { androidx.compose.material3.Text(context.getString(R.string.action_close)) } },
+    )
+}

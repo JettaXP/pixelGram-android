@@ -11,6 +11,15 @@ class PixelApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                java.io.File(filesDir, CrashFile).writeText(
+                    "pixelGram ${BuildConfig.VERSION_NAME} · Android ${android.os.Build.VERSION.RELEASE} · ${android.os.Build.MODEL}\n" + android.util.Log.getStackTraceString(error),
+                )
+            }
+            previous?.uncaughtException(thread, error)
+        }
         graph = AppGraph(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
@@ -35,3 +44,5 @@ class PixelApp : Application() {
         }
     }
 }
+
+const val CrashFile = "last_crash.txt"

@@ -57,7 +57,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.togetherWith
 import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.Download
-import androidx.activity.compose.BackHandler
+import com.pixelgram.android.nav.BackHandler
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material.icons.rounded.EmojiEmotions
 import androidx.compose.material.icons.rounded.Keyboard
@@ -205,7 +205,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var dragY by remember { mutableStateOf<Float?>(null) }
     var listTop by remember { mutableStateOf(0f) }
     var listBottom by remember { mutableStateOf(0f) }
-    androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptyList() }
+    com.pixelgram.android.nav.BackHandler(enabled = selected.isNotEmpty()) { selected = emptyList() }
     var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
     var deleting by remember { mutableStateOf<List<UiMessage>?>(null) }

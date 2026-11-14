@@ -1,7 +1,7 @@
 package com.pixelgram.android.feature.stories
 
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import com.pixelgram.android.nav.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
