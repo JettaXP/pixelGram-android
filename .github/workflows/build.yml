@@ -133,7 +133,7 @@ jobs:
           version=$(basename "$universal" | sed 's/^pixelgram-//; s/-release\.apk$//')
           cp "$universal" pixelGram-android.apk
           cp "$(ls phone/*.apk | head -n1)" pixelGram-android-arm64.apk
-          notes="$(printf 'pixelGram Android %s, build %s (%s)\n\n%s' "$version" "$GITHUB_RUN_NUMBER" "$(git rev-parse --short HEAD)" "$(git log -1 --pretty=%s)")"
+          notes="$(printf 'build %s · pixelGram Android %s (%s)\n\n%s' "$GITHUB_RUN_NUMBER" "$version" "$(git rev-parse --short HEAD)" "$(git log -1 --pretty=%s)")"
           gh release create "v$version" pixelGram-android.apk pixelGram-android-arm64.apk \
             --latest --target "$GITHUB_SHA" \
             --title "pixelGram Android $version" \
@@ -142,4 +142,4 @@ jobs:
           gh release create alpha pixelGram-android.apk pixelGram-android-arm64.apk \
             --prerelease --latest=false --target "$GITHUB_SHA" \
             --title "pixelGram Android alpha" \
-            --notes "$(printf 'Alpha build %s (%s), build %s. This release is updated on every push to main.\n\n%s' "$version" "$(git rev-parse --short HEAD)" "$GITHUB_RUN_NUMBER" "$(git log -1 --pretty=%s)")"
+            --notes "$(printf 'build %s · pixelGram Android %s (%s). This release is updated on every push to main.\n\n%s' "$GITHUB_RUN_NUMBER" "$version" "$(git rev-parse --short HEAD)" "$(git log -1 --pretty=%s)")"

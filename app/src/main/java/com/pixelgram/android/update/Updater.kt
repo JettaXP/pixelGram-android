@@ -30,7 +30,7 @@ sealed interface UpdateState {
 
 object Updater {
     private const val Release = "https://api.github.com/repos/JettaXP/pixelGram-android/releases/latest"
-    private val BuildPattern = Regex("build (\\d+)")
+    private val BuildPattern = Regex("build (\\d+)(?![.\\d])")
 
     var state by mutableStateOf<UpdateState>(UpdateState.Idle)
         private set
