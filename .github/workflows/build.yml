@@ -134,6 +134,4 @@ jobs:
           gh release create alpha pixelGram-android.apk pixelGram-android-arm64.apk \
             --prerelease --latest=false --target "$GITHUB_SHA" \
             --title "pixelGram Android alpha" \
-            --notes "Alpha build $version ($(git rev-parse --short HEAD)), build $GITHUB_RUN_NUMBER. This release is updated on every push to main.
-
-$(git log -1 --pretty=%s)"
+            --notes "$(printf 'Alpha build %s (%s), build %s. This release is updated on every push to main.\n\n%s' "$version" "$(git rev-parse --short HEAD)" "$GITHUB_RUN_NUMBER" "$(git log -1 --pretty=%s)")"
