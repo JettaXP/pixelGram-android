@@ -807,4 +807,10 @@
     <string name="shot_theme_dark">Тёмная</string>
     <string name="shot_background">Показывать фон</string>
     <string name="shot_date">Показывать дату</string>
+    <string name="action_reset">Сбросить</string>
+    <string name="reset_all">Сбросить все настройки</string>
+    <string name="reset_all_sub">Вернуть все настройки pixelGram по умолчанию</string>
+    <string name="reset_all_title">Сбросить все настройки?</string>
+    <string name="reset_all_text">Оформление, чаты, курсор и навигация вернутся к значениям по умолчанию. Чаты и аккаунт не затрагиваются.</string>
+    <string name="reset_all_done">Настройки сброшены</string>
 </resources>

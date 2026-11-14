@@ -23,6 +23,10 @@ class LinkOpener(private val graph: AppGraph, private val navigator: Navigator, 
             Credits.open = true
             return
         }
+        if (SettingsLinks.matches(url)) {
+            SettingsLinks.resolve(context, url)?.let { navigator.open(it) }
+            return
+        }
         if (url.startsWith("mailto:") || url.startsWith("tel:")) {
             browser(url)
             return

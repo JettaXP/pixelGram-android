@@ -1,7 +1,9 @@
 package com.pixelgram.android.feature.pixel
 
+import com.pixelgram.android.ui.components.settingLink
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -200,9 +202,9 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
     )
     SettingsGroup(stringResource(R.string.pixel_bubbles)) {
         BubblePreview(settings)
-        CapsuleSlider(stringResource(R.string.pixel_bubble_radius), settings.bubbleRadius, 4..28, SegmentPosition.Middle) { v -> update { it.copy(bubbleRadius = v) } }
-        CapsuleSlider(stringResource(R.string.pixel_bubble_tail), settings.bubbleTailRadius, 0..18, SegmentPosition.Middle) { v -> update { it.copy(bubbleTailRadius = v) } }
-        CapsuleSlider(stringResource(R.string.pixel_font_size), settings.messageFontSize, 12..24, SegmentPosition.Bottom, "sp") { v -> update { it.copy(messageFontSize = v) } }
+        CapsuleSlider(stringResource(R.string.pixel_bubble_radius), settings.bubbleRadius, 4..28, SegmentPosition.Middle, default = SliderDefaults.bubbleRadius) { v -> update { it.copy(bubbleRadius = v) } }
+        CapsuleSlider(stringResource(R.string.pixel_bubble_tail), settings.bubbleTailRadius, 0..18, SegmentPosition.Middle, default = SliderDefaults.bubbleTailRadius) { v -> update { it.copy(bubbleTailRadius = v) } }
+        CapsuleSlider(stringResource(R.string.pixel_font_size), settings.messageFontSize, 12..24, SegmentPosition.Bottom, "sp", default = SliderDefaults.messageFontSize) { v -> update { it.copy(messageFontSize = v) } }
     }
     CursorSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_messages)) {
@@ -377,9 +379,9 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
     }
     androidx.compose.animation.AnimatedVisibility(settings.navBarStyle == NavBarStyle.Expressive) {
         SettingsGroup(stringResource(R.string.pixel_capsule)) {
-            CapsuleSlider(stringResource(R.string.pixel_capsule_inset), settings.capsuleInset, 4..20, SegmentPosition.Top) { v -> update { it.copy(capsuleInset = v) } }
-            CapsuleSlider(stringResource(R.string.pixel_capsule_spacing), settings.capsuleSpacing, 0..16, SegmentPosition.Middle) { v -> update { it.copy(capsuleSpacing = v) } }
-            CapsuleSlider(stringResource(R.string.pixel_capsule_height), settings.capsuleHeight, 56..80, SegmentPosition.Bottom) { v -> update { it.copy(capsuleHeight = v) } }
+            CapsuleSlider(stringResource(R.string.pixel_capsule_inset), settings.capsuleInset, 4..20, SegmentPosition.Top, default = SliderDefaults.capsuleInset) { v -> update { it.copy(capsuleInset = v) } }
+            CapsuleSlider(stringResource(R.string.pixel_capsule_spacing), settings.capsuleSpacing, 0..16, SegmentPosition.Middle, default = SliderDefaults.capsuleSpacing) { v -> update { it.copy(capsuleSpacing = v) } }
+            CapsuleSlider(stringResource(R.string.pixel_capsule_height), settings.capsuleHeight, 56..80, SegmentPosition.Bottom, default = SliderDefaults.capsuleHeight) { v -> update { it.copy(capsuleHeight = v) } }
         }
     }
     SettingsGroup(stringResource(R.string.pixel_avatars)) {
@@ -455,6 +457,46 @@ internal fun AboutPage() {
     SettingsGroup(stringResource(R.string.pixel_info)) {
         SettingsItem(stringResource(R.string.pixel_version), SegmentPosition.Top, stringResource(R.string.update_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), Icons.Rounded.Info)
         SettingsItem(stringResource(R.string.pixel_credits), SegmentPosition.Bottom, stringResource(R.string.pixel_credits_sub), Icons.Rounded.Palette)
+    }
+    ResetAllItem()
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ResetAllItem() {
+    val graph = com.pixelgram.android.LocalGraph.current
+    val done = stringResource(R.string.reset_all_done)
+    var confirm by remember { mutableStateOf(false) }
+    SettingsGroup(null) {
+        SettingsItem(
+            stringResource(R.string.reset_all),
+            SegmentPosition.Single,
+            stringResource(R.string.reset_all_sub),
+            Icons.Rounded.RestartAlt,
+            iconBackground = MaterialTheme.colorScheme.errorContainer,
+            iconTint = MaterialTheme.colorScheme.onErrorContainer,
+            onClick = { confirm = true },
+        )
+    }
+    if (confirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm = false },
+            icon = { Icon(Icons.Rounded.RestartAlt, null) },
+            title = { Text(stringResource(R.string.reset_all_title)) },
+            text = { Text(stringResource(R.string.reset_all_text)) },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        confirm = false
+                        graph.appearance.update { AppearanceSettings() }
+                        com.pixelgram.android.ui.components.Notice.show(done)
+                    },
+                    shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                ) { Text(stringResource(R.string.action_reset)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
 }
 
@@ -539,12 +581,13 @@ private fun BackupSection() {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, unit: String = "dp", onChange: (Int) -> Unit) {
+private fun CapsuleSlider(title: String, value: Int, range: IntRange, position: SegmentPosition, unit: String = "dp", default: Int? = null, onChange: (Int) -> Unit) {
     val (index, count) = position.index()
     androidx.compose.material3.SegmentedListItem(
         shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
         colors = com.pixelgram.android.ui.components.segmentedColors(),
-        trailingContent = { Text("$value $unit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+        modifier = Modifier.settingLink(title),
+        trailingContent = { SliderValue("$value $unit", value, default, onChange) },
         supportingContent = {
             Slider(
                 value = value.toFloat(),
@@ -848,30 +891,31 @@ private fun CursorSettings(settings: AppearanceSettings, update: ((AppearanceSet
                 ) { Text(stringResource(R.string.cursor_style)) }
                 if (!settings.kittyCursor) {
                     SettingsSwitch(stringResource(R.string.cursor_smooth), settings.smoothCursor, { v -> update { it.copy(smoothCursor = v) } }, SegmentPosition.Middle, stringResource(R.string.cursor_smooth_sub))
-                    CursorSlider(stringResource(R.string.cursor_stretch), settings.cursorStretch, 0..100, "") { v -> update { it.copy(cursorStretch = v) } }
-                    CursorSlider(stringResource(R.string.cursor_handle), settings.handleStretch, 0..100, "%") { v -> update { it.copy(handleStretch = v) } }
-                    CursorSlider(stringResource(R.string.cursor_pull), settings.sidePull, 0..100, "%") { v -> update { it.copy(sidePull = v) } }
-                    CursorSlider(stringResource(R.string.cursor_speed), settings.cursorSpeed, 1..100, "") { v -> update { it.copy(cursorSpeed = v) } }
+                    CursorSlider(stringResource(R.string.cursor_stretch), settings.cursorStretch, 0..100, "", default = SliderDefaults.cursorStretch) { v -> update { it.copy(cursorStretch = v) } }
+                    CursorSlider(stringResource(R.string.cursor_handle), settings.handleStretch, 0..100, "%", default = SliderDefaults.handleStretch) { v -> update { it.copy(handleStretch = v) } }
+                    CursorSlider(stringResource(R.string.cursor_pull), settings.sidePull, 0..100, "%", default = SliderDefaults.sidePull) { v -> update { it.copy(sidePull = v) } }
+                    CursorSlider(stringResource(R.string.cursor_speed), settings.cursorSpeed, 1..100, "", default = SliderDefaults.cursorSpeed) { v -> update { it.copy(cursorSpeed = v) } }
                 } else {
-                    CursorSlider(stringResource(R.string.cursor_trail_front), settings.trailFast, 20..500, " ms", 10) { v -> update { it.copy(trailFast = v) } }
-                    CursorSlider(stringResource(R.string.cursor_trail_end), settings.trailSlow, 50..1000, " ms", 10) { v -> update { it.copy(trailSlow = v) } }
-                    CursorSlider(stringResource(R.string.cursor_trail_start), settings.trailThreshold, 0..10, "") { v -> update { it.copy(trailThreshold = v) } }
+                    CursorSlider(stringResource(R.string.cursor_trail_front), settings.trailFast, 20..500, " ms", 10, default = SliderDefaults.trailFast) { v -> update { it.copy(trailFast = v) } }
+                    CursorSlider(stringResource(R.string.cursor_trail_end), settings.trailSlow, 50..1000, " ms", 10, default = SliderDefaults.trailSlow) { v -> update { it.copy(trailSlow = v) } }
+                    CursorSlider(stringResource(R.string.cursor_trail_start), settings.trailThreshold, 0..10, "", default = SliderDefaults.trailThreshold) { v -> update { it.copy(trailThreshold = v) } }
                 }
                 SettingsSwitch(stringResource(R.string.cursor_blink), settings.cursorBlink, { v -> update { it.copy(cursorBlink = v) } }, SegmentPosition.Middle)
-                CursorSlider(stringResource(R.string.cursor_width), settings.cursorWidth, 1..6, " dp") { v -> update { it.copy(cursorWidth = v) } }
-                CursorSlider(stringResource(R.string.cursor_blink_cycle), settings.blinkCycle, 300..2000, " ms", 100) { v -> update { it.copy(blinkCycle = v) } }
-                CursorSlider(stringResource(R.string.cursor_blink_smooth), settings.blinkSmoothness, 0..100, "%", last = true) { v -> update { it.copy(blinkSmoothness = v) } }
+                CursorSlider(stringResource(R.string.cursor_width), settings.cursorWidth, 1..6, " dp", default = SliderDefaults.cursorWidth) { v -> update { it.copy(cursorWidth = v) } }
+                CursorSlider(stringResource(R.string.cursor_blink_cycle), settings.blinkCycle, 300..2000, " ms", 100, default = SliderDefaults.blinkCycle) { v -> update { it.copy(blinkCycle = v) } }
+                CursorSlider(stringResource(R.string.cursor_blink_smooth), settings.blinkSmoothness, 0..100, "%", last = true, default = SliderDefaults.blinkSmoothness) { v -> update { it.copy(blinkSmoothness = v) } }
             }
         }
     }
 }
 
 @Composable
-private fun CursorSlider(title: String, value: Int, range: IntRange, unit: String, step: Int = 1, last: Boolean = false, onChange: (Int) -> Unit) {
+private fun CursorSlider(title: String, value: Int, range: IntRange, unit: String, step: Int = 1, last: Boolean = false, default: Int? = null, onChange: (Int) -> Unit) {
     androidx.compose.material3.SegmentedListItem(
         shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(if (last) 2 else 1, 3),
         colors = com.pixelgram.android.ui.components.segmentedColors(),
-        trailingContent = { Text("$value$unit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+        modifier = Modifier.settingLink(title),
+        trailingContent = { SliderValue("$value$unit", value, default, onChange) },
         supportingContent = {
             Slider(
                 value = value.toFloat(),
@@ -880,4 +924,18 @@ private fun CursorSlider(title: String, value: Int, range: IntRange, unit: Strin
             )
         },
     ) { Text(title) }
+}
+
+private val SliderDefaults = com.pixelgram.android.settings.AppearanceSettings()
+
+@Composable
+private fun SliderValue(label: String, value: Int, default: Int?, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.animation.AnimatedVisibility(default != null && value != default) {
+            IconButton(onClick = { default?.let(onChange) }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Rounded.RestartAlt, stringResource(R.string.action_reset), modifier = Modifier.size(20.dp))
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
 }

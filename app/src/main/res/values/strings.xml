@@ -784,4 +784,10 @@
     <string name="shot_theme_dark">Dark</string>
     <string name="shot_background">Show background</string>
     <string name="shot_date">Show date</string>
+    <string name="action_reset">Reset</string>
+    <string name="reset_all">Reset all settings</string>
+    <string name="reset_all_sub">Restore every pixelGram setting to default</string>
+    <string name="reset_all_title">Reset all settings?</string>
+    <string name="reset_all_text">Appearance, chat, cursor and navigation settings will return to their defaults. Your chats and account are not affected.</string>
+    <string name="reset_all_done">Settings reset</string>
 </resources>

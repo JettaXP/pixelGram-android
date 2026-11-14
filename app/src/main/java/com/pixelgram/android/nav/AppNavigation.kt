@@ -148,10 +148,11 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     com.pixelgram.android.feature.pixel.SupportSheet()
     com.pixelgram.android.feature.premium.PaymentHost()
     com.pixelgram.android.feature.premium.EmojiStatusHost { navigator.open(PremiumKey) }
+    val linkContext = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.runtime.LaunchedEffect(PendingNav.link) {
         PendingNav.link?.let { link ->
             PendingNav.link = null
-            PixelLinks.key(link)?.let { navigator.open(it) }
+            (if (SettingsLinks.matches(link)) SettingsLinks.resolve(linkContext, link) else PixelLinks.key(link))?.let { navigator.open(it) }
         }
     }
     androidx.compose.runtime.LaunchedEffect(PendingNav.chat) {

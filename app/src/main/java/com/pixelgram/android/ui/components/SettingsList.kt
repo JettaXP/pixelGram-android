@@ -1,5 +1,10 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -99,12 +104,33 @@ fun SettingsItem(
     link: String? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
+    val linkContext = androidx.compose.ui.platform.LocalContext.current
+    @Suppress("NAME_SHADOWING")
+    val link = androidx.compose.runtime.remember(title, link) { link?.takeUnless { it.startsWith("pg://") } ?: com.pixelgram.android.nav.SettingsLinks.forTitle(linkContext, title) ?: link }
     val linkDialog = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     if (link != null && linkDialog.value) SettingLinkDialog(title, link) { linkDialog.value = false }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     @Suppress("NAME_SHADOWING")
-    val onLongClick = onLongClick ?: if (link != null) ({ linkDialog.value = true }) else null
+    val onLongClick = onLongClick ?: if (link != null) ({
+        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+        linkDialog.value = true
+    }) else null
     val (index, count) = position.index()
     val shapes = ListItemDefaults.segmentedShapes(index, count)
+    val highlightId = com.pixelgram.android.nav.SettingsLinks.highlight
+    val highlighted = highlightId != null && androidx.compose.runtime.remember(highlightId, title) { runCatching { linkContext.getString(highlightId as Int) == title }.getOrDefault(false) }
+    val glow = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(highlighted) {
+        if (!highlighted) return@LaunchedEffect
+        kotlinx.coroutines.delay(350)
+        repeat(2) {
+            glow.animateTo(1f, androidx.compose.animation.core.tween(280))
+            glow.animateTo(0f, androidx.compose.animation.core.tween(420))
+        }
+        com.pixelgram.android.nav.SettingsLinks.highlight = null
+    }
+    val requester = androidx.compose.runtime.remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    androidx.compose.runtime.LaunchedEffect(highlighted) { if (highlighted) requester.bringIntoView() }
     val leading: (@Composable () -> Unit)? = if (icon != null || painter != null) {
         {
             Box(Modifier.size(40.dp).clip(iconShape).background(iconBackground), contentAlignment = Alignment.Center) {
@@ -148,7 +174,8 @@ fun SettingsItem(
             leadingContent = leading,
             trailingContent = trailingSlot,
             supportingContent = supporting,
-            colors = segmentedColors(),
+            colors = segmentedColors(androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.primaryContainer, glow.value)),
+            modifier = Modifier.bringIntoViewRequester(requester),
             content = headline,
         )
     } else {
@@ -157,7 +184,8 @@ fun SettingsItem(
             leadingContent = leading,
             trailingContent = trailingSlot,
             supportingContent = supporting,
-            colors = segmentedColors(),
+            colors = segmentedColors(androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.primaryContainer, glow.value)),
+            modifier = Modifier.bringIntoViewRequester(requester),
             content = headline,
         )
     }
@@ -205,32 +233,60 @@ fun PixelSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, enabled: B
     )
 }
 
+@Composable
+fun Modifier.settingLink(title: String): Modifier {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val link = androidx.compose.runtime.remember(title) { com.pixelgram.android.nav.SettingsLinks.forTitle(context, title) } ?: return this
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    if (open) SettingLinkDialog(title, link) { open = false }
+    return this.pointerInput(link) {
+        detectTapGestures(onLongPress = {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+            open = true
+        })
+    }
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SettingLinkDialog(title: String, link: String, onDismiss: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val copied = androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_link_copied)
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(androidx.compose.material.icons.Icons.Rounded.Link, null) },
-        title = { Text(title) },
-        text = {
-            androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-                Text(link, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+    androidx.compose.material3.BasicAlertDialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            androidx.compose.foundation.layout.Column(Modifier.padding(24.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                        Icon(androidx.compose.material.icons.Icons.Rounded.Link, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
+                    Text(link, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, link)
+                            runCatching { context.startActivity(android.content.Intent.createChooser(intent, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            onDismiss()
+                        },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.shot_share)) }
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
+                            Notice.show(copied)
+                            onDismiss()
+                        },
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_copy_link), maxLines = 1) }
+                }
             }
-        },
-        confirmButton = {
-            androidx.compose.material3.Button(
-                onClick = {
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
-                    Notice.show(copied)
-                    onDismiss()
-                },
-                shapes = androidx.compose.material3.ButtonDefaults.shapes(),
-            ) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_copy_link)) }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.action_cancel)) }
-        },
-    )
+        }
+    }
 }

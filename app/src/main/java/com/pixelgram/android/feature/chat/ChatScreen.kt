@@ -1937,20 +1937,10 @@ private fun MessageMenu(
                         add(Triple(Icons.AutoMirrored.Rounded.Reply, context.getString(R.string.action_reply)) { close { controller.reply(message) } })
                         if (message.text.isNotBlank()) {
                             add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
-                            add(Triple(Icons.Rounded.SelectAll, context.getString(R.string.action_select_text)) { close(onSelect) })
                         }
-                        link?.let { url ->
-                            add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) {
-                                close {
-                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
-                                    android.widget.Toast.makeText(context, copied, android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            })
-                        }
-                        if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
-                        add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
                         add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
-                        add(Triple(Icons.Rounded.PhotoCamera, context.getString(R.string.shot_action)) { close(onShot) })
+                        add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
+                        if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
                     }
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
@@ -2011,10 +2001,10 @@ private fun MenuEntry(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
             .padding(horizontal = 6.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
-        Text(label, color = tint, style = MaterialTheme.typography.bodyLarge)
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Text(label, color = tint, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -2032,7 +2022,7 @@ private fun SelectTextDialog(message: UiMessage, onDismiss: () -> Unit) {
     )
 }
 
-private val MenuWidth = 220.dp
+private val MenuWidth = 196.dp
 private val MenuGap = 8.dp
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
