@@ -466,7 +466,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
         },
         supportingContent = {
             androidx.compose.animation.Crossfade(row.typing, label = "typing") { typing ->
-                if (typing) TypingLine() else PreviewText(row, Modifier)
+                if (typing) TypingLine() else PreviewText(row, Modifier.fillMaxWidth().then(with(com.pixelgram.android.feature.chat.FadeEnd) { Modifier.fade() }))
             }
         },
     ) {
@@ -522,7 +522,8 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
         inlineContent = com.pixelgram.android.ui.components.customEmojiContent(shifted, body, style.fontSize * 1.15f) + if (hasThumb && preview != null) mapOf(
             "thumb" to androidx.compose.foundation.text.InlineTextContent(androidx.compose.ui.text.Placeholder(style.fontSize * 1.35f, style.fontSize * 1.35f, androidx.compose.ui.text.PlaceholderVerticalAlign.TextCenter)) {
                 val graph = com.pixelgram.android.LocalGraph.current

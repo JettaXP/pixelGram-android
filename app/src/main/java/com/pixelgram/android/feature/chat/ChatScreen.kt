@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.isImeVisible
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.nav.ChatKey
@@ -2298,7 +2299,7 @@ private fun PlainText(
     val inline = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) }
     val hasSpoiler = remember(entities) { entities.any { it.type is TdApi.TextEntityTypeSpoiler } }
     if (!hasSpoiler) {
-        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, modifier = modifier, onTextLayout = report)
+        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = if (inline.isEmpty()) TextOverflow.Ellipsis else TextOverflow.Clip, inlineContent = inline, modifier = modifier, onTextLayout = report)
         return
     }
     var revealed by remember(text) { mutableStateOf(false) }
@@ -2657,7 +2658,9 @@ private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick
                     annotated,
                     style = style,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier.fillMaxWidth().fadeEnd(),
                     inlineContent = com.pixelgram.android.ui.components.customEmojiContent(message.entities, text, style.fontSize * 1.15f),
                 )
             }
@@ -2665,3 +2668,20 @@ private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick
         }
     }
 }
+
+object FadeEnd {
+    fun Modifier.fade(): Modifier = fadeEnd()
+}
+
+internal fun Modifier.fadeEnd(fade: androidx.compose.ui.unit.Dp = 24.dp): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .then(Modifier.drawWithContent {
+        drawContent()
+        val w = fade.toPx().coerceAtMost(size.width)
+        drawRect(
+            androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - w, endX = size.width),
+            topLeft = androidx.compose.ui.geometry.Offset(size.width - w, 0f),
+            size = androidx.compose.ui.geometry.Size(w, size.height),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    })
