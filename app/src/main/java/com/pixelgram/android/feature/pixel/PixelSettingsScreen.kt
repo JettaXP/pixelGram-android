@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.pixel
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -729,46 +730,56 @@ private fun UpdateCard() {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Column(Modifier.padding(20.dp).animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 500f)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                if (state is com.pixelgram.android.update.UpdateState.Latest) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier.size(30.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(androidx.compose.ui.graphics.Color(0xFF3DDC84)),
+            androidx.compose.animation.AnimatedContent(
+                targetState = state,
+                contentKey = { it::class },
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, delayMillis = 60)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(220, delayMillis = 60), initialScale = 0.96f)) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)) using androidx.compose.animation.SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 500f) }
+                },
+                label = "update-header",
+            ) { state ->
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (state is com.pixelgram.android.update.UpdateState.Latest) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.size(30.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(androidx.compose.ui.graphics.Color(0xFF3DDC84)),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color(0xFF0B2A12), modifier = Modifier.size(20.dp)) }
+                    } else Box(
+                        Modifier.size(48.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color(0xFF0B2A12), modifier = Modifier.size(20.dp)) }
-                } else Box(
-                    Modifier.size(48.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    when (state) {
-                        is com.pixelgram.android.update.UpdateState.Checking -> androidx.compose.material3.LoadingIndicator(Modifier.size(32.dp))
-                        else -> Icon(
-                            when (state) {
-                                is com.pixelgram.android.update.UpdateState.Latest -> Icons.Rounded.CheckCircle
-                                is com.pixelgram.android.update.UpdateState.Failed -> Icons.Rounded.ErrorOutline
-                                else -> Icons.Rounded.SystemUpdate
-                            },
-                            null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
+                    ) {
+                        when (state) {
+                            is com.pixelgram.android.update.UpdateState.Checking -> androidx.compose.material3.LoadingIndicator(Modifier.size(32.dp))
+                            else -> Icon(
+                                when (state) {
+                                    is com.pixelgram.android.update.UpdateState.Latest -> Icons.Rounded.CheckCircle
+                                    is com.pixelgram.android.update.UpdateState.Failed -> Icons.Rounded.ErrorOutline
+                                    else -> Icons.Rounded.SystemUpdate
+                                },
+                                null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
                     }
-                }
-                Column(Modifier.weight(1f)) {
-                    val title = when (state) {
-                        is com.pixelgram.android.update.UpdateState.Idle, is com.pixelgram.android.update.UpdateState.Checking -> stringResource(R.string.update_checking)
-                        is com.pixelgram.android.update.UpdateState.Latest -> stringResource(R.string.update_latest)
-                        is com.pixelgram.android.update.UpdateState.Available -> stringResource(R.string.update_available, state.version)
-                        is com.pixelgram.android.update.UpdateState.Downloading -> stringResource(R.string.update_downloading, state.version)
-                        is com.pixelgram.android.update.UpdateState.Ready -> stringResource(R.string.update_ready, state.version)
-                        is com.pixelgram.android.update.UpdateState.Failed -> stringResource(R.string.update_failed)
+                    Column(Modifier.weight(1f)) {
+                        val title = when (state) {
+                            is com.pixelgram.android.update.UpdateState.Idle, is com.pixelgram.android.update.UpdateState.Checking -> stringResource(R.string.update_checking)
+                            is com.pixelgram.android.update.UpdateState.Latest -> stringResource(R.string.update_latest)
+                            is com.pixelgram.android.update.UpdateState.Available -> stringResource(R.string.update_available, state.version)
+                            is com.pixelgram.android.update.UpdateState.Downloading -> stringResource(R.string.update_downloading, state.version)
+                            is com.pixelgram.android.update.UpdateState.Ready -> stringResource(R.string.update_ready, state.version)
+                            is com.pixelgram.android.update.UpdateState.Failed -> stringResource(R.string.update_failed)
+                        }
+                        Text(title, style = MaterialTheme.typography.titleMedium)
+                        val sub = when (state) {
+                            is com.pixelgram.android.update.UpdateState.Available -> if (state.size > 0) "%.1f MB".format(state.size / 1048576.0) else null
+                            is com.pixelgram.android.update.UpdateState.Downloading -> "${(state.progress * 100).toInt()}%"
+                            is com.pixelgram.android.update.UpdateState.Failed -> state.message
+                            else -> stringResource(R.string.update_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+                        }
+                        if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(title, style = MaterialTheme.typography.titleMedium)
-                    val sub = when (state) {
-                        is com.pixelgram.android.update.UpdateState.Available -> if (state.size > 0) "%.1f MB".format(state.size / 1048576.0) else null
-                        is com.pixelgram.android.update.UpdateState.Downloading -> "${(state.progress * 100).toInt()}%"
-                        is com.pixelgram.android.update.UpdateState.Failed -> state.message
-                        else -> stringResource(R.string.update_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
-                    }
-                    if (sub != null) Text(sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (state is com.pixelgram.android.update.UpdateState.Available && state.notes.isNotBlank()) {

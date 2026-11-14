@@ -109,7 +109,6 @@ object Updater {
                     UpdateState.Ready(available.build, target, available.version)
                 }.getOrElse { UpdateState.Failed(it.message ?: "error") }
             }
-            (state as? UpdateState.Ready)?.let { install(context, it.file) }
         }
     }
 
