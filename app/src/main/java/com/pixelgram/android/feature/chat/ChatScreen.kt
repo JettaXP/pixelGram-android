@@ -624,25 +624,20 @@ private fun sameDay(a: Int, b: Int): Boolean {
     return Instant.ofEpochSecond(a.toLong()).atZone(zone).toLocalDate() == Instant.ofEpochSecond(b.toLong()).atZone(zone).toLocalDate()
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun WavyLine(modifier: Modifier, color: Color, reverse: Boolean = false) {
-    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "wave")
-    val phase by transition.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "wave-phase")
-    androidx.compose.foundation.Canvas(modifier.height(10.dp)) {
-        val wave = 14.dp.toPx()
-        val amp = 2.2.dp.toPx()
-        val mid = size.height / 2
-        val path = androidx.compose.ui.graphics.Path()
-        val shift = (if (reverse) -phase else phase) * wave
-        var x = 0f
-        path.moveTo(0f, mid)
-        while (x <= size.width) {
-            val fade = (minOf(x, size.width - x) / (size.width * 0.25f)).coerceIn(0f, 1f)
-            path.lineTo(x, mid + amp * fade * kotlin.math.sin(((x + shift) / wave) * 2f * Math.PI.toFloat()).toFloat())
-            x += 2f
-        }
-        drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
-    }
+    androidx.compose.material3.LinearWavyProgressIndicator(
+        progress = { 1f },
+        modifier = modifier.graphicsLayer { if (reverse) scaleX = -1f },
+        color = color,
+        trackColor = Color.Transparent,
+        stopSize = 0.dp,
+        gapSize = 0.dp,
+        amplitude = { 1f },
+        wavelength = 16.dp,
+        waveSpeed = 0.dp,
+    )
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package com.pixelgram.android.ui.theme
 
+import androidx.compose.ui.graphics.toArgb
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -32,6 +33,7 @@ fun PixelTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
             else -> PixelLightScheme
         }
     }
+    androidx.compose.runtime.SideEffect { com.pixelgram.android.notify.NotificationAccent.save(context, scheme.primary.toArgb()) }
     val typography = remember { pixelTypography() }
     MaterialExpressiveTheme(
         colorScheme = scheme,

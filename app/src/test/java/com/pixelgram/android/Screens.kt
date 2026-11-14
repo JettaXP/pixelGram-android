@@ -121,7 +121,7 @@ class Screens {
         val dispatcher = owner!!.onBackPressedDispatcher
         rule.runOnUiThread {
             dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(5f, 1200f, 0f, androidx.activity.BackEventCompat.EDGE_LEFT))
-            dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(400f, 1300f, 0.4f, androidx.activity.BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(400f, 1300f, 0.5f, androidx.activity.BackEventCompat.EDGE_LEFT))
         }
         repeat(10) { rule.mainClock.advanceTimeBy(32) }
         val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }

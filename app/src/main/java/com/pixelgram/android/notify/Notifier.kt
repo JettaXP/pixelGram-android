@@ -286,5 +286,17 @@ class KeepAliveService : android.app.Service() {
     }
 }
 
+object NotificationAccent {
+    @Volatile private var cached: Int? = null
+
+    fun save(context: Context, color: Int) {
+        if (cached == color) return
+        cached = color
+        context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).edit().putInt("color", color).apply()
+    }
+
+    fun get(context: Context): Int? = cached ?: context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).getInt("color", 0).takeIf { it != 0 }?.also { cached = it }
+}
+
 internal fun accentColor(context: Context): Int =
-    if (Build.VERSION.SDK_INT >= 31) context.getColor(android.R.color.system_accent1_400) else 0xFF7C9A5A.toInt()
+    NotificationAccent.get(context) ?: if (Build.VERSION.SDK_INT >= 31) context.getColor(android.R.color.system_accent1_400) else 0xFF7C9A5A.toInt()
