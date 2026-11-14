@@ -800,4 +800,11 @@
         <item quantity="many">%d сохранённых сообщений</item>
         <item quantity="other">%d сохранённых сообщений</item>
     </plurals>
+    <string name="shot_preferences">Настройки</string>
+    <string name="shot_theme">Тема</string>
+    <string name="shot_theme_default">Как в приложении</string>
+    <string name="shot_theme_light">Светлая</string>
+    <string name="shot_theme_dark">Тёмная</string>
+    <string name="shot_background">Показывать фон</string>
+    <string name="shot_date">Показывать дату</string>
 </resources>
