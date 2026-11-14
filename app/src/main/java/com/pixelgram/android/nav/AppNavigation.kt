@@ -1,5 +1,6 @@
 package com.pixelgram.android.nav
 
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,11 +84,24 @@ class Navigator(private val stack: MutableList<NavKey>) {
 fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     val stack = rememberNavBackStack(*start.toTypedArray())
     val navigator = Navigator(stack)
-    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+    val backdrop = androidx.compose.ui.graphics.lerp(androidx.compose.material3.MaterialTheme.colorScheme.surface, androidx.compose.ui.graphics.Color.Black, 0.7f)
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(backdrop)) {
     NavDisplay(
         backStack = stack,
         onBack = { navigator.back() },
-        entryDecorators = listOf(androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator()),
+        predictivePopTransitionSpec = { edge ->
+            val toward = if (edge == androidx.navigationevent.NavigationEvent.EDGE_RIGHT) -1 else 1
+            val enter = fadeIn(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0f at PredictiveMs * 6 / 10; 1f at PredictiveMs using androidx.compose.animation.core.LinearOutSlowInEasing }) +
+                androidx.compose.animation.scaleIn(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0.92f at PredictiveMs * 6 / 10; 1f at PredictiveMs using androidx.compose.animation.core.LinearOutSlowInEasing }, initialScale = 0.92f)
+            val exit = androidx.compose.animation.scaleOut(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 0.9f at PredictiveMs / 2 using androidx.compose.animation.core.LinearOutSlowInEasing; 0.9f at PredictiveMs }, targetScale = 0.9f) +
+                slideOutHorizontally(tween(PredictiveMs, easing = androidx.compose.animation.core.LinearEasing)) { (it * 0.08f * toward).toInt() } +
+                fadeOut(androidx.compose.animation.core.keyframes { durationMillis = PredictiveMs; 1f at PredictiveMs / 2; 0f at PredictiveMs * 65 / 100 using androidx.compose.animation.core.FastOutLinearInEasing; 0f at PredictiveMs })
+            enter togetherWith exit
+        },
+        entryDecorators = listOf(
+            androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator(),
+            remember { RoundedTransitionDecorator() },
+        ),
         entryProvider = entryProvider {
             entry<MainKey> { MainShell(graph, navigator) }
             entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator, key.topicId) }
@@ -131,3 +145,22 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     )
     }
 }
+
+private class RoundedTransitionDecorator : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(
+    decorate = { entry ->
+        val transition = androidx.navigation3.ui.LocalNavAnimatedContentScope.current.transition
+        val corner by transition.animateDp(transitionSpec = { tween(PredictiveMs / 3) }, label = "entry-corner") { state ->
+            if (state == androidx.compose.animation.EnterExitState.Visible) 0.dp else 28.dp
+        }
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.graphicsLayer {
+                if (corner > 0.dp) {
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(corner)
+                    clip = true
+                }
+            },
+        ) { entry.Content() }
+    },
+)
+
+private const val PredictiveMs = 500

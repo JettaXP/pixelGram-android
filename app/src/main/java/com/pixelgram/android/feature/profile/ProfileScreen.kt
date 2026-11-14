@@ -192,7 +192,13 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
 
                 override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                     if (available.y > 0 && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && !refreshing) {
-                        scope.launch { pull.snapTo(pull.value + available.y * 0.5f) }
+                        val next = pull.value + available.y * 0.5f
+                        if (!expanded && next > expandDistance * 0.25f) {
+                            expanded = true
+                            scope.launch { pull.snapTo(0f) }
+                        } else {
+                            scope.launch { pull.snapTo(next) }
+                        }
                         return androidx.compose.ui.geometry.Offset(0f, available.y)
                     }
                     return androidx.compose.ui.geometry.Offset.Zero
@@ -212,7 +218,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
         }
         val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
         LaunchedEffect(scroll) { androidx.compose.runtime.snapshotFlow { scroll.value }.collect { if (it > 0 && expanded) expanded = false } }
-        val expandedAmount by androidx.compose.animation.core.animateFloatAsState(if (expanded) 1f else 0f, spatial, label = "avatar-expand")
+        val expandedAmount by androidx.compose.animation.core.animateFloatAsState(if (expanded) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 380f), label = "avatar-expand")
         Column(
             Modifier.fillMaxSize().padding(padding).nestedScroll(connection).verticalScroll(scroll),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -231,7 +237,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) else if (userId == 0L && chat?.photo != null) navigator.open(ProfilePhotosKey(chatId)) },
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
                 localPhoto = user?.localPhoto,
-                expand = { if (expanded) expandedAmount else maxOf(expandedAmount, pull.value / expandDistance) },
+                expand = { expandedAmount },
                 loader = { if (expanded) pull.value / loaderDistance else 0f },
                 refreshing = refreshing,
                 topStart = {

@@ -103,21 +103,40 @@ fun ProfileHeader(
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to surface)))
                 }
             }
-            val baseShape = com.pixelgram.android.ui.theme.LocalAvatarShape.current
-            val shape = if (e > 0f) RoundedCornerShape((size / 2) * (1f - e) * (1f - e)) else baseShape
-            Box(Modifier.align(Alignment.TopCenter).offset(y = top)) {
-                androidx.compose.runtime.CompositionLocalProvider(com.pixelgram.android.ui.theme.LocalAvatarShape provides shape) {
-                    Avatar(
-                        title = title,
-                        seed = userId,
-                        path = path,
-                        minithumb = if (icon != null) null else minithumb,
-                        size = size,
-                        icon = icon,
-                        modifier = Modifier.clickable(onClick = onAvatarClick),
-                        onNeedFile = { graph.store.requestFileAsync(photoFileId) },
-                    )
+            if (e > 0f) {
+                androidx.compose.runtime.CompositionLocalProvider(com.pixelgram.android.ui.theme.LocalAvatarShape provides RoundedCornerShape((AvatarSize / 2) * (1f - e))) {
+                    Box(Modifier.align(Alignment.TopCenter).offset(y = top).graphicsLayer { alpha = (e * 2.5f).coerceAtMost(1f) }) {
+                        Avatar(
+                            title = title,
+                            seed = userId,
+                            path = path,
+                            minithumb = if (icon != null) null else minithumb,
+                            size = size,
+                            icon = icon,
+                            modifier = Modifier.clickable(onClick = onAvatarClick),
+                            onNeedFile = { graph.store.requestFileAsync(photoFileId) },
+                        )
+                    }
                 }
+            }
+            Box(
+                Modifier.align(Alignment.TopCenter).offset(y = avatarTop * (1f - e)).graphicsLayer {
+                    alpha = (1f - e * 2.5f).coerceIn(0f, 1f)
+                    val grow = 1f + e * 0.4f
+                    scaleX = grow
+                    scaleY = grow
+                },
+            ) {
+                Avatar(
+                    title = title,
+                    seed = userId,
+                    path = path,
+                    minithumb = if (icon != null) null else minithumb,
+                    size = AvatarSize,
+                    icon = icon,
+                    modifier = Modifier.clickable(enabled = e < 0.3f, onClick = onAvatarClick),
+                    onNeedFile = { graph.store.requestFileAsync(photoFileId) },
+                )
                 if (showCamera && e < 0.05f) {
                     androidx.compose.material3.FilledIconButton(
                         onClick = onAvatarClick,

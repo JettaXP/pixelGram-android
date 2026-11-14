@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.indication
@@ -729,6 +730,10 @@ internal fun MessageBubble(
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val latestSelecting by androidx.compose.runtime.rememberUpdatedState(selecting)
+    val latestTap by androidx.compose.runtime.rememberUpdatedState(onTap)
+    val latestLongPress by androidx.compose.runtime.rememberUpdatedState(onLongPress)
+    val latestDoubleTap by androidx.compose.runtime.rememberUpdatedState(onDoubleTap)
     val big = prefs.bubbleRadius.dp
     val small = prefs.bubbleTailRadius.dp
     val shape = if (message.outgoing) {
@@ -752,7 +757,6 @@ internal fun MessageBubble(
         Modifier
             .fillMaxWidth()
             .background(selectionTint)
-            .then(if (selecting) Modifier.clickable(indication = null, interactionSource = null) { onTap(bounds) } else Modifier)
             .padding(top = if (joinsAbove) 2.dp else 6.dp),
         horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom,
@@ -785,7 +789,7 @@ internal fun MessageBubble(
                 .widthIn(max = 320.dp)
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .clip(shape)
-                .pointerInput(selecting) {
+                .pointerInput(Unit) {
                     val doubleWindow = 220L
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -796,22 +800,25 @@ internal fun MessageBubble(
                         interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
                         if (up == null) {
                             if (currentEvent.changes.any { it.pressed }) {
-                                onLongPress(pointAt(down.position.y))
-                                currentEvent.changes.forEach { it.consume() }
-                                while (currentEvent.changes.any { it.pressed }) awaitPointerEvent()
+                                latestLongPress(pointAt(down.position.y))
+                                do {
+                                    val event = awaitPointerEvent()
+                                    event.changes.forEach { it.consume() }
+                                } while (event.changes.any { it.pressed })
                             }
                             return@awaitEachGesture
                         }
-                        if (selecting) {
-                            onTap(pointAt(up.position.y))
+                        up.consume()
+                        if (latestSelecting) {
+                            latestTap(pointAt(up.position.y))
                             return@awaitEachGesture
                         }
                         val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
                         if (second != null) {
-                            waitForUpOrCancellation()
-                            onDoubleTap()
+                            waitForUpOrCancellation()?.consume()
+                            latestDoubleTap()
                         } else {
-                            onTap(pointAt(up.position.y))
+                            latestTap(pointAt(up.position.y))
                         }
                     }
                 }
@@ -1676,20 +1683,8 @@ private fun MessageMenu(
     }
     val copied = stringResource(R.string.profile_copied)
     val density = androidx.compose.ui.platform.LocalDensity.current
-    androidx.compose.ui.window.Popup(
-        popupPositionProvider = remember {
-            object : androidx.compose.ui.window.PopupPositionProvider {
-                override fun calculatePosition(
-                    anchorBounds: androidx.compose.ui.unit.IntRect,
-                    windowSize: androidx.compose.ui.unit.IntSize,
-                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                    popupContentSize: androidx.compose.ui.unit.IntSize,
-                ) = androidx.compose.ui.unit.IntOffset.Zero
-            }
-        },
-        onDismissRequest = { close {} },
-        properties = androidx.compose.ui.window.PopupProperties(focusable = true, clippingEnabled = false),
-    ) {
+    androidx.activity.compose.BackHandler { close {} }
+    Box(Modifier.fillMaxSize().zIndex(50f)) {
         val scrim by androidx.compose.animation.core.animateFloatAsState(if (shown.targetState) 0.4f else 0f, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "scrim")
         androidx.compose.ui.layout.Layout(
             content = {
