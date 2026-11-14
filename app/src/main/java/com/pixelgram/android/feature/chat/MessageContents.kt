@@ -104,10 +104,11 @@ internal fun RichContent(
     onOpenUser: (Long) -> Unit,
     onVote: (IntArray) -> Unit,
     onPay: () -> Unit = {},
+    meta: (@Composable () -> Unit)? = null,
 ) {
     when (val c = message.content) {
         is TdApi.MessageVideo -> VideoBubble(c.video, files, onNeedFile)
-        is TdApi.MessageVoiceNote -> VoiceRow(c.voiceNote, files, onNeedFile, content)
+        is TdApi.MessageVoiceNote -> VoiceRow(c.voiceNote, files, onNeedFile, content, meta)
         is TdApi.MessageVideoNote -> VideoNoteView(c.videoNote, files, onNeedFile)
         is TdApi.MessageSticker -> StickerContent(c.sticker, files, onNeedFile)
         is TdApi.MessageAnimatedEmoji -> AnimatedEmojiContent(message, c, files, onNeedFile)
@@ -285,7 +286,7 @@ private fun waveform(data: ByteArray, bars: Int): List<Float> {
 }
 
 @Composable
-private fun VoiceRow(voice: TdApi.VoiceNote, files: Map<Int, String>, onNeedFile: (Int) -> Unit, content: Color) {
+private fun VoiceRow(voice: TdApi.VoiceNote, files: Map<Int, String>, onNeedFile: (Int) -> Unit, content: Color, meta: (@Composable () -> Unit)? = null) {
     val context = LocalContext.current
     val path = localPath(voice.voice, files)
     val state by VoicePlayer.playing.collectAsState()
@@ -316,7 +317,7 @@ private fun VoiceRow(voice: TdApi.VoiceNote, files: Map<Int, String>, onNeedFile
             },
             modifier = Modifier.size(44.dp),
         ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null) }
-        Column {
+        Column(Modifier.weight(1f, fill = false)) {
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(28.dp)) {
                 bars.forEachIndexed { i, v ->
                     val lit = (i + 0.5f) / bars.size <= progress
@@ -329,7 +330,13 @@ private fun VoiceRow(voice: TdApi.VoiceNote, files: Map<Int, String>, onNeedFile
                     )
                 }
             }
-            Text(duration(voice.duration), style = MaterialTheme.typography.labelSmall, color = content.copy(alpha = 0.7f))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                Text(duration(voice.duration), style = MaterialTheme.typography.labelSmall, color = content.copy(alpha = 0.7f))
+                if (meta != null) {
+                    Spacer(Modifier.weight(1f).widthIn(min = 12.dp))
+                    meta()
+                }
+            }
         }
     }
 }

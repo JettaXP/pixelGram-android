@@ -75,6 +75,8 @@ data class UserInfo(
     val support: Boolean = false,
     val seen: Seen = Seen.Recently,
     val emojiStatus: Long = 0L,
+    val accentColorId: Int = 0,
+    val backgroundEmojiId: Long = 0L,
 ) {
     val name: String get() = if (deleted) "Deleted Account" else listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Deleted Account" }
 }
@@ -164,6 +166,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     private fun apply(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateConnectionState -> connectionFlow.value = update.state
+            is TdApi.UpdateAccentColors -> AccentColors.update(update.colors)
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
             is TdApi.UpdateAnimatedEmojiMessageClicked -> EmojiTaps.received(update.chatId, update.messageId, update.sticker)
             is TdApi.UpdateChatTitle -> chats[update.chatId]?.title = update.title
@@ -376,6 +379,8 @@ private fun TdApi.User.info() = UserInfo(
     usernames = usernames?.activeUsernames?.toList().orEmpty(),
     support = isSupport,
     emojiStatus = (emojiStatus?.type as? TdApi.EmojiStatusTypeCustomEmoji)?.customEmojiId ?: 0L,
+    accentColorId = accentColorId,
+    backgroundEmojiId = backgroundCustomEmojiId,
     seen = when (status) {
         is TdApi.UserStatusOnline -> Seen.Online
         is TdApi.UserStatusOffline -> Seen.Offline

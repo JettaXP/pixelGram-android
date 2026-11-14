@@ -816,7 +816,7 @@ internal fun MessageBubble(
                     Text(
                         senderName,
                         style = MaterialTheme.typography.labelLarge,
-                        color = com.pixelgram.android.ui.components.avatarColor(message.senderId),
+                        color = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.senderId]?.let { com.pixelgram.android.td.AccentColors.colors(it.accentColorId, com.pixelgram.android.ui.theme.LocalDarkTheme.current).first() } ?: com.pixelgram.android.ui.components.avatarColor(message.senderId),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
@@ -857,7 +857,8 @@ internal fun MessageBubble(
                     }
                 }
                 (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
-                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay)
+                val metaInside = message.content is TdApi.MessageVoiceNote && message.text.isBlank() && message.reactions.isEmpty()
+                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay, meta = if (metaInside) ({ meta(onContainer.copy(alpha = 0.7f)) }) else null)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
                 val bigEmoji = remember(message.text, message.entities) { bigCustomEmoji(message.text, message.entities) }
@@ -884,7 +885,7 @@ internal fun MessageBubble(
                         )
                         if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
                     }
-                } else if (message.reactions.isEmpty() && !mediaOnly) {
+                } else if (message.reactions.isEmpty() && !mediaOnly && !metaInside) {
                     Box(Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
                 }
                 if (message.reactions.isNotEmpty()) {
@@ -1085,34 +1086,63 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
 
 @Composable
 private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}) {
-    val scheme = MaterialTheme.colorScheme
+    val graph = com.pixelgram.android.LocalGraph.current
+    val snapshot by graph.store.snapshot.collectAsState()
+    val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+    val user = snapshot.users[reply.senderId]
+    val chat = if (user == null && reply.senderId != 0L) graph.store.chat(reply.senderId) else null
+    val accentId = user?.accentColorId ?: chat?.accentColorId
+    val pattern = user?.backgroundEmojiId ?: chat?.backgroundCustomEmojiId ?: 0L
+    val palette = accentId?.let { com.pixelgram.android.td.AccentColors.colors(it, dark) } ?: listOf(MaterialTheme.colorScheme.primary)
+    val main = palette.first()
     val thumb = reply.parts.firstOrNull() ?: reply.takeIf { it.mediaFileId != 0 }
-    Row(
+    Box(
         Modifier
-            .padding(4.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(start = 10.dp, end = 10.dp, top = 6.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .background(scheme.primary.copy(alpha = 0.12f))
+            .background(main.copy(alpha = 0.14f))
+            .drawBehind {
+                val bar = 3.dp.toPx()
+                if (palette.size == 1) {
+                    drawRect(main, size = androidx.compose.ui.geometry.Size(bar, size.height))
+                } else {
+                    val step = 6.dp.toPx()
+                    var y = 0f
+                    var i = 0
+                    while (y < size.height) {
+                        drawRect(palette[i % palette.size], topLeft = androidx.compose.ui.geometry.Offset(0f, y), size = androidx.compose.ui.geometry.Size(bar, minOf(step, size.height - y)))
+                        y += step
+                        i++
+                    }
+                }
+            }
             .height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(4.dp).fillMaxHeight().background(scheme.primary))
-        if (thumb != null) {
-            AsyncImage(
-                model = thumb.localPath?.let(::File) ?: files[thumb.mediaFileId]?.let(::File) ?: thumb.mediaThumb,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.padding(start = 8.dp).size(36.dp).clip(RoundedCornerShape(8.dp)),
-            )
+        if (pattern != 0L) {
+            Row(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).graphicsLayer { alpha = 0.22f }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = 14.dp)
+                com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = 18.dp)
+            }
         }
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-            if (sender.isNotBlank()) Text(sender, style = MaterialTheme.typography.labelLarge, color = scheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                reply.text.ifBlank { if (thumb != null) stringResource(R.string.preview_photo) else stringResource(R.string.preview_service) },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (thumb != null) {
+                AsyncImage(
+                    model = thumb.localPath?.let(::File) ?: files[thumb.mediaFileId]?.let(::File) ?: thumb.mediaThumb,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.padding(start = 9.dp).size(36.dp).clip(RoundedCornerShape(8.dp)),
+                )
+            }
+            Column(Modifier.padding(start = 11.dp, end = 10.dp, top = 6.dp, bottom = 6.dp)) {
+                if (sender.isNotBlank()) Text(sender, style = MaterialTheme.typography.labelLarge, color = main, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    reply.text.ifBlank { if (thumb != null) stringResource(R.string.preview_photo) else stringResource(R.string.preview_service) },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }
@@ -2109,8 +2139,8 @@ private fun QuoteBlock(expandable: Boolean, content: Color, body: @Composable (I
     val accent = MaterialTheme.colorScheme.primary
     Box(
         Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(accent.copy(alpha = 0.12f))
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = 0.14f))
             .then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier)
             .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
             .padding(start = 11.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
