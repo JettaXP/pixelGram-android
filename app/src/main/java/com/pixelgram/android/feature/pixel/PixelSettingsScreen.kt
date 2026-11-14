@@ -728,7 +728,7 @@ private fun UpdateCard() {
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Column(Modifier.padding(20.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(20.dp).animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 500f)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (state is com.pixelgram.android.update.UpdateState.Latest) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     Box(
@@ -796,9 +796,9 @@ private fun UpdateCard() {
                         shapes = androidx.compose.material3.ButtonDefaults.shapes(),
                         modifier = Modifier.weight(1f),
                     ) { Text(stringResource(R.string.update_install)) }
-                    is com.pixelgram.android.update.UpdateState.Checking -> Unit
                     else -> androidx.compose.material3.FilledTonalButton(
                         onClick = { updater.check(graph.scope) },
+                        enabled = state !is com.pixelgram.android.update.UpdateState.Checking,
                         shapes = androidx.compose.material3.ButtonDefaults.shapes(),
                         modifier = Modifier.weight(1f),
                     ) { Text(stringResource(R.string.update_check)) }

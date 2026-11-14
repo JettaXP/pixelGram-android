@@ -40,7 +40,8 @@ object Updater {
         if (state is UpdateState.Checking || state is UpdateState.Downloading) return
         state = UpdateState.Checking
         job = scope.launch {
-            state = withContext(Dispatchers.IO) {
+            val started = System.currentTimeMillis()
+            val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val json = JSONObject(get(Release))
                     val body = json.optString("body")
@@ -64,8 +65,12 @@ object Updater {
                     if (build > BuildConfig.VERSION_CODE && url.isNotEmpty()) UpdateState.Available(build, notes, url, size, version) else UpdateState.Latest
                 }.getOrElse { UpdateState.Failed(it.message ?: "error") }
             }
+            kotlinx.coroutines.delay((MinCheckMs - (System.currentTimeMillis() - started)).coerceAtLeast(0))
+            state = result
         }
     }
+
+    private const val MinCheckMs = 700L
 
     fun download(context: Context, scope: CoroutineScope) {
         val available = state as? UpdateState.Available ?: return
