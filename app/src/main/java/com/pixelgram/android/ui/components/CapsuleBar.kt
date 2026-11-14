@@ -59,7 +59,8 @@ fun <K> CapsuleBar(
     ) {
         HorizontalFloatingToolbar(
             expanded = true,
-            colors = FloatingToolbarDefaults.standardFloatingToolbarColors(),
+            colors = FloatingToolbarDefaults.standardFloatingToolbarColors(toolbarContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            expandedShadowElevation = 6.dp,
             contentPadding = PaddingValues(inset),
         ) {
             items.forEachIndexed { index, item ->

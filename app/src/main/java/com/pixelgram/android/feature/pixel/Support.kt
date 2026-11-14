@@ -73,6 +73,7 @@ fun SupportSheet() {
     if (!SupportProject.open) return
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val supportGraph = com.pixelgram.android.LocalGraph.current
     val uri = LocalUriHandler.current
     val close: () -> Unit = { scope.launch { state.hide() }.invokeOnCompletion { SupportProject.open = false } }
     ModalBottomSheet(onDismissRequest = { SupportProject.open = false }, sheetState = state) {
@@ -109,7 +110,10 @@ fun SupportSheet() {
             Button(
                 onClick = {
                     close()
-                    uri.openUri("https://t.me/${SupportProject.Contact}")
+                    supportGraph.scope.launch {
+                        val chat = runCatching { supportGraph.td.send(org.drinkless.tdlib.TdApi.SearchPublicChat(SupportProject.Contact)) }.getOrNull()
+                        if (chat != null) com.pixelgram.android.nav.PendingNav.chat = chat.id else uri.openUri("https://t.me/${SupportProject.Contact}")
+                    }
                 },
                 shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp).height(56.dp),

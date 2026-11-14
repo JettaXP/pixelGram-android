@@ -70,7 +70,7 @@ fun rememberLinkOpener(graph: AppGraph, navigator: Navigator): LinkOpener {
 fun linkedText(text: TdApi.FormattedText, link: Color, opener: LinkOpener): AnnotatedString = buildAnnotatedString {
     val value = text.text
     append(value)
-    val style = TextLinkStyles(SpanStyle(color = link))
+    val style = TextLinkStyles(SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))
     for (entity in text.entities) {
         val start = entity.offset.coerceIn(0, value.length)
         val end = (entity.offset + entity.length).coerceIn(start, value.length)

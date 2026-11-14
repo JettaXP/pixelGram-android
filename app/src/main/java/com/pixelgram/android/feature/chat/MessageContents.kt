@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.draw.drawBehind
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -675,3 +676,60 @@ private fun OneShotSticker(
 private val EmojiSize = 128.dp
 private const val EffectScale = 3f
 private const val EffectShift = 1f
+
+@Composable
+internal fun LinkPreviewCard(preview: TdApi.LinkPreview, files: Map<Int, String>, onNeedFile: (Int) -> Unit, content: Color) {
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    val accent = MaterialTheme.colorScheme.primary
+    val photo: TdApi.Photo? = when (val type = preview.type) {
+        is TdApi.LinkPreviewTypeArticle -> type.photo
+        is TdApi.LinkPreviewTypePhoto -> type.photo
+        is TdApi.LinkPreviewTypeApp -> type.photo
+        is TdApi.LinkPreviewTypeWebApp -> type.photo
+        is TdApi.LinkPreviewTypeVideo -> type.cover
+        is TdApi.LinkPreviewTypeEmbeddedVideoPlayer -> type.thumbnail
+        is TdApi.LinkPreviewTypeEmbeddedAudioPlayer -> type.thumbnail
+        is TdApi.LinkPreviewTypeEmbeddedAnimationPlayer -> type.thumbnail
+        else -> null
+    }
+    val size = photo?.sizes?.sortedBy { it.width }?.firstOrNull { it.width >= 320 } ?: photo?.sizes?.maxByOrNull { it.width }
+    val path = size?.let { localPath(it.photo, files) }
+    if (size != null && path == null) LaunchedEffect(size.photo.id) { onNeedFile(size.photo.id) }
+    val large = preview.showLargeMedia && photo != null
+    Column(
+        Modifier
+            .padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = 0.12f))
+            .clickable { runCatching { uri.openUri(preview.url) } }
+            .drawBehind { drawRect(accent, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), this.size.height)) }
+            .padding(start = 11.dp, end = 8.dp, top = 6.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f, fill = false)) {
+                val site = preview.siteName.ifBlank { preview.displayUrl }
+                if (site.isNotBlank()) Text(site, style = MaterialTheme.typography.labelLarge, color = accent, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (preview.title.isNotBlank()) Text(preview.title, style = MaterialTheme.typography.titleSmall, color = content, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (preview.description.text.isNotBlank()) Text(preview.description.text, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.85f), maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            if (photo != null && !large) {
+                AsyncImage(
+                    model = path?.let(::File) ?: photo.minithumbnail?.data,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
+                )
+            }
+        }
+        if (large) {
+            val ratio = size?.let { if (it.width > 0 && it.height > 0) (it.width.toFloat() / it.height).coerceIn(0.8f, 2f) else null } ?: 1.6f
+            AsyncImage(
+                model = path?.let(::File) ?: photo?.minithumbnail?.data,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(top = 4.dp).widthIn(max = 280.dp).fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(10.dp)),
+            )
+        }
+    }
+}

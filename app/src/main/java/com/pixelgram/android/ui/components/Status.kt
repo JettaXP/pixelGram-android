@@ -12,9 +12,15 @@ fun statusLine(user: UserInfo): String = when {
     user.support -> stringResource(R.string.chat_support)
     user.bot -> stringResource(R.string.chat_bot)
     user.seen == Seen.Online || user.online -> stringResource(R.string.chat_online)
+    user.seen == Seen.Offline && user.lastSeen > 0 && isToday(user.lastSeen) -> stringResource(R.string.chat_last_seen_today, com.pixelgram.android.util.messageTime(user.lastSeen))
     user.seen == Seen.Offline && user.lastSeen > 0 -> stringResource(R.string.chat_last_seen, com.pixelgram.android.util.chatListTime(user.lastSeen), com.pixelgram.android.util.messageTime(user.lastSeen))
     user.seen == Seen.Week -> stringResource(R.string.chat_seen_week)
     user.seen == Seen.Month -> stringResource(R.string.chat_seen_month)
     user.seen == Seen.LongAgo -> stringResource(R.string.chat_seen_long_ago)
     else -> stringResource(R.string.chat_last_seen_recently)
+}
+
+private fun isToday(seconds: Int): Boolean {
+    val zone = java.time.ZoneId.systemDefault()
+    return java.time.Instant.ofEpochSecond(seconds.toLong()).atZone(zone).toLocalDate() == java.time.LocalDate.now(zone)
 }

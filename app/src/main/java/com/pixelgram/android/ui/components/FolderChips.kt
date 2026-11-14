@@ -166,6 +166,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     val animatedContainer by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, fade, label = "pill-container")
     val animatedContent by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, fade, label = "pill-content")
     val fraction = amount?.invoke()
+    val animatedCorner by androidx.compose.animation.core.animateDpAsState(if (selected) PillHeight / 2 else ChipCorner, tween(SwitchMs, easing = FastOutSlowInEasing), label = "pill-corner")
     val container = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.surfaceContainerHigh, colors.primaryContainer, fraction) else animatedContainer
     val content = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.onSurfaceVariant, colors.onPrimaryContainer, fraction) else animatedContent
     val dip = remember { Animatable(1f) }
@@ -183,7 +184,11 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     ToggleButton(
         checked = selected,
         onCheckedChange = { onClick() },
-        shapes = ToggleButtonShapes(RoundedCornerShape(ChipCorner), RoundedCornerShape(ChipPressedCorner), CircleShape),
+        shapes = run {
+            val target = if (fraction != null) ChipCorner + (PillHeight / 2 - ChipCorner) * fraction else animatedCorner
+            val shape = RoundedCornerShape(target)
+            ToggleButtonShapes(shape, RoundedCornerShape(ChipPressedCorner), shape)
+        },
         colors = ToggleButtonDefaults.colors(
             containerColor = container,
             contentColor = content,
@@ -233,7 +238,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
 
 private val PillHeight = 36.dp
 private val ChipGap = 6.dp
-private const val SwitchMs = 450
+private const val SwitchMs = 220
 private const val DipAlpha = 0.45f
 
 fun folderIcon(name: String, filled: Boolean): ImageVector {

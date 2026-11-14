@@ -728,4 +728,20 @@
     <string name="cursor_width">Cursor width</string>
     <string name="cursor_blink_cycle">Blink cycle</string>
     <string name="cursor_blink_smooth">Blink smoothness</string>
+    <string name="chat_last_seen_today">last seen at %1$s</string>
+    <string name="forward_to_title">Forward to…</string>
+    <string name="forward_search">Search chats</string>
+    <string name="forward_empty">No chats found</string>
+    <string name="forward_empty_sub">No chats in this folder to forward to.</string>
+    <string name="forward_hide_sender">Hide sender name</string>
+    <string name="forward_show_sender">Show sender name</string>
+    <string name="forward_hide_caption">Hide caption</string>
+    <string name="forward_show_caption">Show caption</string>
+    <string name="forward_change_recipient">Change recipient</string>
+    <string name="forward_send">Send messages</string>
+    <string name="forward_cancel">Do not forward</string>
+    <plurals name="forward_messages">
+        <item quantity="one">Forward message</item>
+        <item quantity="other">Forward %d messages</item>
+    </plurals>
 </resources>

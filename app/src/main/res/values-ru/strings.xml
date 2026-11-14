@@ -743,4 +743,22 @@
     <string name="cursor_width">Ширина курсора</string>
     <string name="cursor_blink_cycle">Период мигания</string>
     <string name="cursor_blink_smooth">Плавность мигания</string>
+    <string name="chat_last_seen_today">был(а) в %1$s</string>
+    <string name="forward_to_title">Переслать…</string>
+    <string name="forward_search">Поиск чатов</string>
+    <string name="forward_empty">Чаты не найдены</string>
+    <string name="forward_empty_sub">В этой папке нет чатов для пересылки.</string>
+    <string name="forward_hide_sender">Скрыть имя отправителя</string>
+    <string name="forward_show_sender">Показать имя отправителя</string>
+    <string name="forward_hide_caption">Скрыть подпись</string>
+    <string name="forward_show_caption">Показать подпись</string>
+    <string name="forward_change_recipient">Изменить получателя</string>
+    <string name="forward_send">Отправить сообщения</string>
+    <string name="forward_cancel">Не пересылать</string>
+    <plurals name="forward_messages">
+        <item quantity="one">Пересылка сообщения</item>
+        <item quantity="few">Пересылка %d сообщений</item>
+        <item quantity="many">Пересылка %d сообщений</item>
+        <item quantity="other">Пересылка %d сообщений</item>
+    </plurals>
 </resources>

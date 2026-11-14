@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.chat
 
+import com.pixelgram.android.LocalGraph
+import com.pixelgram.android.nav.ChatKey
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
@@ -195,6 +198,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var selected by remember(chatId) { mutableStateOf<List<UiMessage>>(emptyList()) }
     val toggleSelected: (UiMessage) -> Unit = { m -> selected = if (selected.any { it.id == m.id }) selected.filterNot { it.id == m.id } else selected + m }
     var dragAnchor by remember { mutableStateOf<Long?>(null) }
+    val chatHaptic = LocalHapticFeedback.current
     var dragBase by remember { mutableStateOf<List<UiMessage>>(emptyList()) }
     var dragY by remember { mutableStateOf<Float?>(null) }
     var listTop by remember { mutableStateOf(0f) }
@@ -260,6 +264,20 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         if (!first && listState.firstVisibleItemIndex <= 2) listState.animateScrollToItem(0)
     }
 
+    val linkOpener = com.pixelgram.android.nav.rememberLinkOpener(graph, navigator)
+    val systemUri = androidx.compose.ui.platform.LocalUriHandler.current
+    val chatUri = remember(linkOpener) {
+        object : androidx.compose.ui.platform.UriHandler {
+            override fun openUri(uri: String) {
+                when {
+                    uri.startsWith("tg://user?id=") -> uri.removePrefix("tg://user?id=").toLongOrNull()?.let { navigator.open(com.pixelgram.android.nav.ProfileKey(it)) }
+                    uri.startsWith("mailto:") || uri.startsWith("tel:") -> runCatching { systemUri.openUri(uri) }
+                    else -> linkOpener.url(uri)
+                }
+            }
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides chatUri) {
     Scaffold(
         topBar = {
             if (selected.isNotEmpty()) {
@@ -363,7 +381,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     )
                 }
             } else {
-                Composer(ui.replyTo, ui.editing, controller)
+                Composer(ui.replyTo, ui.editing, controller) { navigator.open(ChatKey(it)) }
             }
         },
     ) { padding ->
@@ -384,7 +402,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                         else -> 0f
                     }
                     if (speed != 0f) listState.scrollBy(speed.coerceIn(-1f, 1f) * 28f)
-                    val local = y - listTop
+                    val local = (y - listTop).coerceIn(1f, (listBottom - listTop - 1f).coerceAtLeast(1f))
                     val hit = listState.layoutInfo.visibleItemsInfo.firstOrNull { item ->
                         val top = listState.layoutInfo.viewportEndOffset - item.offset - item.size
                         local >= top && local <= top + item.size
@@ -492,6 +510,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                         } else {
                                             menuAnchor = rect
                                             menuFor = message
+                                            chatHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.ContextClick)
                                         }
                                     },
                                     onLongPress = {
@@ -563,6 +582,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     viewer?.let { (list, index) ->
         PhotoViewer(list, index, snapshot.files, graph.store::requestFileAsync) { viewer = null }
     }
+    }
     menuFor?.let { message ->
         MessageMenu(
             message = message,
@@ -577,13 +597,13 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     }
     selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
     forwarding?.let { message ->
-        com.pixelgram.android.ui.components.ChatPickerSheet(
+        ForwardPicker(
             onPick = { target ->
-                controller.forward(message, target)
+                ForwardDrafts.map[target] = ForwardDraft(chatId, listOf(message))
                 forwarding = null
+                if (target != chatId) navigator.open(ChatKey(target))
             },
             onDismiss = { forwarding = null },
-            title = stringResource(R.string.forward_to),
         )
     }
     deleting?.let { list ->
@@ -593,14 +613,14 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         }
     }
     forwardingAll?.let { list ->
-        com.pixelgram.android.ui.components.ChatPickerSheet(
+        ForwardPicker(
             onPick = { target ->
-                controller.forwardAll(list, target)
+                ForwardDrafts.map[target] = ForwardDraft(chatId, list.sortedBy { it.id })
                 forwardingAll = null
                 selected = emptyList()
+                if (target != chatId) navigator.open(ChatKey(target))
             },
             onDismiss = { forwardingAll = null },
-            title = stringResource(R.string.forward_to),
         )
     }
 }
@@ -611,12 +631,7 @@ private fun senderName(snapshot: StoreSnapshot, senderId: Long, chat: TdApi.Chat
 @Composable
 private fun subtitle(snapshot: StoreSnapshot, userId: Long): String? {
     val user = snapshot.users[userId] ?: return null
-    return when {
-        user.bot -> stringResource(R.string.chat_bot)
-        user.online -> stringResource(R.string.chat_online)
-        user.lastSeen > 0 -> stringResource(R.string.chat_last_seen, com.pixelgram.android.util.chatListTime(user.lastSeen), messageTime(user.lastSeen))
-        else -> stringResource(R.string.chat_last_seen_recently)
-    }
+    return com.pixelgram.android.ui.components.statusLine(user)
 }
 
 private fun sameDay(a: Int, b: Int): Boolean {
@@ -772,6 +787,8 @@ internal fun MessageBubble(
     val prefs = com.pixelgram.android.ui.theme.LocalAppearance.current
     var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    var rowBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val haptic = LocalHapticFeedback.current
     val latestSelecting by androidx.compose.runtime.rememberUpdatedState(selecting)
     val latestTap by androidx.compose.runtime.rememberUpdatedState(onTap)
     val latestLongPress by androidx.compose.runtime.rememberUpdatedState(onLongPress)
@@ -800,6 +817,50 @@ internal fun MessageBubble(
         Modifier
             .fillMaxWidth()
             .background(selectionTint)
+            .onGloballyPositioned { rowBounds = it.boundsInWindow() }
+        .pointerInput(Unit) {
+                val doubleWindow = 220L
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
+                    interaction.tryEmit(press)
+                    val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
+                    var cancelled = false
+                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        waitForUpOrCancellation().also { if (it == null) cancelled = true }
+                    }
+                    interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                    if (cancelled) return@awaitEachGesture
+                    if (up == null) {
+                        val current = currentEvent.changes.firstOrNull { it.id == down.id }
+                        val moved = current != null && (current.position - down.position).getDistance() > viewConfiguration.touchSlop
+                        if (current == null || !current.pressed || current.isConsumed || moved) return@awaitEachGesture
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        latestLongPress(pointAt(down.position.x, down.position.y))
+                        current.consume()
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            latestSelectDrag(rowBounds.top + change.position.y)
+                            event.changes.forEach { it.consume() }
+                        } while (change.pressed)
+                        latestSelectDrag(null)
+                        return@awaitEachGesture
+                    }
+                    up.consume()
+                    if (latestSelecting) {
+                        latestTap(pointAt(up.position.x, up.position.y))
+                        return@awaitEachGesture
+                    }
+                    val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                    if (second != null) {
+                        waitForUpOrCancellation()?.consume()
+                        latestDoubleTap()
+                    } else {
+                        latestTap(pointAt(up.position.x, up.position.y))
+                    }
+                }
+            }
             .padding(top = if (joinsAbove) 2.dp else 6.dp),
         horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom,
@@ -832,51 +893,9 @@ internal fun MessageBubble(
                 .widthIn(max = 320.dp)
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .clip(shape)
-                .pointerInput(Unit) {
-                    val doubleWindow = 220L
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
-                        interaction.tryEmit(press)
-                        val pointAt = { y: Float -> androidx.compose.ui.geometry.Rect(bounds.left, bounds.top + y, bounds.right, bounds.top + y) }
-                        var cancelled = false
-                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                            waitForUpOrCancellation().also { if (it == null) cancelled = true }
-                        }
-                        interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
-                        if (cancelled) return@awaitEachGesture
-                        if (up == null) {
-                            val current = currentEvent.changes.firstOrNull { it.id == down.id }
-                            val moved = current != null && (current.position - down.position).getDistance() > viewConfiguration.touchSlop
-                            if (current == null || !current.pressed || current.isConsumed || moved) return@awaitEachGesture
-                            latestLongPress(pointAt(down.position.y))
-                            current.consume()
-                            do {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                latestSelectDrag(bounds.top + change.position.y)
-                                event.changes.forEach { it.consume() }
-                            } while (change.pressed)
-                            latestSelectDrag(null)
-                            return@awaitEachGesture
-                        }
-                        up.consume()
-                        if (latestSelecting) {
-                            latestTap(pointAt(up.position.y))
-                            return@awaitEachGesture
-                        }
-                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
-                        if (second != null) {
-                            waitForUpOrCancellation()?.consume()
-                            latestDoubleTap()
-                        } else {
-                            latestTap(pointAt(up.position.y))
-                        }
-                    }
-                }
                 .indication(interaction, androidx.compose.material3.ripple()),
         ) {
-            Column(Modifier.padding(4.dp)) {
+            WidestColumn(Modifier.padding(4.dp)) {
                 if (senderName != null) {
                     Text(
                         senderName,
@@ -887,7 +906,7 @@ internal fun MessageBubble(
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
                     )
                 }
-                if (reply != null) ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick)
+                if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth()) }
                 val meta: @Composable (Color) -> Unit = { tint ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (message.views > 0) {
@@ -951,8 +970,9 @@ internal fun MessageBubble(
                         if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
                     }
                 } else if (message.reactions.isEmpty() && !mediaOnly && !metaInside) {
-                    Box(Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
+                    Box(Modifier.layoutId(AlignEnd).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
                 }
+                (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
                 if (message.reactions.isNotEmpty()) {
                     ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
                         message.reactions.forEach { reaction ->
@@ -1079,7 +1099,15 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = tint, supportingColor = tint.copy(alpha = 0.7f)),
         leadingContent = {
-            Box(Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+            val thumbFile = document.thumbnail?.file
+            val thumbPath = thumbFile?.let { f -> snapshot.files[f.id] ?: f.local.path.takeIf { f.local.isDownloadingCompleted && it.isNotEmpty() } }
+            if (thumbFile != null && thumbPath == null) LaunchedEffect(thumbFile.id) { graph.store.requestFileAsync(thumbFile.id) }
+            val hasThumb = thumbFile != null || document.minithumbnail != null
+            Box(Modifier.size(if (hasThumb) 56.dp else 46.dp).clip(if (hasThumb) RoundedCornerShape(12.dp) else CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                if (hasThumb) {
+                    AsyncImage(model = thumbPath?.let(::File) ?: document.minithumbnail?.data, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.35f)))
+                }
                 val onPrimary = MaterialTheme.colorScheme.onPrimary
                 val swapFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
                 val swapScale = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
@@ -1150,7 +1178,7 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
 }
 
 @Composable
-private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}) {
+private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val graph = com.pixelgram.android.LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
     val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
@@ -1162,7 +1190,7 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
     val main = palette.first()
     val thumb = reply.parts.firstOrNull() ?: reply.takeIf { it.mediaFileId != 0 }
     Box(
-        Modifier
+        modifier
             .padding(start = 10.dp, end = 10.dp, top = 6.dp, bottom = 2.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
@@ -1366,7 +1394,10 @@ private fun PhotoViewer(photos: List<UiMessage>, start: Int, files: Map<Int, Str
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController) {
+private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatController, onOpenChat: (Long) -> Unit) {
+    val forward = ForwardDrafts.map[controller.chatId].takeIf { editing == null }
+    var forwardMenu by remember { mutableStateOf(false) }
+    var forwardPick by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(RichDraft()) }
     val text = draft.text
     var selectionMenu by remember { mutableStateOf<SelectionMenu?>(null) }
@@ -1432,6 +1463,58 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             }
                         }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
                     },
+                )
+            }
+            AnimatedVisibility(forward != null && target == null, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                val shown = forward ?: return@AnimatedVisibility
+                Box {
+                    ListItem(
+                        modifier = Modifier.clickable { forwardMenu = true },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        leadingContent = { Icon(Icons.AutoMirrored.Rounded.Forward, null, tint = MaterialTheme.colorScheme.primary) },
+                        overlineContent = { Text(forwardTitle(shown), color = MaterialTheme.colorScheme.primary) },
+                        headlineContent = {
+                            val first = shown.messages.first()
+                            val snapshot by LocalGraph.current.store.snapshot.collectAsState()
+                            val who = snapshot.users[first.senderId]?.name
+                            val body = first.text.ifBlank { stringResource(R.string.preview_photo) }
+                            Text(if (shown.hideSender || who == null) body else "$who: $body", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        trailingContent = {
+                            IconButton(onClick = { ForwardDrafts.map.remove(controller.chatId) }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
+                        },
+                    )
+                    if (forwardMenu) {
+                        ForwardOptionsMenu(
+                            draft = shown,
+                            onChange = { ForwardDrafts.map[controller.chatId] = it },
+                            onChangeRecipient = {
+                                forwardMenu = false
+                                forwardPick = true
+                            },
+                            onSend = {
+                                forwardMenu = false
+                                ForwardDrafts.map.remove(controller.chatId)
+                                controller.forwardDraft(shown)
+                            },
+                            onCancel = {
+                                forwardMenu = false
+                                ForwardDrafts.map.remove(controller.chatId)
+                            },
+                            onDismiss = { forwardMenu = false },
+                        )
+                    }
+                }
+            }
+            if (forwardPick && forward != null) {
+                ForwardPicker(
+                    onPick = { to ->
+                        forwardPick = false
+                        ForwardDrafts.map.remove(controller.chatId)
+                        ForwardDrafts.map[to] = forward
+                        if (to != controller.chatId) onOpenChat(to)
+                    },
+                    onDismiss = { forwardPick = false },
                 )
             }
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1511,12 +1594,16 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         }
                     }
                 }
-                val ready = text.isNotBlank()
+                val ready = text.isNotBlank() || forward != null
                 val corner by androidx.compose.animation.core.animateDpAsState(if (ready) 18.dp else 28.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "send")
                 FilledIconButton(
                     onClick = {
                         val formatted = draft.formatted()
-                        if (editing != null) controller.submitEdit(formatted) else controller.send(formatted)
+                        if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted)
+                        if (forward != null) {
+                            ForwardDrafts.map.remove(controller.chatId)
+                            controller.forwardDraft(forward)
+                        }
                         draft = RichDraft()
                     },
                     enabled = ready,
@@ -2253,7 +2340,11 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 is TdApi.TextEntityTypeUrl -> if (!com.pixelgram.android.feature.pixel.Credits.handles(text.substring(start, end))) addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeTextUrl -> if (com.pixelgram.android.feature.pixel.Credits.handles(type.url)) addLink(androidx.compose.ui.text.LinkAnnotation.Clickable("tg-credits", androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.feature.pixel.Credits.open = true }, start, end) else addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypeCustomEmoji -> addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
-                is TdApi.TextEntityTypeMention, is TdApi.TextEntityTypeMentionName, is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeEmailAddress, is TdApi.TextEntityTypePhoneNumber, is TdApi.TextEntityTypeBotCommand ->
+                is TdApi.TextEntityTypeMention -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("https://t.me/" + text.substring(start, end).removePrefix("@"), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link))), start, end)
+                is TdApi.TextEntityTypeMentionName -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("tg://user?id=" + type.userId, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link))), start, end)
+                is TdApi.TextEntityTypeEmailAddress -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("mailto:" + text.substring(start, end), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypePhoneNumber -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("tel:" + text.substring(start, end), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeBotCommand ->
                     addStyle(androidx.compose.ui.text.SpanStyle(color = link), start, end)
                 else -> Unit
             }
@@ -2415,4 +2506,43 @@ private fun compactCount(value: Int, exact: Boolean): String = when {
     exact || value < 1_000 -> value.toString()
     value < 1_000_000 -> String.format(java.util.Locale.getDefault(), "%.1fK", value / 1_000f).replace(".0K", "K").replace(",0K", "K")
     else -> String.format(java.util.Locale.getDefault(), "%.1fM", value / 1_000_000f).replace(".0M", "M").replace(",0M", "M")
+}
+
+private const val FillWidth = "fill-width"
+
+private const val AlignEnd = "align-end"
+
+@Composable
+private fun WidestColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val placeables = arrayOfNulls<androidx.compose.ui.layout.Placeable>(measurables.size)
+        var widest = 0
+        measurables.forEachIndexed { i, m ->
+            if (m.layoutId != FillWidth) {
+                val p = m.measure(loose)
+                placeables[i] = p
+                widest = maxOf(widest, p.width)
+            }
+        }
+        measurables.forEachIndexed { i, m ->
+            if (m.layoutId == FillWidth) {
+                val want = m.maxIntrinsicWidth(constraints.maxHeight.coerceAtMost(10_000)).coerceAtMost(constraints.maxWidth)
+                val width = maxOf(widest, want).coerceAtMost(constraints.maxWidth)
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(width).copy(maxHeight = constraints.maxHeight))
+                placeables[i] = p
+            }
+        }
+        val width = maxOf(placeables.maxOfOrNull { it?.width ?: 0 } ?: 0, constraints.minWidth)
+        val height = placeables.sumOf { it?.height ?: 0 }
+        layout(width, height) {
+            var y = 0
+            measurables.forEachIndexed { i, m ->
+                val p = placeables[i] ?: return@forEachIndexed
+                val x = if (m.layoutId == AlignEnd) width - p.width else 0
+                p.place(x, y)
+                y += p.height
+            }
+        }
+    }
 }

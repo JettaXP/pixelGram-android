@@ -275,6 +275,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun forwardDraft(draft: ForwardDraft) {
+        scope.launch { runCatching { sendForward(graph, chatId, draft) } }
+    }
+
     fun delete(message: UiMessage, everyone: Boolean) {
         val ids = (message.parts.map { it.id }.ifEmpty { listOf(message.id) }).toLongArray()
         scope.launch { runCatching { graph.td.send(TdApi.DeleteMessages(chatId, ids, everyone)) } }
@@ -390,7 +394,8 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
                     inputMessageContent = TdApi.InputMessageText().apply {
-                        this.text = formatted
+                        val premium = graph.store.snapshot.value.let { it.users[it.meId]?.premium } == true
+                        this.text = TdApi.FormattedText(formatted.text, com.pixelgram.android.td.LocalPremiumEmoji.outgoing(formatted.entities, premium))
                         clearDraft = true
                     }
                 })
@@ -471,7 +476,7 @@ private fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         outgoing = isOutgoing && !isChannelPost,
         date = date,
         text = text,
-        entities = entities,
+        entities = com.pixelgram.android.td.LocalPremiumEmoji.incoming(text, entities),
         content = content,
         replyToId = (replyTo as? TdApi.MessageReplyToMessage)?.messageId ?: 0,
         pending = sendingState is TdApi.MessageSendingStatePending,

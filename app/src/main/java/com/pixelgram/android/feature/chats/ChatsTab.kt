@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.chats
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -312,7 +316,7 @@ fun ChatsTab(
                         appearance.folderTitle,
                         onSelect = { id ->
                             val index = tabs.indexOfFirst { it.id == id }
-                            if (id == folder) scrollTop++ else if (index >= 0) scope.launch { pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+                            if (id == folder) scrollTop++ else if (index >= 0) scope.launch { pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
                         },
                         position = { pager.currentPage + pager.currentPageOffsetFraction },
                     )
@@ -350,7 +354,9 @@ fun ChatsTab(
 @Composable
 private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0) {
     var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
-    actionsFor?.let { row -> ChatActions(graph, row) { actionsFor = null } }
+    var actionsAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    actionsFor?.let { row -> ChatActions(graph, row, actionsAnchor) { actionsFor = null } }
     val listState = rememberLazyListState()
     LaunchedEffect(scrollTop) { if (scrollTop > 0) listState.animateScrollToItem(0) }
     var loading by remember(listKey) { mutableStateOf(true) }
@@ -386,14 +392,19 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             modifier = Modifier.fillMaxSize(),
         ) {
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
+                var itemBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
                 ChatListItem(
                     row = row,
                     index = index,
                     count = rows.size,
                     onClick = { navigator.open(if (row.forum) com.pixelgram.android.nav.ForumKey(row.id) else ChatKey(row.id)) },
                     onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
-                    onLongClick = { actionsFor = row },
-                    modifier = Modifier.animateItem(),
+                    onLongClick = {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        actionsAnchor = itemBounds
+                        actionsFor = row
+                    },
+                    modifier = Modifier.animateItem().onGloballyPositioned { itemBounds = it.boundsInWindow() },
                 )
             }
         }
@@ -424,10 +435,12 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                     },
                     onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
                 )
-                if (row.online) {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.align(Alignment.BottomEnd).size(14.dp),
+                if (row.online && row.kind != ChatKind.Saved && row.userId != 777000L) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).size(16.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer, androidx.compose.foundation.shape.CircleShape)
+                            .padding(2.5.dp)
+                            .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape),
                     )
                 }
             }
@@ -474,21 +487,34 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
 private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val preview = row.preview
     val kindLabel = preview?.kind?.let { previewLabel(it) }
-    val body = buildString {
+    val prefix = buildString {
         if (row.outgoing) append(stringResource(R.string.preview_you)).append(": ")
         else if (preview?.sender != null) append(preview.sender).append(": ")
         if (kindLabel != null) {
             append(kindLabel)
             if (preview.text.isNotBlank()) append(", ")
         }
-        append(preview?.text?.replace('\n', ' ').orEmpty())
     }
+    val raw = preview?.text.orEmpty()
+    val body = prefix + raw.replace('\n', ' ')
+    val shifted = preview?.entities.orEmpty().map { org.drinkless.tdlib.TdApi.TextEntity(it.offset + prefix.length, it.length, it.type) }
+    val annotated = androidx.compose.ui.text.buildAnnotatedString {
+        append(body)
+        shifted.forEach { e ->
+            val type = e.type as? org.drinkless.tdlib.TdApi.TextEntityTypeCustomEmoji ?: return@forEach
+            val start = e.offset.coerceIn(0, body.length)
+            val end = (e.offset + e.length).coerceIn(start, body.length)
+            if (end > start) addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
+        }
+    }
+    val style = MaterialTheme.typography.bodyMedium
     Text(
-        body,
-        style = MaterialTheme.typography.bodyMedium,
+        annotated,
+        style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        inlineContent = com.pixelgram.android.ui.components.customEmojiContent(shifted, body, style.fontSize * 1.15f),
         modifier = modifier,
     )
 }
@@ -513,7 +539,7 @@ private fun previewLabel(kind: PreviewKind): String? = when (kind) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatActions(graph: AppGraph, row: ChatRow, onDismiss: () -> Unit) {
+private fun ChatActions(graph: AppGraph, row: ChatRow, anchor: androidx.compose.ui.geometry.Rect, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf(false) }
     val run: (TdApi.Function<*>) -> Unit = { function ->
@@ -543,13 +569,10 @@ private fun ChatActions(graph: AppGraph, row: ChatRow, onDismiss: () -> Unit) {
         )
         return
     }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text(row.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-        SheetItem(Icons.Rounded.PushPin, stringResource(if (row.pinned) R.string.chat_unpin else R.string.chat_pin)) {
-            run(TdApi.ToggleChatIsPinned(chatList, row.id, !row.pinned))
-        }
+    val entries = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
+        add(Triple(Icons.Rounded.PushPin, stringResource(if (row.pinned) R.string.chat_unpin else R.string.chat_pin)) { run(TdApi.ToggleChatIsPinned(chatList, row.id, !row.pinned)) })
         if (row.kind != ChatKind.Saved) {
-            SheetItem(if (row.muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.Rounded.VolumeOff, stringResource(if (row.muted) R.string.chat_unmute else R.string.chat_mute)) {
+            add(Triple(if (row.muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.Rounded.VolumeOff, stringResource(if (row.muted) R.string.chat_unmute else R.string.chat_mute)) {
                 run(TdApi.SetChatNotificationSettings(row.id, TdApi.ChatNotificationSettings().apply {
                     useDefaultMuteFor = false
                     muteFor = if (row.muted) 0 else Int.MAX_VALUE
@@ -560,20 +583,66 @@ private fun ChatActions(graph: AppGraph, row: ChatRow, onDismiss: () -> Unit) {
                     useDefaultDisablePinnedMessageNotifications = true
                     useDefaultDisableMentionNotifications = true
                 }))
-            }
-            SheetItem(Icons.Rounded.Archive, stringResource(if (row.list == LIST_ARCHIVE) R.string.chat_unarchive else R.string.chat_archive)) {
+            })
+            add(Triple(Icons.Rounded.Archive, stringResource(if (row.list == LIST_ARCHIVE) R.string.chat_unarchive else R.string.chat_archive)) {
                 run(TdApi.AddChatToList(row.id, if (row.list == LIST_ARCHIVE) TdApi.ChatListMain() else TdApi.ChatListArchive()))
-            }
+            })
         }
         if (row.unread > 0 && row.lastMessageId != 0L) {
-            SheetItem(Icons.Rounded.DoneAll, stringResource(R.string.chat_mark_read)) {
-                run(TdApi.ViewMessages(row.id, longArrayOf(row.lastMessageId), null, true))
+            add(Triple(Icons.Rounded.DoneAll, stringResource(R.string.chat_mark_read)) { run(TdApi.ViewMessages(row.id, longArrayOf(row.lastMessageId), null, true)) })
+        }
+    }
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = remember(anchor) {
+            object : androidx.compose.ui.window.PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: androidx.compose.ui.unit.IntRect,
+                    windowSize: androidx.compose.ui.unit.IntSize,
+                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                    popupContentSize: androidx.compose.ui.unit.IntSize,
+                ): androidx.compose.ui.unit.IntOffset {
+                    val margin = with(density) { 12.dp.roundToPx() }
+                    val x = (anchor.right.toInt() - popupContentSize.width - margin).coerceIn(margin, (windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin))
+                    val below = anchor.bottom.toInt() + with(density) { 4.dp.roundToPx() }
+                    val y = if (below + popupContentSize.height <= windowSize.height - margin) below else (anchor.top.toInt() - popupContentSize.height - with(density) { 4.dp.roundToPx() }).coerceAtLeast(margin)
+                    return androidx.compose.ui.unit.IntOffset(x, y)
+                }
+            }
+        },
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    ) {
+        androidx.compose.animation.AnimatedVisibility(
+            shown,
+            enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.8f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)),
+        ) {
+            androidx.compose.foundation.layout.Column(Modifier.width(240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                    androidx.compose.foundation.layout.Column(Modifier.padding(vertical = 6.dp)) {
+                        entries.forEach { (icon, label, action) -> MenuRow(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                    }
+                }
+                androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                    androidx.compose.foundation.layout.Column(Modifier.padding(vertical = 6.dp)) {
+                        MenuRow(Icons.Rounded.Delete, stringResource(if (row.kind == ChatKind.Group || row.kind == ChatKind.Channel) R.string.chat_leave else R.string.chat_delete), MaterialTheme.colorScheme.error) { confirmDelete = true }
+                    }
+                }
             }
         }
-        SheetItem(Icons.Rounded.Delete, stringResource(if (row.kind == ChatKind.Group || row.kind == ChatKind.Channel) R.string.chat_leave else R.string.chat_delete), MaterialTheme.colorScheme.error) {
-            confirmDelete = true
-        }
-        androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        Text(label, color = tint, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

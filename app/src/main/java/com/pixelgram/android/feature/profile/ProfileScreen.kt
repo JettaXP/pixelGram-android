@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.animation.animateContentSize
@@ -719,28 +721,27 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
         val close = { editing = false; adding = false }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = close,
-            title = { Text(stringResource(if (adding) R.string.profile_add_contact else R.string.profile_edit)) },
+            title = { Text(stringResource(if (adding) R.string.profile_add_contact else R.string.profile_edit), modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (!adding) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            com.pixelgram.android.ui.components.Avatar(user.name, userId, user.localPhoto ?: graph.store.snapshot.value.files[user.photoFileId], user.minithumb, 56.dp)
-                            Column {
-                                androidx.compose.material3.TextButton(onClick = {
-                                    photo.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                }) { Text(stringResource(R.string.profile_set_photo_for)) }
-                                if (user.localPhoto != null) {
-                                    androidx.compose.material3.TextButton(onClick = { graph.store.setLocalPhoto(userId, null) }) { Text(stringResource(R.string.profile_remove_photo), color = MaterialTheme.colorScheme.error) }
-                                }
-                            }
+                        Box {
+                            com.pixelgram.android.ui.components.Avatar(user.name, userId, user.localPhoto ?: graph.store.snapshot.value.files[user.bigPhotoFileId] ?: graph.store.snapshot.value.files[user.photoFileId], user.minithumb, 112.dp)
+                            androidx.compose.material3.FilledIconButton(
+                                onClick = { photo.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
+                            ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.profile_set_photo_for), Modifier.size(20.dp)) }
+                        }
+                        if (user.localPhoto != null) {
+                            androidx.compose.material3.TextButton(onClick = { graph.store.setLocalPhoto(userId, null) }) { Text(stringResource(R.string.profile_remove_photo), color = MaterialTheme.colorScheme.error) }
                         }
                     }
-                    androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.contact_first_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.contact_last_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.contact_first_name)) }, singleLine = true, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                    androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.contact_last_name)) }, singleLine = true, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(enabled = first.isNotBlank(), onClick = {
+                Button(enabled = first.isNotBlank(), shapes = ButtonDefaults.shapes(), onClick = {
                     close()
                     if (contactEdit) {
                         scope.launch {

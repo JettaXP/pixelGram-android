@@ -6,7 +6,7 @@ import org.drinkless.tdlib.TdApi
 enum class PreviewKind { Text, Photo, Video, Gif, Sticker, Voice, VideoNote, Audio, File, Poll, Location, Contact, Service, Other }
 
 @Immutable
-data class MessagePreview(val sender: String?, val kind: PreviewKind, val text: String)
+data class MessagePreview(val sender: String?, val kind: PreviewKind, val text: String, val entities: List<TdApi.TextEntity> = emptyList())
 
 internal fun previewOf(message: TdApi.Message, chat: TdApi.Chat, users: Map<Long, TdApi.User>): MessagePreview {
     val sender = when (val from = message.senderId) {
@@ -14,7 +14,17 @@ internal fun previewOf(message: TdApi.Message, chat: TdApi.Chat, users: Map<Long
         else -> null
     }.takeIf { chat.type is TdApi.ChatTypeBasicGroup || (chat.type as? TdApi.ChatTypeSupergroup)?.isChannel == false }
     val (kind, text) = contentPreview(message.content)
-    return MessagePreview(if (message.isOutgoing) null else sender, kind, text)
+    val formatted = when (val c = message.content) {
+        is TdApi.MessageText -> c.text
+        is TdApi.MessagePhoto -> c.caption
+        is TdApi.MessageVideo -> c.caption
+        is TdApi.MessageAnimation -> c.caption
+        is TdApi.MessageVoiceNote -> c.caption
+        is TdApi.MessageDocument -> c.caption.takeIf { it.text.isNotBlank() }
+        else -> null
+    }
+    val entities = formatted?.let { f -> LocalPremiumEmoji.incoming(f.text, f.entities.toList()).filter { it.type is TdApi.TextEntityTypeCustomEmoji } }.orEmpty()
+    return MessagePreview(if (message.isOutgoing) null else sender, kind, text, entities)
 }
 
 internal fun contentPreview(content: TdApi.MessageContent): Pair<PreviewKind, String> = when (content) {

@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.settings
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.rounded.Star
 import kotlinx.coroutines.launch
 import androidx.compose.material3.toShape
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -84,7 +86,28 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     else if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
                 },
                 topEnd = {
-                    if (me?.username != null) IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
+                    Row {
+                        if (me?.username != null) IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_qr)) }
+                        Box {
+                            var more by remember { mutableStateOf(false) }
+                            IconButton(onClick = { more = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.action_menu)) }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = more,
+                                onDismissRequest = { more = false },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.settings_logout)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Logout, null) },
+                                    onClick = {
+                                        more = false
+                                        confirmLogout = true
+                                    },
+                                )
+                            }
+                        }
+                    }
                 },
             )
             if (me != null) {
@@ -149,16 +172,6 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     position = SegmentPosition.Bottom,
                     onClick = { navigator.open(com.pixelgram.android.nav.BusinessKey) },
                     link = "pg://business",
-                )
-            }
-            SettingsGroup {
-                SettingsItem(
-                    title = stringResource(R.string.settings_logout),
-                    icon = Icons.AutoMirrored.Rounded.Logout,
-                    iconBackground = MaterialTheme.colorScheme.errorContainer,
-                    iconTint = MaterialTheme.colorScheme.onErrorContainer,
-                    position = SegmentPosition.Single,
-                    onClick = { confirmLogout = true },
                 )
             }
             Spacer(Modifier.height(24.dp + (if (onBack != null) 0.dp else com.pixelgram.android.ui.components.LocalBottomBarPadding.current)).let { if (onBack != null) it.navigationBarsPadding() else it })
