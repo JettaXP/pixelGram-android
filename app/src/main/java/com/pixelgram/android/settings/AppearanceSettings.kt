@@ -60,6 +60,20 @@ data class AppearanceSettings(
     val bubbleTailRadius: Int = 4,
     val messageFontSize: Int = 16,
     val doubleTapEmoji: String = "❤",
+    val liquidCursor: Boolean = true,
+    val smoothCursor: Boolean = true,
+    val cursorBlink: Boolean = true,
+    val kittyCursor: Boolean = false,
+    val trailFast: Int = 100,
+    val trailSlow: Int = 400,
+    val trailThreshold: Int = 2,
+    val cursorStretch: Int = 40,
+    val handleStretch: Int = 60,
+    val sidePull: Int = 45,
+    val cursorSpeed: Int = 25,
+    val cursorWidth: Int = 2,
+    val blinkCycle: Int = 1000,
+    val blinkSmoothness: Int = 100,
 )
 
 private val Context.store by preferencesDataStore("appearance")
@@ -96,8 +110,22 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_bubbleTailRadius = intPreferencesKey("bubble_tail")
         val K_messageFontSize = intPreferencesKey("message_font_size")
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
-        val booleans = listOf(Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
-        val ints = listOf(Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
+        val C_liquidCursor = booleanPreferencesKey("liquid_cursor")
+        val C_smoothCursor = booleanPreferencesKey("smooth_cursor")
+        val C_cursorBlink = booleanPreferencesKey("cursor_blink")
+        val C_kittyCursor = booleanPreferencesKey("kitty_cursor")
+        val C_trailFast = intPreferencesKey("trail_fast")
+        val C_trailSlow = intPreferencesKey("trail_slow")
+        val C_trailThreshold = intPreferencesKey("trail_threshold")
+        val C_cursorStretch = intPreferencesKey("cursor_stretch")
+        val C_handleStretch = intPreferencesKey("handle_stretch")
+        val C_sidePull = intPreferencesKey("side_pull")
+        val C_cursorSpeed = intPreferencesKey("cursor_speed")
+        val C_cursorWidth = intPreferencesKey("cursor_width")
+        val C_blinkCycle = intPreferencesKey("blink_cycle")
+        val C_blinkSmoothness = intPreferencesKey("blink_smoothness")
+        val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
+        val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
         val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji)
     }
 
@@ -155,6 +183,20 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         bubbleTailRadius = p[Keys.K_bubbleTailRadius] ?: 4,
         messageFontSize = p[Keys.K_messageFontSize] ?: 16,
         doubleTapEmoji = p[Keys.K_doubleTapEmoji] ?: "❤",
+        liquidCursor = p[Keys.C_liquidCursor] ?: true,
+        smoothCursor = p[Keys.C_smoothCursor] ?: true,
+        cursorBlink = p[Keys.C_cursorBlink] ?: true,
+        kittyCursor = p[Keys.C_kittyCursor] ?: false,
+        trailFast = p[Keys.C_trailFast] ?: 100,
+        trailSlow = p[Keys.C_trailSlow] ?: 400,
+        trailThreshold = p[Keys.C_trailThreshold] ?: 2,
+        cursorStretch = p[Keys.C_cursorStretch] ?: 40,
+        handleStretch = p[Keys.C_handleStretch] ?: 60,
+        sidePull = p[Keys.C_sidePull] ?: 45,
+        cursorSpeed = p[Keys.C_cursorSpeed] ?: 25,
+        cursorWidth = p[Keys.C_cursorWidth] ?: 2,
+        blinkCycle = p[Keys.C_blinkCycle] ?: 1000,
+        blinkSmoothness = p[Keys.C_blinkSmoothness] ?: 100,
     )
 
     fun update(change: (AppearanceSettings) -> AppearanceSettings) {
@@ -191,6 +233,20 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.K_bubbleTailRadius] = next.bubbleTailRadius
                 p[Keys.K_messageFontSize] = next.messageFontSize
                 p[Keys.K_doubleTapEmoji] = next.doubleTapEmoji
+                p[Keys.C_liquidCursor] = next.liquidCursor
+                p[Keys.C_smoothCursor] = next.smoothCursor
+                p[Keys.C_cursorBlink] = next.cursorBlink
+                p[Keys.C_kittyCursor] = next.kittyCursor
+                p[Keys.C_trailFast] = next.trailFast
+                p[Keys.C_trailSlow] = next.trailSlow
+                p[Keys.C_trailThreshold] = next.trailThreshold
+                p[Keys.C_cursorStretch] = next.cursorStretch
+                p[Keys.C_handleStretch] = next.handleStretch
+                p[Keys.C_sidePull] = next.sidePull
+                p[Keys.C_cursorSpeed] = next.cursorSpeed
+                p[Keys.C_cursorWidth] = next.cursorWidth
+                p[Keys.C_blinkCycle] = next.blinkCycle
+                p[Keys.C_blinkSmoothness] = next.blinkSmoothness
             }
             applyLauncherIcon(state.value.dynamicIcon)
         }

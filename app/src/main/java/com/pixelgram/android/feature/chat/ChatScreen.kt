@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.indication
 import kotlinx.coroutines.withTimeoutOrNull
@@ -1383,21 +1384,26 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         val accent = MaterialTheme.colorScheme.primary
                         val onSurface = MaterialTheme.colorScheme.onSurface
                         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalTextToolbar provides toolbar) {
+                        val caretPrefs = com.pixelgram.android.ui.theme.LocalAppearance.current
+                        var fieldLayout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+                        var fieldFocused by remember { mutableStateOf(false) }
                         androidx.compose.foundation.text.BasicTextField(
                             value = draft.value,
                             onValueChange = { draft = draft.edit(it) },
                             visualTransformation = remember(draft.entities, accent, onSurface) { DraftStyles(draft.entities, accent, onSurface) },
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(if (caretPrefs.liquidCursor) Color.Transparent else MaterialTheme.colorScheme.primary),
+                            onTextLayout = { fieldLayout = it },
                             maxLines = 6,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                             ),
-                            modifier = Modifier.weight(1f).padding(vertical = 16.dp).focusRequester(focus),
+                            modifier = Modifier.weight(1f).padding(vertical = 16.dp).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
                             decorationBox = { inner ->
                                 Box {
                                     if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     inner()
+                                    if (caretPrefs.liquidCursor) com.pixelgram.android.ui.components.AnimatedCaret(draft.value.selection, fieldLayout, fieldFocused, caretPrefs, MaterialTheme.colorScheme.primary, Modifier.matchParentSize())
                                 }
                             },
                         )

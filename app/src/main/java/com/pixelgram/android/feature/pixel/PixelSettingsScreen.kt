@@ -202,6 +202,7 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
         CapsuleSlider(stringResource(R.string.pixel_bubble_tail), settings.bubbleTailRadius, 0..18, SegmentPosition.Middle) { v -> update { it.copy(bubbleTailRadius = v) } }
         CapsuleSlider(stringResource(R.string.pixel_font_size), settings.messageFontSize, 12..24, SegmentPosition.Bottom, "sp") { v -> update { it.copy(messageFontSize = v) } }
     }
+    CursorSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_messages)) {
         SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
         SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
@@ -796,4 +797,66 @@ private fun UpdateCard() {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CursorSettings(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    SettingsGroup(stringResource(R.string.cursor_title)) {
+        SettingsSwitch(stringResource(R.string.cursor_animated), settings.liquidCursor, { v -> update { it.copy(liquidCursor = v) } }, if (settings.liquidCursor) SegmentPosition.Top else SegmentPosition.Single, stringResource(R.string.cursor_animated_sub))
+        androidx.compose.animation.AnimatedVisibility(settings.liquidCursor) {
+            Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                androidx.compose.material3.SegmentedListItem(
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(1, 3),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(),
+                    supportingContent = {
+                        Column {
+                            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                                listOf(false to R.string.cursor_liquid, true to R.string.cursor_kitty).forEachIndexed { index, (kitty, label) ->
+                                    androidx.compose.material3.ToggleButton(
+                                        checked = settings.kittyCursor == kitty,
+                                        onCheckedChange = { update { s -> s.copy(kittyCursor = kitty) } },
+                                        shapes = if (index == 0) androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes() else androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                        modifier = Modifier.weight(1f),
+                                    ) { Text(stringResource(label)) }
+                                }
+                            }
+                            Text(stringResource(if (settings.kittyCursor) R.string.cursor_kitty_sub else R.string.cursor_liquid_sub), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                        }
+                    },
+                ) { Text(stringResource(R.string.cursor_style)) }
+                if (!settings.kittyCursor) {
+                    SettingsSwitch(stringResource(R.string.cursor_smooth), settings.smoothCursor, { v -> update { it.copy(smoothCursor = v) } }, SegmentPosition.Middle, stringResource(R.string.cursor_smooth_sub))
+                    CursorSlider(stringResource(R.string.cursor_stretch), settings.cursorStretch, 0..100, "") { v -> update { it.copy(cursorStretch = v) } }
+                    CursorSlider(stringResource(R.string.cursor_handle), settings.handleStretch, 0..100, "%") { v -> update { it.copy(handleStretch = v) } }
+                    CursorSlider(stringResource(R.string.cursor_pull), settings.sidePull, 0..100, "%") { v -> update { it.copy(sidePull = v) } }
+                    CursorSlider(stringResource(R.string.cursor_speed), settings.cursorSpeed, 1..100, "") { v -> update { it.copy(cursorSpeed = v) } }
+                } else {
+                    CursorSlider(stringResource(R.string.cursor_trail_front), settings.trailFast, 20..500, " ms", 10) { v -> update { it.copy(trailFast = v) } }
+                    CursorSlider(stringResource(R.string.cursor_trail_end), settings.trailSlow, 50..1000, " ms", 10) { v -> update { it.copy(trailSlow = v) } }
+                    CursorSlider(stringResource(R.string.cursor_trail_start), settings.trailThreshold, 0..10, "") { v -> update { it.copy(trailThreshold = v) } }
+                }
+                SettingsSwitch(stringResource(R.string.cursor_blink), settings.cursorBlink, { v -> update { it.copy(cursorBlink = v) } }, SegmentPosition.Middle)
+                CursorSlider(stringResource(R.string.cursor_width), settings.cursorWidth, 1..6, " dp") { v -> update { it.copy(cursorWidth = v) } }
+                CursorSlider(stringResource(R.string.cursor_blink_cycle), settings.blinkCycle, 300..2000, " ms", 100) { v -> update { it.copy(blinkCycle = v) } }
+                CursorSlider(stringResource(R.string.cursor_blink_smooth), settings.blinkSmoothness, 0..100, "%", last = true) { v -> update { it.copy(blinkSmoothness = v) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CursorSlider(title: String, value: Int, range: IntRange, unit: String, step: Int = 1, last: Boolean = false, onChange: (Int) -> Unit) {
+    androidx.compose.material3.SegmentedListItem(
+        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(if (last) 2 else 1, 3),
+        colors = com.pixelgram.android.ui.components.segmentedColors(),
+        trailingContent = { Text("$value$unit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+        supportingContent = {
+            Slider(
+                value = value.toFloat(),
+                onValueChange = { onChange(((it / step).roundToInt() * step).coerceIn(range.first, range.last)) },
+                valueRange = range.first.toFloat()..range.last.toFloat(),
+            )
+        },
+    ) { Text(title) }
 }

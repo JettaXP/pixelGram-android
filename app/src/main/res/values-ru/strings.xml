@@ -722,4 +722,25 @@
     <string name="connection_connecting">Соединение…</string>
     <string name="connection_updating">Обновление…</string>
     <string name="date_go">Перейти</string>
+    <string name="cursor_title">Курсор</string>
+    <string name="cursor_animated">Анимированный курсор</string>
+    <string name="cursor_animated_sub">pixelGram рисует свой анимированный курсор в поле сообщения</string>
+    <string name="cursor_style">Стиль курсора</string>
+    <string name="cursor_liquid">Жидкий</string>
+    <string name="cursor_kitty">Шлейф kitty</string>
+    <string name="cursor_liquid_sub">Курсор тянется как капля, когда двигается.</string>
+    <string name="cursor_kitty_sub">При больших прыжках за курсором тянется шлейф, как в терминале kitty.</string>
+    <string name="cursor_smooth">Плавный курсор</string>
+    <string name="cursor_smooth_sub">Курсор плавно перемещается вместо прыжка</string>
+    <string name="cursor_stretch">Растяжение курсора</string>
+    <string name="cursor_handle">Растяжение хвоста</string>
+    <string name="cursor_pull">Сжатие по бокам</string>
+    <string name="cursor_speed">Скорость курсора</string>
+    <string name="cursor_trail_front">Начало шлейфа</string>
+    <string name="cursor_trail_end">Конец шлейфа</string>
+    <string name="cursor_trail_start">Дистанция для шлейфа</string>
+    <string name="cursor_blink">Мигание курсора</string>
+    <string name="cursor_width">Ширина курсора</string>
+    <string name="cursor_blink_cycle">Период мигания</string>
+    <string name="cursor_blink_smooth">Плавность мигания</string>
 </resources>
