@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.runtime.key
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.isImeVisible
 import com.pixelgram.android.LocalGraph
@@ -822,7 +823,8 @@ internal fun MessageBubble(
         RoundedCornerShape(if (joinsAbove) small else big, big, big, if (joinsBelow) small else big)
     }
     val bigEmoji = remember(message.text, message.entities, message.content) { bigEmoji(message) }
-    val bare = !prefs.zalgoFilter && (bigEmoji != null || message.content is TdApi.MessageSticker || message.content is TdApi.MessageAnimatedEmoji || message.content is TdApi.MessageVideoNote)
+    val zalgo = prefs.zalgoFilter && remember(message.text) { com.pixelgram.android.util.stripZalgo(message.text) != message.text }
+    val bare = !zalgo && (bigEmoji != null || message.content is TdApi.MessageSticker || message.content is TdApi.MessageAnimatedEmoji || message.content is TdApi.MessageVideoNote)
     val baseContainer = if (bare) Color.Transparent else if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val container by androidx.compose.animation.animateColorAsState(
         if (highlighted) androidx.compose.ui.graphics.lerp(baseContainer, MaterialTheme.colorScheme.tertiary, 0.35f) else baseContainer,
@@ -967,7 +969,7 @@ internal fun MessageBubble(
                 if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay, meta = if (metaInside) ({ meta(onContainer.copy(alpha = 0.7f)) }) else null)
                 (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
                 (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
-                if (bigEmoji != null && !prefs.zalgoFilter) {
+                if (bigEmoji != null && !zalgo) {
                     val size = BigEmojiSizes.getOrElse(bigEmoji.size - 1) { BigEmojiSizes.last() }
                     androidx.compose.foundation.layout.FlowRow(
                         Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -982,8 +984,8 @@ internal fun MessageBubble(
                     }
                     if (message.reactions.isEmpty()) BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
                 } else if (message.text.isNotBlank()) {
-                    val text = if (prefs.zalgoFilter) com.pixelgram.android.util.stripZalgo(message.text) else message.text
-                    val entities = if (prefs.zalgoFilter) emptyList() else message.entities
+                    val text = if (zalgo) com.pixelgram.android.util.stripZalgo(message.text) else message.text
+                    val entities = if (zalgo) emptyList() else message.entities
                     val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
                     TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(horizontal = 10.dp, vertical = 5.dp)) {
                         MessageText(
@@ -1597,6 +1599,27 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                 Box {
                                     if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     inner()
+                                    val layout = fieldLayout
+                                    if (layout != null) {
+                                        val density = androidx.compose.ui.platform.LocalDensity.current
+                                        draft.entities.forEach { e ->
+                                            val type = e.type as? TdApi.TextEntityTypeCustomEmoji ?: return@forEach
+                                            val length = layout.layoutInput.text.length
+                                            if (e.offset >= length) return@forEach
+                                            val first = layout.getBoundingBox(e.offset.coerceIn(0, length - 1))
+                                            val last = layout.getBoundingBox((e.offset + e.length - 1).coerceIn(0, length - 1))
+                                            val side = first.height
+                                            val left = if (last.top == first.top) (first.left + last.right) / 2f - side / 2f else first.left
+                                            key(e.offset, type.customEmojiId) {
+                                                com.pixelgram.android.ui.components.CustomEmojiView(
+                                                    type.customEmojiId,
+                                                    draft.text.substring(e.offset.coerceIn(0, draft.text.length), (e.offset + e.length).coerceIn(0, draft.text.length)),
+                                                    Modifier.offset { androidx.compose.ui.unit.IntOffset(left.toInt(), first.top.toInt()) },
+                                                    size = with(density) { side.toDp() },
+                                                )
+                                            }
+                                        }
+                                    }
                                     if (caretPrefs.liquidCursor) com.pixelgram.android.ui.components.AnimatedCaret(draft.value.selection, fieldLayout, fieldFocused, caretPrefs, MaterialTheme.colorScheme.primary, Modifier.matchParentSize())
                                 }
                             },

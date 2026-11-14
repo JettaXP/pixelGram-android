@@ -314,6 +314,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
         if (fileId == 0 || fileId in files || !requested.add(fileId)) return
         scope.launch(worker) {
             val file = runCatching { td.send(TdApi.DownloadFile(fileId, priority, 0, 0, false)) }.getOrNull()
+            if (file == null) requested.remove(fileId)
             if (file != null && file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
                 files[file.id] = file.local.path
                 touch()
