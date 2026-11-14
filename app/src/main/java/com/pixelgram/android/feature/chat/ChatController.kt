@@ -394,11 +394,12 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
 
     fun send(text: String) = send(TdApi.FormattedText(text.trim(), emptyArray()))
 
-    fun send(formatted: TdApi.FormattedText) {
+    fun send(formatted: TdApi.FormattedText, markdown: Boolean = false) {
         if (formatted.text.isEmpty()) return
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
         scope.launch {
+            val formatted = if (markdown) runCatching { graph.td.send(TdApi.ParseMarkdown(formatted)) }.getOrDefault(formatted) else formatted
             runCatching {
                 graph.td.send(TdApi.SendMessage().apply {
                     chatId = this@ChatController.chatId

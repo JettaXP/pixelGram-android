@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.runtime.key
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.isImeVisible
@@ -1449,6 +1450,8 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     val text = draft.text
     var selectionMenu by remember { mutableStateOf<SelectionMenu?>(null) }
     var linking by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
+    var markdown by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
     val toolbar = remember { SelectionToolbar { selectionMenu = it } }
     var attach by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf<List<String>?>(null) }
@@ -1585,7 +1588,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         var fieldFocused by remember { mutableStateOf(false) }
                         androidx.compose.foundation.text.BasicTextField(
                             value = draft.value,
-                            onValueChange = { draft = draft.edit(it) },
+                            onValueChange = { draft = draft.edit(autoReplace(draft.value, it)) },
                             visualTransformation = remember(draft.entities, accent, onSurface) { DraftStyles(draft.entities, accent, onSurface) },
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(if (caretPrefs.liquidCursor) Color.Transparent else MaterialTheme.colorScheme.primary),
@@ -1629,12 +1632,25 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             FormatPopup(
                                 menu = menu,
                                 draft = draft,
+                                markdown = markdown,
                                 onFormat = { format ->
                                     if (format == Format.Link) linking = true else draft = draft.toggle(format)
                                 },
+                                onBoldItalic = {
+                                    val both = draft.has(Format.Bold) && draft.has(Format.Italic)
+                                    draft = if (both) draft.toggle(Format.Bold).toggle(Format.Italic) else (if (draft.has(Format.Bold)) draft else draft.toggle(Format.Bold)).let { if (it.has(Format.Italic)) it else it.toggle(Format.Italic) }
+                                },
+                                onDate = { picking = true },
+                                onMarkdown = { markdown = !markdown },
                                 onClear = { draft = draft.clearFormatting() },
                                 onDismiss = { selectionMenu = null },
                             )
+                        }
+                        if (picking) {
+                            DateEntityDialog(onDismiss = { picking = false }) { unix ->
+                                picking = false
+                                draft = draft.toggle(Format.Date, unix.toString())
+                            }
                         }
                         if (linking) {
                             LinkDialog(onDismiss = { linking = false }) { url ->
@@ -1670,7 +1686,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 FilledIconButton(
                     onClick = {
                         val formatted = draft.formatted()
-                        if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted)
+                        if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted, markdown)
                         if (forward != null) {
                             ForwardDrafts.map.remove(controller.chatId)
                             controller.forwardDraft(forward)
@@ -1705,7 +1721,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun FormatPopup(menu: SelectionMenu, draft: RichDraft, onFormat: (Format) -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
+private fun FormatPopup(menu: SelectionMenu, draft: RichDraft, markdown: Boolean, onFormat: (Format) -> Unit, onBoldItalic: () -> Unit, onDate: () -> Unit, onMarkdown: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
     var formatting by remember(menu) { mutableStateOf(false) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val gap = with(density) { 8.dp.roundToPx() }
@@ -1724,61 +1740,59 @@ private fun FormatPopup(menu: SelectionMenu, draft: RichDraft, onFormat: (Format
             }
         }
     }
+    val selected = !draft.value.selection.collapsed
     androidx.compose.ui.window.Popup(popupPositionProvider = provider, onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            shadowElevation = 6.dp,
-            tonalElevation = 2.dp,
-        ) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
             val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
             androidx.compose.animation.AnimatedContent(
                 formatting,
-                transitionSpec = {
-                    (fadeIn(fade) togetherWith fadeOut(fade))
-                        .using(androidx.compose.animation.SizeTransform(clip = false))
-                },
+                transitionSpec = { (fadeIn(fade) togetherWith fadeOut(fade)).using(androidx.compose.animation.SizeTransform(clip = false)) },
                 label = "format-menu",
             ) { open ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
-                    if (!open) {
+                if (!open) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                         menu.cut?.let { cut -> MenuText(stringResource(R.string.action_cut)) { cut(); onDismiss() } }
                         menu.copy?.let { copy -> MenuText(stringResource(R.string.action_copy)) { copy(); onDismiss() } }
                         menu.paste?.let { paste -> MenuText(stringResource(R.string.action_paste)) { paste(); onDismiss() } }
-                        if (!draft.value.selection.collapsed) {
-                            IconButton(onClick = { formatting = true }) { Icon(Icons.Rounded.TextFormat, stringResource(R.string.format_title)) }
+                        if (selected) MenuText(stringResource(R.string.format_quote)) { onFormat(Format.Quote); onDismiss() }
+                        if (!selected) menu.selectAll?.let { all -> MenuText(stringResource(R.string.action_select_all)) { all() } }
+                        IconButton(onClick = { formatting = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.format_title)) }
+                    }
+                } else {
+                    Column(Modifier.width(IntrinsicSize.Max).padding(vertical = 6.dp)) {
+                        val base = MaterialTheme.typography.bodyLarge
+                        if (selected) {
+                            FormatRow(stringResource(R.string.format_spoiler), base) { onFormat(Format.Spoiler) }
+                            FormatRow(stringResource(R.string.format_bold), base.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)) { onFormat(Format.Bold) }
+                            FormatRow(stringResource(R.string.format_italic), base.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { onFormat(Format.Italic) }
+                            FormatRow(stringResource(R.string.format_bold_italic), base.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), onBoldItalic)
+                            FormatRow(stringResource(R.string.format_mono), base.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)) { onFormat(Format.Mono) }
+                            FormatRow(stringResource(R.string.format_code), base.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)) { onFormat(Format.Code) }
+                            FormatRow(stringResource(R.string.format_strike), base.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)) { onFormat(Format.Strike) }
+                            FormatRow(stringResource(R.string.format_underline), base.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)) { onFormat(Format.Underline) }
+                            FormatRow(stringResource(R.string.format_link), base) { onFormat(Format.Link) }
+                            FormatRow(stringResource(R.string.format_date), base, onDate)
+                            FormatRow(stringResource(R.string.format_clear), base, onClear)
                         }
-                        menu.selectAll?.let { all -> MenuText(stringResource(R.string.action_select_all)) { all() } }
-                    } else {
-                        IconButton(onClick = { formatting = false }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
-                        val items = listOf(
-                            Format.Bold to Icons.Rounded.FormatBold,
-                            Format.Italic to Icons.Rounded.FormatItalic,
-                            Format.Underline to Icons.Rounded.FormatUnderlined,
-                            Format.Strike to Icons.Rounded.FormatStrikethrough,
-                            Format.Mono to Icons.Rounded.Code,
-                            Format.Spoiler to Icons.Rounded.BlurOn,
-                            Format.Quote to Icons.Rounded.FormatQuote,
-                            Format.Link to Icons.Rounded.Link,
-                        )
-                        items.forEach { (format, icon) ->
-                            androidx.compose.material3.IconToggleButton(
-                                checked = draft.has(format),
-                                onCheckedChange = { onFormat(format) },
-                                shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
-                                colors = androidx.compose.material3.IconButtonDefaults.iconToggleButtonColors(
-                                    checkedContainerColor = MaterialTheme.colorScheme.primary,
-                                    checkedContentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                                modifier = Modifier.size(40.dp),
-                            ) { Icon(icon, format.name) }
+                        FormatRow(stringResource(if (markdown) R.string.format_markdown_off else R.string.format_markdown_on), base, onMarkdown)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { formatting = false }.padding(horizontal = 20.dp, vertical = 12.dp),
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(20.dp))
+                            Text(stringResource(R.string.action_back), style = base)
                         }
-                        IconButton(onClick = onClear) { Icon(Icons.Rounded.FormatClear, stringResource(R.string.format_clear)) }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun FormatRow(label: String, style: androidx.compose.ui.text.TextStyle, onClick: () -> Unit) {
+    Text(label, style = style, maxLines = 1, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp))
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
@@ -2245,7 +2259,7 @@ private fun ReactionFlow(modifier: Modifier = Modifier, content: @Composable () 
 private class TextPart(val start: Int, val end: Int, val quote: TdApi.TextEntityType?)
 
 private fun splitQuotes(text: String, entities: List<TdApi.TextEntity>): List<TextPart> {
-    val quotes = entities.filter { it.type is TdApi.TextEntityTypeBlockQuote || it.type is TdApi.TextEntityTypeExpandableBlockQuote }.sortedBy { it.offset }
+    val quotes = entities.filter { it.type is TdApi.TextEntityTypeBlockQuote || it.type is TdApi.TextEntityTypeExpandableBlockQuote || it.type is TdApi.TextEntityTypePre || it.type is TdApi.TextEntityTypePreCode }.sortedBy { it.offset }
     if (quotes.isEmpty()) return listOf(TextPart(0, text.length, null))
     val parts = mutableListOf<TextPart>()
     var at = 0
@@ -2261,7 +2275,7 @@ private fun splitQuotes(text: String, entities: List<TdApi.TextEntity>): List<Te
 }
 
 private fun slice(entities: List<TdApi.TextEntity>, start: Int, end: Int): List<TdApi.TextEntity> = entities.mapNotNull { e ->
-    if (e.type is TdApi.TextEntityTypeBlockQuote || e.type is TdApi.TextEntityTypeExpandableBlockQuote) return@mapNotNull null
+    if (e.type is TdApi.TextEntityTypeBlockQuote || e.type is TdApi.TextEntityTypeExpandableBlockQuote || e.type is TdApi.TextEntityTypePre || e.type is TdApi.TextEntityTypePreCode) return@mapNotNull null
     val s = maxOf(e.offset, start)
     val t = minOf(e.offset + e.length, end)
     if (t <= s) null else TdApi.TextEntity(s - start, t - s, e.type)
@@ -2292,7 +2306,12 @@ private fun MessageText(
             val piece = raw.trim('\n')
             if (piece.isEmpty()) return@forEach
             val local = slice(entities, part.start + trimStart, part.start + trimStart + piece.length)
-            if (part.quote == null) {
+            val code = part.quote as? TdApi.TextEntityTypePre
+            val codeLang = part.quote as? TdApi.TextEntityTypePreCode
+            if (code != null || codeLang != null) {
+                if (part === lastPart) onLastLine(Float.MAX_VALUE)
+                com.pixelgram.android.ui.components.CodeBlock(raw.trim('\n'), codeLang?.language.orEmpty(), style)
+            } else if (part.quote == null) {
                 PlainText(piece, local, link, content, style, fontSize, onLastLine = if (part === lastPart) onLastLine else ({}))
             } else {
                 QuoteBlock(part.quote is TdApi.TextEntityTypeExpandableBlockQuote, content) { lines ->
@@ -2318,8 +2337,16 @@ private fun PlainText(
     val report: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { layout -> onLastLine(layout.getLineRight(layout.lineCount - 1)) }
     val inline = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) }
     val hasSpoiler = remember(entities) { entities.any { it.type is TdApi.TextEntityTypeSpoiler } }
+    val strikes = remember(text, entities) { entities.filter { it.type is TdApi.TextEntityTypeStrikethrough }.map { it.offset until (it.offset + it.length) } }
+    var strikeLayout by remember(text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    val waveColor = content
+    val wave = if (strikes.isEmpty()) Modifier else Modifier.drawWithContent {
+        drawContent()
+        strikeLayout?.let { l -> strikes.forEach { drawWavyStrike(l, it, waveColor) } }
+    }
+    val reportAll: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { strikeLayout = it; report(it) }
     if (!hasSpoiler) {
-        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = if (inline.isEmpty()) TextOverflow.Ellipsis else TextOverflow.Clip, inlineContent = inline, modifier = modifier, onTextLayout = report)
+        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = if (inline.isEmpty()) TextOverflow.Ellipsis else TextOverflow.Clip, inlineContent = inline, modifier = modifier.then(wave), onTextLayout = reportAll)
         return
     }
     var revealed by remember(text) { mutableStateOf(false) }
@@ -2327,7 +2354,7 @@ private fun PlainText(
     val radius by androidx.compose.animation.core.animateDpAsState(if (revealed) 0.dp else SpoilerBlur, MaterialTheme.motionScheme.slowEffectsSpec(), label = "spoiler")
     Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
         when {
-            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
+            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = reportAll, modifier = wave)
             !blurSupported -> Text(formatted(text, entities, link, content, SpoilerMode.Block), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
             else -> {
                 Text(formatted(text, entities, link, content, SpoilerMode.Hidden), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
@@ -2428,7 +2455,7 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 is TdApi.TextEntityTypeBold -> addStyle(androidx.compose.ui.text.SpanStyle(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), start, end)
                 is TdApi.TextEntityTypeItalic -> addStyle(androidx.compose.ui.text.SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), start, end)
                 is TdApi.TextEntityTypeUnderline -> addStyle(androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), start, end)
-                is TdApi.TextEntityTypeStrikethrough -> addStyle(androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough), start, end)
+                is TdApi.TextEntityTypeStrikethrough -> Unit
                 is TdApi.TextEntityTypeCode, is TdApi.TextEntityTypePre, is TdApi.TextEntityTypePreCode ->
                     addStyle(androidx.compose.ui.text.SpanStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, background = content.copy(alpha = 0.1f)), start, end)
                 is TdApi.TextEntityTypeSpoiler -> when (spoiler) {
@@ -2444,6 +2471,10 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                 is TdApi.TextEntityTypeMentionName -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("tg://user?id=" + type.userId, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link))), start, end)
                 is TdApi.TextEntityTypeEmailAddress -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("mailto:" + text.substring(start, end), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
                 is TdApi.TextEntityTypePhoneNumber -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("tel:" + text.substring(start, end), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeDateTime -> {
+                    val shown = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(type.unixTime * 1000L))
+                    addLink(androidx.compose.ui.text.LinkAnnotation.Clickable("date$start", androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.ui.components.Notice.show(shown) }, start, end)
+                }
                 is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeBotCommand ->
                     addStyle(androidx.compose.ui.text.SpanStyle(color = link), start, end)
                 else -> Unit
@@ -2711,3 +2742,74 @@ internal fun Modifier.fadeEnd(fade: androidx.compose.ui.unit.Dp = 24.dp): Modifi
             blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
         )
     })
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DateEntityDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    val dateState = androidx.compose.material3.rememberDatePickerState(System.currentTimeMillis())
+    val timeState = androidx.compose.material3.rememberTimePickerState(is24Hour = true)
+    var step by remember { mutableStateOf(0) }
+    if (step == 0) {
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { step = 1 }) { Text(stringResource(R.string.action_next)) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        ) { androidx.compose.material3.DatePicker(dateState) }
+    } else {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            text = { androidx.compose.material3.TimePicker(timeState) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val day = dateState.selectedDateMillis ?: System.currentTimeMillis()
+                    val local = java.time.Instant.ofEpochMilli(day).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                    val at = local.atTime(timeState.hour, timeState.minute).atZone(java.time.ZoneId.systemDefault())
+                    onPick(at.toEpochSecond().toInt())
+                }) { Text(stringResource(R.string.action_done)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+private fun autoReplace(old: androidx.compose.ui.text.input.TextFieldValue, next: androidx.compose.ui.text.input.TextFieldValue): androidx.compose.ui.text.input.TextFieldValue {
+    if (next.text.length != old.text.length + 1 || !next.selection.collapsed) return next
+    val at = next.selection.start
+    if (at < 2) return next
+    val pair = next.text.substring(at - 2, at)
+    val replacement = when (pair) {
+        "--" -> "—"
+        ">>" -> "»"
+        "<<" -> "«"
+        else -> return next
+    }
+    val text = next.text.substring(0, at - 2) + replacement + next.text.substring(at)
+    return androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(at - 1))
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWavyStrike(layout: androidx.compose.ui.text.TextLayoutResult, range: IntRange, color: Color) {
+    val length = layout.layoutInput.text.length
+    val from = range.first.coerceIn(0, length)
+    val to = (range.last + 1).coerceIn(0, length)
+    if (from >= to) return
+    val amplitude = 1.6.dp.toPx()
+    val wavelength = 7.dp.toPx()
+    val fontPx = layout.layoutInput.style.fontSize.toPx()
+    for (line in layout.getLineForOffset(from)..layout.getLineForOffset(to - 1)) {
+        val charStart = maxOf(from, layout.getLineStart(line))
+        val charEnd = minOf(to, layout.getLineEnd(line, visibleEnd = true))
+        if (charStart >= charEnd) continue
+        val left = layout.getBoundingBox(charStart).left
+        val right = layout.getBoundingBox(charEnd - 1).right
+        val y = layout.getLineBaseline(line) - fontPx * 0.3f
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(left, y)
+            var x = left
+            while (x <= right) {
+                lineTo(x, y + amplitude * kotlin.math.sin(2 * Math.PI * (x - left) / wavelength).toFloat())
+                x += 1f
+            }
+        }
+        drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    }
+}

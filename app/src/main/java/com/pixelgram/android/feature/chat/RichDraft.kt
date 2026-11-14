@@ -19,7 +19,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import org.drinkless.tdlib.TdApi
 
-enum class Format { Bold, Italic, Underline, Strike, Mono, Spoiler, Quote, Link }
+enum class Format { Bold, Italic, Underline, Strike, Mono, Code, Spoiler, Quote, Link, Date }
 
 @Immutable
 data class RichDraft(val value: TextFieldValue = TextFieldValue(), val entities: List<TdApi.TextEntity> = emptyList()) {
@@ -121,6 +121,8 @@ private fun TdApi.TextEntity.matches(format: Format): Boolean = when (format) {
     Format.Underline -> type is TdApi.TextEntityTypeUnderline
     Format.Strike -> type is TdApi.TextEntityTypeStrikethrough
     Format.Mono -> type is TdApi.TextEntityTypeCode
+    Format.Code -> type is TdApi.TextEntityTypePre || type is TdApi.TextEntityTypePreCode
+    Format.Date -> type is TdApi.TextEntityTypeDateTime
     Format.Spoiler -> type is TdApi.TextEntityTypeSpoiler
     Format.Quote -> type is TdApi.TextEntityTypeBlockQuote
     Format.Link -> type is TdApi.TextEntityTypeTextUrl
@@ -132,6 +134,8 @@ private fun Format.type(url: String?): TdApi.TextEntityType = when (this) {
     Format.Underline -> TdApi.TextEntityTypeUnderline()
     Format.Strike -> TdApi.TextEntityTypeStrikethrough()
     Format.Mono -> TdApi.TextEntityTypeCode()
+    Format.Code -> TdApi.TextEntityTypePre()
+    Format.Date -> TdApi.TextEntityTypeDateTime((url?.toIntOrNull() ?: 0), null)
     Format.Spoiler -> TdApi.TextEntityTypeSpoiler()
     Format.Quote -> TdApi.TextEntityTypeBlockQuote()
     Format.Link -> TdApi.TextEntityTypeTextUrl(url.orEmpty())
@@ -150,7 +154,8 @@ class DraftStyles(private val entities: List<TdApi.TextEntity>, private val acce
                     is TdApi.TextEntityTypeItalic -> SpanStyle(fontStyle = FontStyle.Italic)
                     is TdApi.TextEntityTypeUnderline -> SpanStyle(textDecoration = TextDecoration.Underline)
                     is TdApi.TextEntityTypeStrikethrough -> SpanStyle(textDecoration = TextDecoration.LineThrough)
-                    is TdApi.TextEntityTypeCode -> SpanStyle(fontFamily = FontFamily.Monospace, background = content.copy(alpha = 0.1f))
+                    is TdApi.TextEntityTypeCode, is TdApi.TextEntityTypePre, is TdApi.TextEntityTypePreCode -> SpanStyle(fontFamily = FontFamily.Monospace, background = content.copy(alpha = 0.1f))
+                    is TdApi.TextEntityTypeDateTime -> SpanStyle(color = accent, textDecoration = TextDecoration.Underline)
                     is TdApi.TextEntityTypeSpoiler -> SpanStyle(background = content.copy(alpha = 0.22f))
                     is TdApi.TextEntityTypeBlockQuote -> SpanStyle(background = accent.copy(alpha = 0.14f), color = accent)
                     is TdApi.TextEntityTypeTextUrl -> SpanStyle(color = accent, textDecoration = TextDecoration.Underline)

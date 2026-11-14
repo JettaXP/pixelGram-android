@@ -792,4 +792,16 @@
     <string name="reset_all_done">Settings reset</string>
     <string name="badge_editor_title">Your badge</string>
     <string name="badge_editor_caption">Caption</string>
+    <string name="format_quote">Quote</string>
+    <string name="format_spoiler">Spoiler</string>
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_bold_italic">Bold Italic</string>
+    <string name="format_mono">Mono</string>
+    <string name="format_code">Code</string>
+    <string name="format_strike">Strikethrough</string>
+    <string name="format_underline">Underline</string>
+    <string name="format_date">Date</string>
+    <string name="format_markdown_on">Enable Markdown</string>
+    <string name="format_markdown_off">Disable Markdown</string>
 </resources>

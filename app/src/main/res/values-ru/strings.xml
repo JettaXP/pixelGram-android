@@ -815,4 +815,16 @@
     <string name="reset_all_done">Настройки сброшены</string>
     <string name="badge_editor_title">Ваш значок</string>
     <string name="badge_editor_caption">Подпись</string>
+    <string name="format_quote">Цитата</string>
+    <string name="format_spoiler">Спойлер</string>
+    <string name="format_bold">Жирный</string>
+    <string name="format_italic">Курсив</string>
+    <string name="format_bold_italic">Жирный курсив</string>
+    <string name="format_mono">Моноширинный</string>
+    <string name="format_code">Код</string>
+    <string name="format_strike">Зачёркнутый</string>
+    <string name="format_underline">Подчёркнутый</string>
+    <string name="format_date">Дата</string>
+    <string name="format_markdown_on">Включить Markdown</string>
+    <string name="format_markdown_off">Выключить Markdown</string>
 </resources>
