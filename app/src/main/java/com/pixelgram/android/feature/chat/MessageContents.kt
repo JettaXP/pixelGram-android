@@ -376,7 +376,7 @@ object EmojiEffects {
 
     suspend fun load(td: com.pixelgram.android.td.TdClient, emoji: String): TdApi.Sticker? {
         cache[emoji]?.let { return it }
-        val candidates = listOf(emoji, emoji.replace("\uFE0F", ""), "\u2764")
+        val candidates = listOf(emoji, emoji.replace("\uFE0F", "")).distinct()
         for (candidate in candidates) {
             val sticker = runCatching { td.send(TdApi.GetEmojiReaction(candidate)).effectAnimation }.getOrNull() ?: continue
             cache[emoji] = sticker
@@ -400,18 +400,10 @@ internal fun EmojiTapEffect(
     var effect by remember { mutableStateOf<TdApi.Sticker?>(null) }
     var runs by remember { mutableStateOf(0) }
     var bounce by remember { mutableStateOf(0) }
-    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(bounce) {
-        if (bounce == 0) return@LaunchedEffect
-        scale.animateTo(1.18f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 900f))
-        scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 400f))
-    }
     Box(contentAlignment = Alignment.Center) {
+        androidx.compose.runtime.key(bounce) {
         content(
-            Modifier.graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-            }.clickable(interactionSource = null, indication = null) {
+            Modifier.clickable(interactionSource = null, indication = null) {
                 bounce++
                 if (effect == null) scope.launch {
                     val result = EmojiEffects.load(graph.td, emoji)
@@ -422,6 +414,7 @@ internal fun EmojiTapEffect(
                 }
             },
         )
+        }
         effect?.let { shown ->
             val shift = with(androidx.compose.ui.platform.LocalDensity.current) { (size * EffectShift).roundToPx() }
             androidx.compose.ui.window.Popup(

@@ -159,7 +159,7 @@ class DraftStyles(private val entities: List<TdApi.TextEntity>, private val acce
                     is TdApi.TextEntityTypeSpoiler -> SpanStyle(background = content.copy(alpha = 0.22f))
                     is TdApi.TextEntityTypeBlockQuote -> SpanStyle(background = accent.copy(alpha = 0.14f), color = accent)
                     is TdApi.TextEntityTypeTextUrl -> SpanStyle(color = accent, textDecoration = TextDecoration.Underline)
-                    is TdApi.TextEntityTypeCustomEmoji -> SpanStyle(color = Color.Transparent)
+                    is TdApi.TextEntityTypeCustomEmoji -> SpanStyle(color = Color.Transparent, fontSize = androidx.compose.ui.unit.TextUnit(1.25f, androidx.compose.ui.unit.TextUnitType.Em))
                     else -> null
                 }
                 if (style != null) addStyle(style, start, end)

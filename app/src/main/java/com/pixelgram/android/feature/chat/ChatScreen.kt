@@ -44,6 +44,11 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.ui.draw.blur
 import androidx.compose.material.icons.rounded.FormatClear
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.FormatStrikethrough
@@ -170,6 +175,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -612,7 +618,14 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     shape = CircleShape,
                 ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
             }
-            ui.pinned?.let { pin -> PinnedBar(pin, Modifier.align(Alignment.TopCenter)) { jumpTo(pin.id) } }
+            if (ui.pins.isNotEmpty()) {
+                var pinIndex by remember(ui.pins.size) { mutableStateOf(0) }
+                val index = pinIndex.coerceIn(0, ui.pins.lastIndex)
+                PinnedBar(ui.pins, index, Modifier.align(Alignment.TopCenter)) {
+                    jumpTo(ui.pins[index].id)
+                    pinIndex = (index + 1) % ui.pins.size
+                }
+            }
         }
     }
     viewer?.let { (list, index) ->
@@ -630,6 +643,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             onDelete = { deleting = listOf(message) },
             onSelect = { selecting = message },
             onShot = { shooting = listOf(message) },
+            onMultiSelect = { toggleSelected(message) },
+            pinned = ui.pinned?.id == message.id,
         )
     }
     selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
@@ -868,8 +883,9 @@ internal fun MessageBubble(
                 val doubleWindow = 220L
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
                     val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
-                    interaction.tryEmit(press)
+                    if (inside) interaction.tryEmit(press)
                     val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
                     var cancelled = false
                     val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -893,6 +909,7 @@ internal fun MessageBubble(
                         latestSelectDrag(null)
                         return@awaitEachGesture
                     }
+                    if (!inside && !latestSelecting) return@awaitEachGesture
                     up.consume()
                     if (latestSelecting) {
                         latestTap(pointAt(up.position.x, up.position.y))
@@ -1630,7 +1647,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom) {
                         val graphHere = com.pixelgram.android.LocalGraph.current
@@ -1663,18 +1680,28 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         val caretPrefs = com.pixelgram.android.ui.theme.LocalAppearance.current
                         var fieldLayout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
                         var fieldFocused by remember { mutableStateOf(false) }
+                        val fieldScroll = rememberScrollState()
+                        val caretRequester = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+                        LaunchedEffect(draft.value.selection.end, fieldLayout) {
+                            val current = fieldLayout ?: return@LaunchedEffect
+                            val end = draft.value.selection.end.coerceIn(0, current.layoutInput.text.length)
+                            runCatching { caretRequester.bringIntoView(current.getCursorRect(end)) }
+                        }
                         androidx.compose.foundation.text.BasicTextField(
                             value = draft.value,
                             onValueChange = { draft = draft.edit(autoReplace(draft.value, it)) },
                             visualTransformation = remember(draft.entities, accent, onSurface) { DraftStyles(draft.entities, accent, onSurface) },
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 24.sp,
+                                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, androidx.compose.ui.text.style.LineHeightStyle.Trim.None),
+                            ),
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(if (caretPrefs.liquidCursor) Color.Transparent else MaterialTheme.colorScheme.primary),
                             onTextLayout = { fieldLayout = it },
-                            maxLines = 6,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                             ),
-                            modifier = Modifier.weight(1f).padding(vertical = 16.dp).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
+                            modifier = Modifier.weight(1f).heightIn(max = 176.dp).verticalScroll(fieldScroll).padding(vertical = 16.dp).then(Modifier.bringIntoViewRequester(caretRequester)).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
                             decorationBox = { inner ->
                                 Box {
                                     if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1968,10 +1995,20 @@ private fun MessageMenu(
     onDelete: () -> Unit,
     onSelect: () -> Unit,
     onShot: () -> Unit,
+    onMultiSelect: () -> Unit,
+    pinned: Boolean,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(Unit) {
+        keyboard?.hide()
+        focusManager.clearFocus()
+    }
+    val sticker = (message.content as? TdApi.MessageSticker)?.sticker
+    val faved by androidx.compose.runtime.produceState(false, message.id) { if (sticker != null) value = controller.isFavoriteSticker(sticker) }
     val canEdit by androidx.compose.runtime.produceState(false, message.id) { value = controller.canEdit(message) }
     val link by androidx.compose.runtime.produceState<String?>(null, message.id) { value = controller.link(message) }
     val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
@@ -2030,9 +2067,18 @@ private fun MessageMenu(
                         if (message.text.isNotBlank()) {
                             add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
                         }
+                        if (sticker != null) {
+                            add(Triple(Icons.Rounded.Star, context.getString(if (faved) R.string.sticker_unfave else R.string.sticker_fave)) { close { controller.faveSticker(sticker, !faved) } })
+                            if (sticker.setId != 0L) add(Triple(Icons.Rounded.GridView, context.getString(R.string.sticker_view_set)) { close { EmojiPreview.pack = sticker.setId } })
+                        }
                         add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
-                        add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
+                        if (pinned) add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_unpin)) { close { controller.unpin(message) } })
+                        else add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
                         if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
+                        link?.let { url -> add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(url)) } }) }
+                        if (message.text.length > 1) add(Triple(Icons.Rounded.TextFields, context.getString(R.string.action_select_text)) { close(onSelect) })
+                        add(Triple(Icons.Rounded.CheckCircle, context.getString(R.string.action_select)) { close(onMultiSelect) })
+                        add(Triple(Icons.Rounded.CameraAlt, context.getString(R.string.shot_action)) { close(onShot) })
                     }
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
@@ -2774,7 +2820,8 @@ private fun WidestColumn(modifier: Modifier = Modifier, content: @Composable () 
 }
 
 @Composable
-private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun PinnedBar(pins: List<UiMessage>, index: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val message = pins.getOrNull(index) ?: return
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
@@ -2783,34 +2830,61 @@ private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick
         modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Box(Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
+            PinIndicator(pins.size, index)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.chat_pinned), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                val text = message.text.replace('\n', ' ').ifBlank { com.pixelgram.android.td.contentPreviewLabel(message.content) }
-                val style = MaterialTheme.typography.bodyMedium
-                val annotated = remember(text, message.entities) {
-                    androidx.compose.ui.text.buildAnnotatedString {
-                        append(text)
-                        message.entities.forEach { e ->
-                            val type = e.type as? TdApi.TextEntityTypeCustomEmoji ?: return@forEach
-                            val start = e.offset.coerceIn(0, text.length)
-                            val end = (e.offset + e.length).coerceIn(start, text.length)
-                            if (end > start) addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
-                        }
-                    }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        if (pins.size > 1) "${stringResource(R.string.chat_pinned)} ${pins.size - index}" else stringResource(R.string.chat_pinned),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (pins.size > 1) Text(" / ${pins.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
-                com.pixelgram.android.ui.components.OverlayEmojiText(
-                    annotated,
-                    com.pixelgram.android.ui.components.customEmojiSlots(message.entities, text),
-                    style = style,
-                    softWrap = false,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                    modifier = Modifier.fillMaxWidth().fadeEnd(),
-                )
+                val spatial = MaterialTheme.motionScheme.fastSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+                val effects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                androidx.compose.animation.AnimatedContent(
+                    message.id,
+                    transitionSpec = {
+                        (androidx.compose.animation.slideInVertically(spatial) { it / 2 } + fadeIn(effects))
+                            .togetherWith(androidx.compose.animation.slideOutVertically(spatial) { -it / 2 } + fadeOut(effects))
+                    },
+                    label = "pin",
+                ) { id ->
+                    val shown = pins.firstOrNull { it.id == id } ?: message
+                    val text = shown.text.replace('\n', ' ').ifBlank { com.pixelgram.android.td.contentPreviewLabel(shown.content) }
+                    com.pixelgram.android.ui.components.OverlayEmojiText(
+                        androidx.compose.ui.text.AnnotatedString(text),
+                        com.pixelgram.android.ui.components.customEmojiSlots(shown.entities, text),
+                        style = MaterialTheme.typography.bodyMedium,
+                        softWrap = false,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.fillMaxWidth().fadeEnd(),
+                    )
+                }
             }
             Icon(Icons.Rounded.PushPin, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun PinIndicator(count: Int, index: Int) {
+    val visible = minOf(count, 4)
+    val gap = 2.dp
+    val segment = (34.dp - gap * (visible - 1)) / visible
+    val top = minOf(maxOf(index - visible + 1, 0) + 0, maxOf(count - visible, 0))
+    val active = (index - top).coerceIn(0, visible - 1)
+    Column(Modifier.width(3.dp).height(34.dp), verticalArrangement = Arrangement.spacedBy(gap)) {
+        repeat(visible) { i ->
+            val on = visible == 1 || i == visible - 1 - active
+            val color by androidx.compose.animation.animateColorAsState(
+                if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                MaterialTheme.motionScheme.fastEffectsSpec(),
+                label = "pin-seg",
+            )
+            Box(Modifier.width(3.dp).height(segment).clip(RoundedCornerShape(2.dp)).background(color))
         }
     }
 }

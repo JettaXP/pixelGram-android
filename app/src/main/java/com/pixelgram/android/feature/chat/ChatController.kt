@@ -64,6 +64,7 @@ data class ChatUi(
     val online: Int = 0,
     val channel: Boolean = false,
     val pinned: UiMessage? = null,
+    val pins: List<UiMessage> = emptyList(),
     val linkedChatId: Long = 0,
 )
 
@@ -123,7 +124,9 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         if (topicId != 0) return
         scope.launch {
             val message = runCatching { graph.td.send(TdApi.GetChatPinnedMessage(chatId)) }.getOrNull()
-            ui.value = ui.value.copy(pinned = message?.toUi(readOutbox))
+            val all = runCatching { graph.td.send(TdApi.SearchChatMessages(chatId, null, "", null, 0, 0, 100, TdApi.SearchMessagesFilterPinned())).messages.toList() }.getOrDefault(emptyList())
+            val pins = (all.ifEmpty { listOfNotNull(message) }).sortedByDescending { it.id }.map { it.toUi(readOutbox) }
+            ui.value = ui.value.copy(pinned = message?.toUi(readOutbox), pins = pins)
         }
     }
 
@@ -384,6 +387,23 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
     fun pin(message: UiMessage) {
         scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, true, false)) } }
     }
+
+    fun unpin(message: UiMessage) {
+        scope.launch { runCatching { graph.td.send(TdApi.UnpinChatMessage(chatId, message.id)) } }
+    }
+
+    fun faveSticker(sticker: TdApi.Sticker, add: Boolean) {
+        scope.launch {
+            runCatching {
+                val file = TdApi.InputFileId(sticker.sticker.id)
+                graph.td.send(if (add) TdApi.AddFavoriteSticker(file) else TdApi.RemoveFavoriteSticker(file))
+            }
+        }
+    }
+
+    suspend fun isFavoriteSticker(sticker: TdApi.Sticker): Boolean = runCatching {
+        graph.td.send(TdApi.GetFavoriteStickers()).stickers.any { it.sticker.id == sticker.sticker.id }
+    }.getOrDefault(false)
 
     suspend fun canDeleteForEveryone(message: UiMessage): Boolean = runCatching {
         graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeDeletedForAllUsers

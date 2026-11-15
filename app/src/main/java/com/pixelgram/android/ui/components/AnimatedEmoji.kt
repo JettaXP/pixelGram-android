@@ -90,14 +90,15 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
     val sticker by produceState(EmojiStickers.cached(id), id) { value = EmojiStickers.load(graph.td, id) }
     val sized = if (size != null) modifier.size(size) else modifier
     val current = sticker
-    val snapshot by graph.store.snapshot.collectAsState()
+    val snapshotFlow = graph.store.snapshot
     val fileId = when (current?.format) {
         null -> 0
         is TdApi.StickerFormatWebm -> current.thumbnail?.file?.id ?: 0
         else -> current.sticker.id
     }
     LaunchedEffect(fileId) { if (fileId != 0) graph.store.requestFileAsync(fileId) }
-    val path = snapshot.files[fileId] ?: current?.let { s ->
+    val known by androidx.compose.runtime.remember(fileId) { androidx.compose.runtime.derivedStateOf { snapshotFlow.value.files[fileId] } }
+    val path = known ?: current?.let { s ->
         val file = if (s.format is TdApi.StickerFormatWebm) s.thumbnail?.file else s.sticker
         file?.local?.path?.takeIf { file.local.isDownloadingCompleted && it.isNotEmpty() }
     }
@@ -117,8 +118,8 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
                 val json by produceState(EmojiStickers.cachedTgs(path), path) { value = EmojiStickers.tgs(path) }
                 val text = json
                 if (text != null) {
-                    val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(text), cacheKey = "tgs:$path")
-                    if (composition != null) LottieAnimation(composition, modifier = painted.matchParentSize(), iterations = LottieConstants.IterateForever, isPlaying = animate)
+                    val composition = androidx.compose.runtime.remember(path, text) { EmojiRenderer.composition(text, "tgs:$path") }
+                    if (composition != null) EmojiRenderer.Frame(path, composition, Modifier.matchParentSize(), if (repaint) tint else null)
                 }
             }
             else -> AsyncImage(model = File(path), contentDescription = fallback, modifier = painted)
