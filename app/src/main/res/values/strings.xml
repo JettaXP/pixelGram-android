@@ -831,4 +831,12 @@
     <string name="search_show_less">Show less</string>
     <string name="search_messages">Messages</string>
     <string name="search_open">Open</string>
+    <plurals name="menu_reactions">
+        <item quantity="one">%d reaction</item>
+        <item quantity="other">%d reactions</item>
+    </plurals>
+    <plurals name="menu_seen">
+        <item quantity="one">Seen by %d</item>
+        <item quantity="other">Seen by %d</item>
+    </plurals>
 </resources>

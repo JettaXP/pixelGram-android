@@ -856,4 +856,16 @@
     <string name="search_show_less">Свернуть</string>
     <string name="search_messages">Сообщения</string>
     <string name="search_open">Открыть</string>
+    <plurals name="menu_reactions">
+        <item quantity="one">%d реакция</item>
+        <item quantity="few">%d реакции</item>
+        <item quantity="many">%d реакций</item>
+        <item quantity="other">%d реакций</item>
+    </plurals>
+    <plurals name="menu_seen">
+        <item quantity="one">Просмотрел %d</item>
+        <item quantity="few">Просмотрели %d</item>
+        <item quantity="many">Просмотрели %d</item>
+        <item quantity="other">Просмотрели %d</item>
+    </plurals>
 </resources>

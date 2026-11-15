@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.chat
 
+import com.pixelgram.android.util.chatListTime
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Web
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clipToBounds
@@ -2009,8 +2011,16 @@ private fun MessageMenu(
                     }
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
-                            Column(Modifier.padding(vertical = 6.dp)) {
-                                rows.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                            var details by remember { mutableStateOf(false) }
+                            androidx.compose.animation.AnimatedContent(details, label = "menu-details") { open ->
+                                if (open) {
+                                    MessageDetails(controller.chatId, message) { details = false }
+                                } else {
+                                    Column(Modifier.padding(bottom = 6.dp)) {
+                                        MenuHeader(controller.chatId, message) { details = true }
+                                        rows.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                                    }
+                                }
                             }
                         }
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
@@ -2939,4 +2949,87 @@ private fun Modifier.clampHeight(max: androidx.compose.ui.unit.Dp): Modifier = t
     val placeable = measurable.measure(constraints.copy(maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
     val height = minOf(placeable.height, max.roundToPx(), constraints.maxHeight)
     layout(placeable.width, height) { placeable.place(0, 0) }
+}
+
+private class MenuInfo(val read: Int = 0, val reactions: List<TdApi.AddedReaction> = emptyList(), val viewers: List<TdApi.MessageViewer> = emptyList(), val total: Int = 0)
+
+@Composable
+private fun rememberMenuInfo(chatId: Long, message: UiMessage): MenuInfo {
+    val graph = com.pixelgram.android.LocalGraph.current
+    val info by androidx.compose.runtime.produceState(MenuInfo(), chatId, message.id) {
+        val chat = graph.store.chat(chatId)
+        val private = chat?.type is TdApi.ChatTypePrivate
+        val read = if (private && message.outgoing) (runCatching { graph.td.send(TdApi.GetMessageReadDate(chatId, message.id)) }.getOrNull() as? TdApi.MessageReadDateRead)?.readDate ?: 0 else 0
+        val added = if (!private) runCatching { graph.td.send(TdApi.GetMessageAddedReactions(chatId, message.id, null, "", 50)) }.getOrNull() else null
+        val viewers = if (!private && message.outgoing) runCatching { graph.td.send(TdApi.GetMessageViewers(chatId, message.id)).viewers.toList() }.getOrDefault(emptyList()) else emptyList()
+        value = MenuInfo(read, added?.reactions?.toList().orEmpty(), viewers, added?.totalCount ?: 0)
+    }
+    return info
+}
+
+@Composable
+private fun MenuHeader(chatId: Long, message: UiMessage, onDetails: () -> Unit) {
+    val info = rememberMenuInfo(chatId, message)
+    val graph = com.pixelgram.android.LocalGraph.current
+    val snapshot by graph.store.snapshot.collectAsState()
+    val reactionCount = maxOf(info.total, message.reactions.sumOf { it.count })
+    val people = (info.reactions.mapNotNull { (it.senderId as? TdApi.MessageSenderUser)?.userId } + info.viewers.map { it.userId }).distinct()
+    val label = when {
+        info.read > 0 -> chatListTime(info.read) + " " + messageTime(info.read, true)
+        reactionCount > 0 -> pluralStringResource(R.plurals.menu_reactions, reactionCount, reactionCount)
+        info.viewers.isNotEmpty() -> pluralStringResource(R.plurals.menu_seen, info.viewers.size, info.viewers.size)
+        else -> return
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = people.isNotEmpty(), onClick = onDetails).padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Icon(if (info.read > 0) Icons.Rounded.DoneAll else if (reactionCount > 0) Icons.Rounded.FavoriteBorder else Icons.Rounded.Visibility, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, modifier = Modifier.weight(1f))
+        Box {
+            people.take(3).forEachIndexed { index, id ->
+                val user = snapshot.users[id]
+                Box(Modifier.offset(x = (index * 12).dp).size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainer).padding(1.dp)) {
+                    com.pixelgram.android.ui.components.Avatar(user?.name.orEmpty(), id, user?.photoFileId?.let { snapshot.files[it] }, user?.minithumb, 20.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
+                }
+            }
+            Spacer(Modifier.size(width = if (people.isEmpty()) 0.dp else (22 + (people.take(3).size - 1) * 12).dp, height = 22.dp))
+        }
+    }
+    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest, thickness = 6.dp)
+}
+
+@Composable
+private fun MessageDetails(chatId: Long, message: UiMessage, onBack: () -> Unit) {
+    val info = rememberMenuInfo(chatId, message)
+    val graph = com.pixelgram.android.LocalGraph.current
+    val snapshot by graph.store.snapshot.collectAsState()
+    Column(Modifier.padding(bottom = 6.dp).heightIn(max = 360.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onBack).padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.action_back), style = MaterialTheme.typography.bodyMedium)
+        }
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest, thickness = 6.dp)
+        val entries = info.reactions.mapNotNull { r -> (r.senderId as? TdApi.MessageSenderUser)?.userId?.let { Triple(it, r.date, (r.type as? TdApi.ReactionTypeEmoji)?.emoji) } } +
+            info.viewers.filter { v -> info.reactions.none { (it.senderId as? TdApi.MessageSenderUser)?.userId == v.userId } }.map { Triple(it.userId, it.viewDate, null) }
+        androidx.compose.foundation.lazy.LazyColumn {
+            items(entries.size) { i ->
+                val (id, date, emoji) = entries[i]
+                val user = snapshot.users[id]
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    com.pixelgram.android.ui.components.Avatar(user?.name.orEmpty(), id, user?.photoFileId?.let { snapshot.files[it] }, user?.minithumb, 36.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
+                    Column(Modifier.weight(1f)) {
+                        Text(user?.name.orEmpty(), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (date > 0) Text(chatListTime(date) + " " + messageTime(date, false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (emoji != null) Text(emoji, style = MaterialTheme.typography.titleLarge)
+                }
+            }
+        }
+    }
 }
