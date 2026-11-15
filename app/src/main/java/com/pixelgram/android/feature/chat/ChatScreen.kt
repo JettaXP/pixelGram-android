@@ -1173,6 +1173,7 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
     val open: (String) -> Unit = { file ->
         when {
             backup -> importing = File(file)
+            DocumentViewer.accepts(document.fileName) -> DocumentViewer.path = file
             else -> runCatching {
                 val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", File(file))
                 val type = if (apk) "application/vnd.android.package-archive" else context.contentResolver.getType(uri)

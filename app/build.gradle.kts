@@ -116,6 +116,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation("androidx.compose.ui:ui:1.13.0-rc01")
+    implementation(libs.markdown)
     implementation("androidx.compose.foundation:foundation:1.13.0-rc01")
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)

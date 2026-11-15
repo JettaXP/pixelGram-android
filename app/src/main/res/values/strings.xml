@@ -873,4 +873,5 @@
     <string name="inline_empty">No results</string>
     <string name="pixel_inline_math">Calculator in the message field</string>
     <string name="pixel_inline_math_sub">Type an example ending with =, like 5+5=, to see the answer in gray. Press space to insert it.</string>
+    <string name="viewer_failed">Can't open this file</string>
 </resources>

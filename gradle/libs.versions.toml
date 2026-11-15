@@ -1,4 +1,5 @@
 [versions]
+markdown = "0.7.18"
 agp = "9.3.3"
 kotlin = "2.4.20"
 coreKtx = "1.19.1"
@@ -26,6 +27,7 @@ emojipicker = "1.7.0"
 robolectric = "4.17"
 
 [libraries]
+markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
