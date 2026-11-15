@@ -351,8 +351,9 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
 
     fun react(message: UiMessage, emoji: String) {
         if (emoji.isBlank()) return
+        val type: TdApi.ReactionType = emoji.removePrefix("ce:").toLongOrNull()?.takeIf { emoji.startsWith("ce:") }?.let { TdApi.ReactionTypeCustomEmoji(it) } ?: TdApi.ReactionTypeEmoji(emoji)
         if (message.reactions.any { it.emoji == emoji && it.chosen }) {
-            scope.launch { runCatching { graph.td.send(TdApi.RemoveMessageReaction(chatId, message.id, TdApi.ReactionTypeEmoji(emoji))) } }
+            scope.launch { runCatching { graph.td.send(TdApi.RemoveMessageReaction(chatId, message.id, type)) } }
             return
         }
         scope.launch {
@@ -360,7 +361,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                 graph.td.send(TdApi.AddMessageReaction().apply {
                     chatId = this@ChatController.chatId
                     messageId = message.id
-                    reactionType = TdApi.ReactionTypeEmoji(emoji)
+                    reactionType = type
                     isBig = false
                     updateRecentReactions = true
                 })
@@ -544,9 +545,12 @@ internal fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         albumId = if (photo != null) mediaAlbumId else 0L,
         localPath = size?.photo?.local?.takeIf { it.isDownloadingCompleted }?.path,
         reactions = interactionInfo?.reactions?.reactions.orEmpty().mapNotNull { reaction ->
-            (reaction.type as? TdApi.ReactionTypeEmoji)?.let {
-                ReactionUi(it.emoji, reaction.totalCount, reaction.isChosen, reaction.recentSenderIds.orEmpty().mapNotNull { sender -> (sender as? TdApi.MessageSenderUser)?.userId })
+            val key = when (val type = reaction.type) {
+                is TdApi.ReactionTypeEmoji -> type.emoji
+                is TdApi.ReactionTypeCustomEmoji -> "ce:" + type.customEmojiId
+                else -> null
             }
+            key?.let { ReactionUi(it, reaction.totalCount, reaction.isChosen, reaction.recentSenderIds.orEmpty().mapNotNull { sender -> (sender as? TdApi.MessageSenderUser)?.userId }) }
         },
         views = if (isChannelPost) interactionInfo?.viewCount ?: 0 else 0,
         comments = if (isChannelPost) interactionInfo?.replyInfo?.replyCount ?: -1 else -1,

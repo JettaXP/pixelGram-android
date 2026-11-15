@@ -29,7 +29,7 @@ fun customEmojiSlots(entities: List<TdApi.TextEntity>, text: String, shift: Int 
     val end = (e.offset + e.length + shift).coerceIn(start, text.length)
     if (end <= start) return@mapNotNull null
     val fallback = text.substring(start, end)
-    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, androidx.compose.ui.Modifier.clickable(interactionSource = null, indication = null) { com.pixelgram.android.feature.chat.EmojiPreview.request = type.customEmojiId to fallback }, size = side) }
+    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, androidx.compose.ui.Modifier.clickable(interactionSource = null, indication = null) { com.pixelgram.android.feature.chat.EmojiPreview.openPack(type.customEmojiId) }, size = side) }
 }
 
 @Composable
@@ -60,22 +60,24 @@ fun OverlayEmojiText(
         })
         val current = layout ?: return@Box
         val length = current.layoutInput.text.length
-        slots.forEach { slot ->
-            if (slot.start >= length) return@forEach
+        Box(Modifier.matchParentSize()) {
+        slots.forEachIndexed { index, slot ->
+            if (slot.start >= length) return@forEachIndexed
             val line = current.getLineForOffset(slot.start)
-            if (line >= current.lineCount) return@forEach
-            if (slot.start >= current.getLineEnd(line, visibleEnd = true)) return@forEach
+            if (line >= current.lineCount) return@forEachIndexed
+            if (slot.start >= current.getLineEnd(line, visibleEnd = true)) return@forEachIndexed
             val first = current.getBoundingBox(slot.start)
             val last = current.getBoundingBox((slot.end - 1).coerceIn(0, length - 1))
             val side = (current.getLineBottom(line) - current.getLineTop(line)).coerceAtLeast(first.height)
             val center = if (last.top == first.top) (first.left + last.right) / 2f else first.left + first.width / 2f
             val left = center - side / 2f
             val top = current.getLineTop(line)
-            key(slot.start, slot.end) {
+            key(index) {
                 Box(Modifier.offset { IntOffset(left.toInt(), top.toInt()) }) {
                     slot.content(with(density) { side.toDp() })
                 }
             }
+        }
         }
     }
 }

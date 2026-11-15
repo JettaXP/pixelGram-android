@@ -3,6 +3,7 @@ package com.pixelgram.android.feature.pixel
 import com.pixelgram.android.ui.components.settingLink
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.EmojiEmotions
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -133,7 +134,7 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
             when (page) {
                 "appearance" -> AppearancePage(appearance) { change -> graph.appearance.update(change) }
                 "general" -> GeneralPage(appearance) { change -> graph.appearance.update(change) }
-                "chats" -> ChatsPage(appearance) { change -> graph.appearance.update(change) }
+                "chats" -> ChatsPage(appearance, { navigator.open(it) }) { change -> graph.appearance.update(change) }
                 "about" -> {
                     AboutPage()
                     BackupSection()
@@ -192,7 +193,7 @@ internal fun GeneralPage(settings: AppearanceSettings, update: ((AppearanceSetti
 }
 
 @Composable
-internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3.runtime.NavKey) -> Unit = {}, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
     var preview by remember { mutableStateOf(0) }
     val sample = listOf(
         FolderTab(0, stringResource(R.string.folder_all), "All", 15, 3),
@@ -206,18 +207,16 @@ internal fun ChatsPage(settings: AppearanceSettings, update: ((AppearanceSetting
         CapsuleSlider(stringResource(R.string.pixel_bubble_tail), settings.bubbleTailRadius, 0..18, SegmentPosition.Middle, default = SliderDefaults.bubbleTailRadius) { v -> update { it.copy(bubbleTailRadius = v) } }
         CapsuleSlider(stringResource(R.string.pixel_font_size), settings.messageFontSize, 12..24, SegmentPosition.Bottom, "sp", default = SliderDefaults.messageFontSize) { v -> update { it.copy(messageFontSize = v) } }
     }
+    SettingsGroup {
+        SettingsItem(stringResource(R.string.stickers_title), SegmentPosition.Single, stringResource(R.string.stickers_sub), androidx.compose.material.icons.Icons.Rounded.EmojiEmotions, onClick = { open(com.pixelgram.android.nav.StickersKey) })
+    }
     CursorSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_messages)) {
         SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
         SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
         SettingsSwitch(stringResource(R.string.pixel_typing_bubble), settings.typingBubble, { v -> update { it.copy(typingBubble = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_typing_bubble_sub))
-        SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub)) {
-            androidx.compose.material3.OutlinedTextField(
-                value = settings.doubleTapEmoji,
-                onValueChange = { v -> update { it.copy(doubleTapEmoji = v.take(8)) } },
-                singleLine = true,
-                modifier = Modifier.width(72.dp),
-            )
+        SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub), onClick = { open(com.pixelgram.android.nav.QuickReactionKey) }) {
+            com.pixelgram.android.feature.chat.ReactionGlyph(settings.doubleTapEmoji, 26.dp)
         }
     }
     SettingsGroup(stringResource(R.string.notify_settings)) {
@@ -930,10 +929,12 @@ private val SliderDefaults = com.pixelgram.android.settings.AppearanceSettings()
 
 @Composable
 private fun SliderValue(label: String, value: Int, default: Int?, onChange: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.animation.AnimatedVisibility(default != null && value != default) {
-            IconButton(onClick = { default?.let(onChange) }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Rounded.RestartAlt, stringResource(R.string.action_reset), modifier = Modifier.size(20.dp))
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.animation.AnimatedVisibility(default != null && value != default, enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(), exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut()) {
+                IconButton(onClick = { default?.let(onChange) }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.RestartAlt, stringResource(R.string.action_reset), modifier = Modifier.size(20.dp))
+                }
             }
         }
         Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)

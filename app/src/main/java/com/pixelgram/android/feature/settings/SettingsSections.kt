@@ -139,6 +139,9 @@ fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator
             when (current) {
                 SettingsSection.Language -> LanguageSection()
                 SettingsSection.Folders -> FoldersSection(graph)
+                SettingsSection.Chats -> SettingsGroup {
+                    SettingsItem(stringResource(R.string.stickers_title), SegmentPosition.Single, stringResource(R.string.stickers_sub), Icons.Rounded.EmojiEmotions, onClick = { navigator.open(com.pixelgram.android.nav.StickersKey) })
+                }
                 else -> ComingSoon(current.icon, current.tone)
             }
         }

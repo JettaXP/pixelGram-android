@@ -534,7 +534,6 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                         } else {
                                             menuAnchor = rect
                                             menuFor = message
-                                            chatHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.ContextClick)
                                         }
                                     },
                                     onLongPress = {
@@ -845,7 +844,7 @@ internal fun MessageBubble(
     } else {
         RoundedCornerShape(if (joinsAbove) small else big, big, big, if (joinsBelow) small else big)
     }
-    val bigEmoji = remember(message.text, message.entities, message.content) { bigEmoji(message) }
+    val bigEmoji = remember(message.text, message.entities, message.content, prefs.largeEmoji) { if (prefs.largeEmoji) bigEmoji(message) else null }
     val zalgo = prefs.zalgoFilter && remember(message.text) { com.pixelgram.android.util.stripZalgo(message.text) != message.text }
     val bare = !zalgo && (bigEmoji != null || message.content is TdApi.MessageSticker || message.content is TdApi.MessageAnimatedEmoji || message.content is TdApi.MessageVideoNote)
     val baseContainer = if (bare) Color.Transparent else if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
@@ -1008,7 +1007,8 @@ internal fun MessageBubble(
                         horizontalArrangement = Arrangement.spacedBy(2.dp, if (message.outgoing) Alignment.End else Alignment.Start),
                     ) {
                         bigEmoji.forEach { (id, alt) ->
-                            if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, Modifier.clickable(interactionSource = null, indication = null) { EmojiPreview.request = id to alt }, size = size)
+                            if (id != null && bigEmoji.size == 1) EmojiTapEffect(alt, message.outgoing, size, files, onNeedFile) { tap -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, tap, size = size) }
+                            else if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, Modifier.clickable(interactionSource = null, indication = null) { EmojiPreview.openPack(id) }, size = size)
                             else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
                                 Text(alt, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.82f).toSp() }, lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { size.toSp() }, maxLines = 1)
                             }
@@ -1052,7 +1052,7 @@ internal fun MessageBubble(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 ) {
-                                    Text(reaction.emoji, style = MaterialTheme.typography.bodyMedium)
+                                    ReactionGlyph(reaction.emoji, 18.dp)
                                     if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
                                         Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
                                             reaction.recent.forEach { id ->
@@ -1688,15 +1688,15 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                     val layout = fieldLayout
                                     if (layout != null) {
                                         val density = androidx.compose.ui.platform.LocalDensity.current
-                                        draft.entities.forEach { e ->
-                                            val type = e.type as? TdApi.TextEntityTypeCustomEmoji ?: return@forEach
+                                        draft.entities.filter { it.type is TdApi.TextEntityTypeCustomEmoji }.forEachIndexed { index, e ->
+                                            val type = e.type as TdApi.TextEntityTypeCustomEmoji
                                             val length = layout.layoutInput.text.length
-                                            if (e.offset >= length) return@forEach
+                                            if (e.offset >= length) return@forEachIndexed
                                             val first = layout.getBoundingBox(e.offset.coerceIn(0, length - 1))
                                             val last = layout.getBoundingBox((e.offset + e.length - 1).coerceIn(0, length - 1))
                                             val side = first.height
                                             val left = if (last.top == first.top) (first.left + last.right) / 2f - side / 2f else first.left
-                                            key(e.offset, type.customEmojiId) {
+                                            key(index, type.customEmojiId) {
                                                 com.pixelgram.android.ui.components.CustomEmojiView(
                                                     type.customEmojiId,
                                                     draft.text.substring(e.offset.coerceIn(0, draft.text.length), (e.offset + e.length).coerceIn(0, draft.text.length)),
@@ -3057,4 +3057,11 @@ private fun MessageDetails(chatId: Long, message: UiMessage, onBack: () -> Unit)
             }
         }
     }
+}
+
+@Composable
+internal fun ReactionGlyph(key: String, size: androidx.compose.ui.unit.Dp) {
+    val custom = key.removePrefix("ce:").toLongOrNull()?.takeIf { key.startsWith("ce:") }
+    if (custom != null) com.pixelgram.android.ui.components.CustomEmojiView(custom, "⭐", size = size)
+    else Text(key, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.85f).toSp() })
 }

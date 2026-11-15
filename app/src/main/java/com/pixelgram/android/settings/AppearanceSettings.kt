@@ -49,6 +49,7 @@ data class AppearanceSettings(
     val drawerItems: List<DrawerEntry> = DrawerEntry.entries,
     val drawerOrder: List<DrawerEntry> = DrawerEntry.entries,
     val messageSeconds: Boolean = false,
+    val largeEmoji: Boolean = true,
     val exactNumbers: Boolean = false,
     val zalgoFilter: Boolean = false,
     val hideAllChats: Boolean = false,
@@ -99,6 +100,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val DrawerItems = stringPreferencesKey("drawer_items")
         val DrawerOrder = stringPreferencesKey("drawer_order")
         val K_messageSeconds = booleanPreferencesKey("message_seconds")
+        val K_largeEmoji = booleanPreferencesKey("large_emoji")
         val K_exactNumbers = booleanPreferencesKey("exact_numbers")
         val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
         val K_hideAllChats = booleanPreferencesKey("hide_all_chats")
@@ -124,7 +126,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val C_cursorWidth = intPreferencesKey("cursor_width")
         val C_blinkCycle = intPreferencesKey("blink_cycle")
         val C_blinkSmoothness = intPreferencesKey("blink_smoothness")
-        val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
+        val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_largeEmoji, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
         val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
         val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji)
     }
@@ -172,6 +174,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         drawerOrder = p[Keys.DrawerOrder]?.split(',')?.mapNotNull { name -> DrawerEntry.entries.firstOrNull { it.name == name } }
             ?.let { saved -> saved + DrawerEntry.entries.filterNot { it in saved } } ?: DrawerEntry.entries,
         messageSeconds = p[Keys.K_messageSeconds] ?: false,
+        largeEmoji = p[Keys.K_largeEmoji] ?: true,
         exactNumbers = p[Keys.K_exactNumbers] ?: false,
         zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
         hideAllChats = p[Keys.K_hideAllChats] ?: false,
@@ -222,6 +225,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.DrawerItems] = next.drawerItems.joinToString(",") { it.name }
                 p[Keys.DrawerOrder] = next.drawerOrder.joinToString(",") { it.name }
                 p[Keys.K_messageSeconds] = next.messageSeconds
+                p[Keys.K_largeEmoji] = next.largeEmoji
                 p[Keys.K_exactNumbers] = next.exactNumbers
                 p[Keys.K_zalgoFilter] = next.zalgoFilter
                 p[Keys.K_hideAllChats] = next.hideAllChats

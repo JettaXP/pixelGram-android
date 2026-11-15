@@ -22,7 +22,7 @@ val appVersionName = "0.2." + (System.getenv("APP_PATCH")?.toIntOrNull() ?: 0)
 android {
     namespace = "com.pixelgram.android"
     compileSdk {
-        version = release(37)
+        version = release(37) { minorApiLevel = 1 }
     }
 
     defaultConfig {
@@ -115,6 +115,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.process)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
+    implementation("androidx.compose.ui:ui:1.13.0-rc01")
+    implementation("androidx.compose.foundation:foundation:1.13.0-rc01")
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)

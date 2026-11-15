@@ -842,4 +842,18 @@
     <string name="sticker_send">Send Sticker</string>
     <string name="gif_send">Send GIF</string>
     <string name="sticker_view_set">View Sticker Set</string>
+    <string name="stickers_title">Stickers and Emoji</string>
+    <string name="stickers_sub">Quick reaction, sets, large emoji</string>
+    <string name="stickers_archived">Archived Stickers</string>
+    <string name="stickers_emoji">Emoji Sets</string>
+    <string name="stickers_quick_reaction">Quick Reaction</string>
+    <string name="stickers_settings">Settings</string>
+    <string name="stickers_large_emoji">Large Emoji</string>
+    <string name="stickers_large_emoji_sub">Show messages with only emoji bigger</string>
+    <string name="stickers_my_sets">My Stickers</string>
+    <string name="stickers_archive">Archive</string>
+    <string name="quick_reaction_sample">Double tap this message for a quick reaction.</string>
+    <string name="quick_reaction_hint">Choose the reaction for double tap on a message.</string>
+    <string name="quick_reaction_premium">Premium reaction</string>
+    <string name="quick_reaction_standard">Reactions</string>
 </resources>

@@ -52,6 +52,8 @@ object EmojiStickers {
         return found
     }
 
+    fun cachedTgs(path: String): String? = synchronized(json) { json[path] }
+
     suspend fun tgs(path: String): String? {
         synchronized(json) { json[path] }?.let { return it }
         val text = withContext(Dispatchers.IO) {
@@ -112,14 +114,11 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
         when {
             current == null || path == null -> Fallback(fallback, size)
             current.format is TdApi.StickerFormatTgs -> {
-                val json by produceState<String?>(null, path) { value = EmojiStickers.tgs(path) }
+                val json by produceState(EmojiStickers.cachedTgs(path), path) { value = EmojiStickers.tgs(path) }
                 val text = json
-                if (text == null) {
-                    Fallback(fallback, size)
-                } else {
+                if (text != null) {
                     val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(text), cacheKey = "tgs:$path")
-                    if (composition == null) Fallback(fallback, size)
-                    else LottieAnimation(composition, modifier = painted.matchParentSize(), iterations = LottieConstants.IterateForever, isPlaying = animate)
+                    if (composition != null) LottieAnimation(composition, modifier = painted.matchParentSize(), iterations = LottieConstants.IterateForever, isPlaying = animate)
                 }
             }
             else -> AsyncImage(model = File(path), contentDescription = fallback, modifier = painted)

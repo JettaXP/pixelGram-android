@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -61,6 +62,15 @@ object MediaPreview {
 object EmojiPreview {
     var request by mutableStateOf<Pair<Long, String>?>(null)
     var pack by mutableStateOf<Long?>(null)
+    var client: com.pixelgram.android.td.TdClient? = null
+
+    fun openPack(id: Long) {
+        val td = client ?: return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val sticker = EmojiStickers.load(td, id)
+            if (sticker != null && sticker.setId != 0L) pack = sticker.setId
+        }
+    }
 }
 
 @Composable
@@ -68,11 +78,12 @@ fun EmojiPreviewHost() {
     val graph = LocalGraph.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    EmojiPreview.client = graph.td
     EmojiPreview.request?.let { (id, alt) ->
         val close = { EmojiPreview.request = null }
         Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).clickable(interactionSource = null, indication = null, onClick = close), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp), modifier = Modifier.popIn()) {
                     CustomEmojiView(id, alt, size = 200.dp)
                     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp, modifier = Modifier.width(240.dp)) {
                         Column(Modifier.padding(vertical = 6.dp)) {
@@ -118,7 +129,7 @@ fun EmojiPreviewHost() {
         val snapshot by graph.store.snapshot.collectAsState()
         Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).clickable(interactionSource = null, indication = null, onClick = close), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp), modifier = Modifier.popIn()) {
                     if (sticker != null) StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(240.dp))
                     if (gif != null) {
                         val path = snapshot.files[gif.animation.id]
@@ -151,6 +162,19 @@ fun EmojiPreviewHost() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun Modifier.popIn(): Modifier {
+    val progress = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { progress.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 380f)) }
+    return graphicsLayer {
+        val p = progress.value
+        scaleX = 0.55f + 0.45f * p
+        scaleY = 0.55f + 0.45f * p
+        alpha = p.coerceIn(0f, 1f)
+        translationY = (1f - p) * 80f
     }
 }
 

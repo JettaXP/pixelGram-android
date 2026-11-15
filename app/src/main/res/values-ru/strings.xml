@@ -871,4 +871,18 @@
     <string name="sticker_send">Отправить стикер</string>
     <string name="gif_send">Отправить GIF</string>
     <string name="sticker_view_set">Открыть набор</string>
+    <string name="stickers_title">Стикеры и эмодзи</string>
+    <string name="stickers_sub">Быстрая реакция, наборы, крупные эмодзи</string>
+    <string name="stickers_archived">Архивные стикеры</string>
+    <string name="stickers_emoji">Наборы эмодзи</string>
+    <string name="stickers_quick_reaction">Быстрая реакция</string>
+    <string name="stickers_settings">Настройки</string>
+    <string name="stickers_large_emoji">Крупные эмодзи</string>
+    <string name="stickers_large_emoji_sub">Показывать сообщения только из эмодзи крупнее</string>
+    <string name="stickers_my_sets">Мои стикеры</string>
+    <string name="stickers_archive">В архив</string>
+    <string name="quick_reaction_sample">Нажмите дважды на сообщение для быстрой реакции.</string>
+    <string name="quick_reaction_hint">Выберите реакцию на двойное нажатие по сообщению.</string>
+    <string name="quick_reaction_premium">Премиум-реакция</string>
+    <string name="quick_reaction_standard">Реакции</string>
 </resources>

@@ -18,4 +18,10 @@
         <item quantity="many">%d в сети</item>
         <item quantity="other">%d в сети</item>
     </plurals>
+    <plurals name="stickers_count">
+        <item quantity="one">%d стикер</item>
+        <item quantity="few">%d стикера</item>
+        <item quantity="many">%d стикеров</item>
+        <item quantity="other">%d стикера</item>
+    </plurals>
 </resources>
