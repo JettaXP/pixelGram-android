@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,6 +56,7 @@ private enum class PanelTab { Emoji, Gifs, Stickers }
 private const val RecentId = -1L
 private const val StandardId = 0L
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun EmojiStickerPanel(
     onEmoji: (String) -> Unit,
@@ -174,7 +176,7 @@ internal fun EmojiTab(onEmoji: (String) -> Unit, onCustomEmoji: (Long, String) -
                 items(stickers, key = { it.id }) { sticker ->
                     val id = (sticker.fullType as? TdApi.StickerFullTypeCustomEmoji)?.customEmojiId ?: 0L
                     Box(
-                        Modifier.aspectRatio(1f).clip(RoundedCornerShape(10.dp)).clickable { if (id != 0L) onCustomEmoji(id, sticker.emoji) }.padding(4.dp),
+                        Modifier.aspectRatio(1f).clip(RoundedCornerShape(10.dp)).combinedClickable(onLongClick = { if (id != 0L) EmojiPreview.request = id to sticker.emoji }) { if (id != 0L) onCustomEmoji(id, sticker.emoji) }.padding(4.dp),
                         contentAlignment = Alignment.Center,
                     ) { CustomEmojiView(id, sticker.emoji, Modifier.fillMaxSize()) }
                 }
@@ -210,7 +212,7 @@ private fun StickersTab(onSticker: (TdApi.Sticker) -> Unit) {
         LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 64.dp)) {
             items(stickers, key = { it.id }) { sticker ->
                 Box(
-                    Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).clickable { onSticker(sticker) }.padding(6.dp),
+                    Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onLongClick = { MediaPreview.sticker = sticker }) { onSticker(sticker) }.padding(6.dp),
                     contentAlignment = Alignment.Center,
                 ) { StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize()) }
             }
@@ -239,7 +241,7 @@ private fun GifsTab(onGif: (TdApi.Animation) -> Unit) {
             if (thumb != null && path == null) LaunchedEffect(thumb.id) { graph.store.requestFileAsync(thumb.id) }
             val ratio = if (gif.width > 0 && gif.height > 0) (gif.width.toFloat() / gif.height).coerceIn(0.5f, 2.5f) else 1f
             Box(
-                Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).clickable { onGif(gif) },
+                Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).combinedClickable(onLongClick = { MediaPreview.gif = gif }) { onGif(gif) },
             ) {
                 AsyncImage(model = path?.let(::File) ?: gif.minithumbnail?.data, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }

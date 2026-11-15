@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +52,11 @@ import com.pixelgram.android.ui.components.EmojiStickers
 import com.pixelgram.android.ui.components.Icon
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
+
+object MediaPreview {
+    var sticker by mutableStateOf<TdApi.Sticker?>(null)
+    var gif by mutableStateOf<TdApi.Animation?>(null)
+}
 
 object EmojiPreview {
     var request by mutableStateOf<Pair<Long, String>?>(null)
@@ -102,6 +108,50 @@ fun EmojiPreviewHost() {
         }
     }
     EmojiPreview.pack?.let { setId -> EmojiSetSheet(setId) { EmojiPreview.pack = null } }
+    val sticker = MediaPreview.sticker
+    val gif = MediaPreview.gif
+    if (sticker != null || gif != null) {
+        val close = {
+            MediaPreview.sticker = null
+            MediaPreview.gif = null
+        }
+        val snapshot by graph.store.snapshot.collectAsState()
+        Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).clickable(interactionSource = null, indication = null, onClick = close), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    if (sticker != null) StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(240.dp))
+                    if (gif != null) {
+                        val path = snapshot.files[gif.animation.id]
+                        if (path == null) androidx.compose.runtime.LaunchedEffect(gif.animation.id) { graph.store.requestFileAsync(gif.animation.id) }
+                        Box(Modifier.width(280.dp).aspectRatio(if (gif.height > 0) gif.width.toFloat() / gif.height else 1f).clip(RoundedCornerShape(16.dp))) {
+                            if (path != null) VideoPlayer(path, muted = true, loop = true, controls = false, modifier = Modifier.fillMaxSize())
+                            else coil.compose.AsyncImage(gif.minithumbnail?.data, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp, modifier = Modifier.width(240.dp)) {
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            PreviewAction(Icons.AutoMirrored.Rounded.Send, stringResource(if (sticker != null) R.string.sticker_send else R.string.gif_send)) {
+                                val chat = com.pixelgram.android.notify.AppVisibility.openChat
+                                if (chat != 0L) scope.launch {
+                                    runCatching {
+                                        graph.td.send(TdApi.SendMessage().apply {
+                                            chatId = chat
+                                            inputMessageContent = if (sticker != null) stickerInput(sticker) else gifInput(gif!!)
+                                        })
+                                    }
+                                }
+                                close()
+                            }
+                            if (sticker != null && sticker.setId != 0L) PreviewAction(Icons.Rounded.GridView, stringResource(R.string.sticker_view_set)) {
+                                EmojiPreview.pack = sticker.setId
+                                close()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

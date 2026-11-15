@@ -868,4 +868,7 @@
         <item quantity="many">Просмотрели %d</item>
         <item quantity="other">Просмотрели %d</item>
     </plurals>
+    <string name="sticker_send">Отправить стикер</string>
+    <string name="gif_send">Отправить GIF</string>
+    <string name="sticker_view_set">Открыть набор</string>
 </resources>

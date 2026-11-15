@@ -839,4 +839,7 @@
         <item quantity="one">Seen by %d</item>
         <item quantity="other">Seen by %d</item>
     </plurals>
+    <string name="sticker_send">Send Sticker</string>
+    <string name="gif_send">Send GIF</string>
+    <string name="sticker_view_set">View Sticker Set</string>
 </resources>

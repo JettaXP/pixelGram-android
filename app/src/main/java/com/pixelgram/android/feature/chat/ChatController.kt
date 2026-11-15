@@ -304,6 +304,21 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun sendInline(queryId: Long, resultId: String) {
+        val reply = ui.value.replyTo
+        ui.value = ui.value.copy(replyTo = null)
+        scope.launch {
+            runCatching {
+                graph.td.send(TdApi.SendInlineQueryResultMessage().apply {
+                    chatId = this@ChatController.chatId
+                    replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
+                    this.queryId = queryId
+                    this.resultId = resultId
+                })
+            }
+        }
+    }
+
     fun forwardDraft(draft: ForwardDraft) {
         scope.launch { runCatching { sendForward(graph, chatId, draft) } }
     }

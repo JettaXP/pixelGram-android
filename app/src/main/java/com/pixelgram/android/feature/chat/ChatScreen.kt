@@ -1535,6 +1535,24 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
             },
         )
     }
+    val inlineBot = rememberInlineBot(draft.text)
+    Column {
+    ComposerSuggestions(
+        controller.chatId,
+        draft.text,
+        draft.value.selection.start,
+        inlineBot,
+        onInsert = { username ->
+            val cursor = draft.value.selection.start.coerceIn(0, draft.text.length)
+            val start = draft.text.lastIndexOf('@', cursor - 1).coerceAtLeast(0)
+            val next = draft.text.substring(0, start) + "@" + username + " " + draft.text.substring(cursor)
+            draft = draft.edit(androidx.compose.ui.text.input.TextFieldValue(next, androidx.compose.ui.text.TextRange(start + username.length + 2)))
+        },
+        onSendResult = { queryId, resultId ->
+            controller.sendInline(queryId, resultId)
+            draft = RichDraft()
+        },
+    )
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars).imePadding()) {
             val target = editing ?: replyTo
@@ -1660,6 +1678,12 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             decorationBox = { inner ->
                                 Box {
                                     if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    val placeholder = (inlineBot?.user?.type as? TdApi.UserTypeBot)?.inlineQueryPlaceholder
+                                    val hintLayout = fieldLayout
+                                    if (inlineBot != null && inlineBot.query.isEmpty() && !placeholder.isNullOrBlank() && hintLayout != null && text.isNotEmpty()) {
+                                        val x = hintLayout.getHorizontalPosition(text.length.coerceAtMost(hintLayout.layoutInput.text.length), true)
+                                        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(x.toInt(), 0) })
+                                    }
                                     inner()
                                     val layout = fieldLayout
                                     if (layout != null) {
@@ -1769,6 +1793,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 )
             }
         }
+    }
     }
 }
 
