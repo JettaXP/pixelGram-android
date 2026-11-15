@@ -37,7 +37,27 @@ class LinkOpener(private val graph: AppGraph, private val navigator: Navigator, 
             when (type) {
                 is TdApi.InternalLinkTypePublicChat -> openUsername(type.chatUsername)
                 is TdApi.InternalLinkTypeUserPhoneNumber -> runCatching { graph.td.send(TdApi.SearchUserByPhoneNumber(type.phoneNumber, true)) }.getOrNull()?.let { navigator.open(ProfileKey(it.id)) } ?: browser(full)
-                is TdApi.InternalLinkTypeMessage -> runCatching { graph.td.send(TdApi.GetMessageLinkInfo(type.url)) }.getOrNull()?.takeIf { it.chatId != 0L }?.let { navigator.open(ChatKey(it.chatId)) } ?: browser(full)
+                is TdApi.InternalLinkTypeMessage -> runCatching { graph.td.send(TdApi.GetMessageLinkInfo(type.url)) }.getOrNull()?.takeIf { it.chatId != 0L }?.let { info ->
+                    navigator.open(ChatKey(info.chatId))
+                    info.message?.let { PendingNav.jump = info.chatId to it.id }
+                } ?: browser(full)
+                is TdApi.InternalLinkTypeStickerSet -> runCatching { graph.td.send(TdApi.SearchStickerSet(type.stickerSetName, false)) }.getOrNull()?.let { com.pixelgram.android.feature.chat.EmojiPreview.pack = it.id } ?: browser(full)
+                is TdApi.InternalLinkTypeChatInvite -> {
+                    val info = runCatching { graph.td.send(TdApi.CheckChatInviteLink(type.inviteLink)) }.getOrNull()
+                    val chatId: Long? = info?.chatId?.takeIf { it != 0L } ?: runCatching {
+                        graph.td.send(TdApi.JoinChatByInviteLink(type.inviteLink))
+                        graph.td.send(TdApi.CheckChatInviteLink(type.inviteLink)).chatId
+                    }.getOrNull()?.takeIf { it != 0L }
+                    if (chatId != null) navigator.open(ChatKey(chatId)) else browser(full)
+                }
+                is TdApi.InternalLinkTypeBotStart -> {
+                    val chat = runCatching { graph.td.send(TdApi.SearchPublicChat(type.botUsername)) }.getOrNull()
+                    val bot = (chat?.type as? TdApi.ChatTypePrivate)?.userId
+                    if (chat != null && bot != null) {
+                        runCatching { graph.td.send(TdApi.SendBotStartMessage(bot, chat.id, type.startParameter)) }
+                        navigator.open(ChatKey(chat.id))
+                    } else browser(full)
+                }
                 else -> browser(full)
             }
         }
@@ -60,7 +80,14 @@ class LinkOpener(private val graph: AppGraph, private val navigator: Navigator, 
     }
 
     private fun browser(url: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val own = Uri.parse(url).host?.removePrefix("www.") in setOf("t.me", "telegram.me", "telegram.dog") || url.startsWith("tg:")
+        if (own) {
+            val browser = context.packageManager.resolveActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            if (browser != null && browser != context.packageName && browser != "android") intent.setPackage(browser)
+            else if (url.startsWith("tg:")) return
+        }
+        runCatching { context.startActivity(intent) }
     }
 }
 

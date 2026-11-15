@@ -19,6 +19,8 @@ internal val PixelSettingsIndex: List<Pair<String, Int>> = listOf(
     "chats" to R.string.pixel_seconds,
     "chats" to R.string.pixel_zalgo,
     "chats" to R.string.pixel_typing_bubble,
+    "chats" to R.string.pixel_inline_math,
+    "chats" to R.string.stickers_title,
     "chats" to R.string.pixel_double_tap,
     "chats" to R.string.notify_settings,
     "chats" to R.string.notify_keep_alive,

@@ -57,6 +57,7 @@ object PendingNav {
     var link by androidx.compose.runtime.mutableStateOf<String?>(null)
     var jump by androidx.compose.runtime.mutableStateOf<Pair<Long, Long>?>(null)
     var profile by androidx.compose.runtime.mutableStateOf<Long?>(null)
+    var external by androidx.compose.runtime.mutableStateOf<String?>(null)
 }
 
 object PixelLinks {
@@ -160,6 +161,13 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         PendingNav.link?.let { link ->
             PendingNav.link = null
             (if (SettingsLinks.matches(link)) SettingsLinks.resolve(linkContext, link) else PixelLinks.key(link))?.let { navigator.open(it) }
+        }
+    }
+    val externalOpener = rememberLinkOpener(graph, navigator)
+    androidx.compose.runtime.LaunchedEffect(PendingNav.external) {
+        PendingNav.external?.let { url ->
+            PendingNav.external = null
+            externalOpener.url(url)
         }
     }
     androidx.compose.runtime.LaunchedEffect(PendingNav.profile) {

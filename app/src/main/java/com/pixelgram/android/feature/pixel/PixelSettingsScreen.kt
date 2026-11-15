@@ -215,6 +215,7 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
         SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
         SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
         SettingsSwitch(stringResource(R.string.pixel_typing_bubble), settings.typingBubble, { v -> update { it.copy(typingBubble = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_typing_bubble_sub))
+        SettingsSwitch(stringResource(R.string.pixel_inline_math), settings.inlineMath, { v -> update { it.copy(inlineMath = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_inline_math_sub))
         SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub), onClick = { open(com.pixelgram.android.nav.QuickReactionKey) }) {
             com.pixelgram.android.feature.chat.ReactionGlyph(settings.doubleTapEmoji, 26.dp)
         }

@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: android.content.Intent?) {
+        if (intent?.action == android.content.Intent.ACTION_VIEW) intent.dataString?.let { com.pixelgram.android.nav.PendingNav.external = it }
         if (intent?.action == com.pixelgram.android.notify.Notifier.OpenChatAction) {
             val chatId = intent.getLongExtra(com.pixelgram.android.notify.Notifier.ExtraChat, 0L)
             if (chatId != 0L) com.pixelgram.android.nav.PendingNav.chat = chatId

@@ -9,6 +9,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -141,9 +142,17 @@ private fun Format.type(url: String?): TdApi.TextEntityType = when (this) {
     Format.Link -> TdApi.TextEntityTypeTextUrl(url.orEmpty())
 }
 
-class DraftStyles(private val entities: List<TdApi.TextEntity>, private val accent: Color, private val content: Color) : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText = TransformedText(
-        buildAnnotatedString {
+class DraftStyles(
+    private val entities: List<TdApi.TextEntity>,
+    private val accent: Color,
+    private val content: Color,
+    private val ghost: String? = null,
+    private val ghostColor: Color = Color.Gray,
+    private val settled: IntRange? = null,
+    private val settledColor: Color = Color.Unspecified,
+) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val styled = buildAnnotatedString {
             append(text)
             for (e in entities) {
                 val start = e.offset.coerceIn(0, text.length)
@@ -164,12 +173,27 @@ class DraftStyles(private val entities: List<TdApi.TextEntity>, private val acce
                 }
                 if (style != null) addStyle(style, start, end)
             }
-        },
-        OffsetMapping.Identity,
-    )
+            settled?.let { range ->
+                val start = range.first.coerceIn(0, text.length)
+                val end = (range.last + 1).coerceIn(start, text.length)
+                if (start < end) addStyle(SpanStyle(color = settledColor), start, end)
+            }
+            if (!ghost.isNullOrEmpty()) withStyle(SpanStyle(color = ghostColor)) { append(ghost) }
+        }
+        if (ghost.isNullOrEmpty()) return TransformedText(styled, OffsetMapping.Identity)
+        val length = text.length
+        return TransformedText(
+            styled,
+            object : OffsetMapping {
+                override fun originalToTransformed(offset: Int) = offset
+                override fun transformedToOriginal(offset: Int) = offset.coerceAtMost(length)
+            },
+        )
+    }
 
-    override fun equals(other: Any?): Boolean = other is DraftStyles && other.entities == entities && other.accent == accent && other.content == content
-    override fun hashCode(): Int = entities.hashCode() * 31 + accent.hashCode()
+    override fun equals(other: Any?): Boolean = other is DraftStyles && other.entities == entities && other.accent == accent && other.content == content &&
+        other.ghost == ghost && other.ghostColor == ghostColor && other.settled == settled && other.settledColor == settledColor
+    override fun hashCode(): Int = (entities.hashCode() * 31 + accent.hashCode()) * 31 + ghost.hashCode()
 }
 
 class SelectionToolbar(private val onShow: (SelectionMenu?) -> Unit) : TextToolbar {

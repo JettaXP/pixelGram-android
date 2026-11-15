@@ -899,4 +899,7 @@
     <string name="pack_title">Стикеры</string>
     <string name="stickers_recent">Недавние</string>
     <string name="stickers_favorites">Избранные</string>
+    <string name="inline_empty">Нет результатов</string>
+    <string name="pixel_inline_math">Калькулятор в поле ввода</string>
+    <string name="pixel_inline_math_sub">Напишите пример с = на конце, например 5+5=, ответ появится серым. Пробел вставит его.</string>
 </resources>

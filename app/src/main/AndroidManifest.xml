@@ -33,7 +33,26 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.Pixelgram.Starting"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="t.me" />
+                <data android:host="www.t.me" />
+                <data android:host="telegram.me" />
+                <data android:host="www.telegram.me" />
+                <data android:host="telegram.dog" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tg" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".BubbleActivity"
             android:allowEmbedded="true"

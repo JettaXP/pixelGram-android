@@ -1698,10 +1698,45 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             val end = draft.value.selection.end.coerceIn(0, current.layoutInput.text.length)
                             runCatching { caretRequester.bringIntoView(current.getCursorRect(end)) }
                         }
+                        val mathAnswer = remember(draft.text, caretPrefs.inlineMath) {
+                            if (caretPrefs.inlineMath) com.pixelgram.android.util.InlineMath.answer(draft.text) else null
+                        }?.takeIf { draft.value.selection.collapsed && draft.value.selection.end == draft.text.length }
+                        val ghostFade = remember { androidx.compose.animation.core.Animatable(0f) }
+                        LaunchedEffect(mathAnswer) {
+                            if (mathAnswer == null) ghostFade.snapTo(0f) else ghostFade.animateTo(1f, androidx.compose.animation.core.tween(GhostFadeMs))
+                        }
+                        var settled by remember { mutableStateOf<IntRange?>(null) }
+                        val settle = remember { androidx.compose.animation.core.Animatable(1f) }
+                        LaunchedEffect(settled) {
+                            if (settled == null) return@LaunchedEffect
+                            settle.snapTo(0f)
+                            settle.animateTo(1f, androidx.compose.animation.core.tween(GhostFadeMs))
+                            settled = null
+                        }
+                        var trailJump by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+                        val ghostColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = GhostAlpha)
                         androidx.compose.foundation.text.BasicTextField(
                             value = draft.value,
-                            onValueChange = { draft = draft.edit(autoReplace(draft.value, it)) },
-                            visualTransformation = remember(draft.entities, accent, onSurface) { DraftStyles(draft.entities, accent, onSurface) },
+                            onValueChange = { next ->
+                                val answer = mathAnswer
+                                if (answer != null && next.text == draft.text + " " && next.selection.collapsed && next.selection.end == next.text.length) {
+                                    val filled = draft.text + answer + " "
+                                    settled = draft.text.length until draft.text.length + answer.length
+                                    trailJump++
+                                    draft = draft.edit(androidx.compose.ui.text.input.TextFieldValue(filled, androidx.compose.ui.text.TextRange(filled.length)))
+                                } else {
+                                    draft = draft.edit(autoReplace(draft.value, next))
+                                }
+                            },
+                            visualTransformation = DraftStyles(
+                                draft.entities,
+                                accent,
+                                onSurface,
+                                mathAnswer,
+                                ghostColor.copy(alpha = GhostAlpha * ghostFade.value),
+                                settled,
+                                androidx.compose.ui.graphics.lerp(ghostColor, onSurface, settle.value),
+                            ),
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 24.sp,
@@ -1744,7 +1779,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                             }
                                         }
                                     }
-                                    if (caretPrefs.liquidCursor) com.pixelgram.android.ui.components.AnimatedCaret(draft.value.selection, fieldLayout, fieldFocused, caretPrefs, MaterialTheme.colorScheme.primary, Modifier.matchParentSize())
+                                    if (caretPrefs.liquidCursor) com.pixelgram.android.ui.components.AnimatedCaret(draft.value.selection, fieldLayout, fieldFocused, caretPrefs, MaterialTheme.colorScheme.primary, Modifier.matchParentSize(), trailJump)
                                 }
                             },
                         )
@@ -2320,6 +2355,8 @@ private fun SelectionBottomBar(canReply: Boolean, onReply: () -> Unit, onForward
 private val ReactorSize = 18.dp
 private const val DatePillMs = 1_500L
 private val SpoilerBlur = 8.dp
+private const val GhostFadeMs = 220
+private const val GhostAlpha = 0.6f
 private const val ReactorAvatars = 4
 private const val HighlightMs = 1_400L
 private const val QuoteLines = 3

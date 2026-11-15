@@ -36,6 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -107,7 +110,7 @@ private fun MentionList(chatId: Long, query: String, onPick: (String) -> Unit) {
         value = (matchedBots + members.filter { it.usernames?.activeUsernames?.isNotEmpty() == true }).distinctBy { it.id }.take(30)
     }
     if (users.isEmpty()) return
-    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).slideIn().animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec())) {
         LazyColumn(Modifier.heightIn(max = 280.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(users, key = { it.id }) { user ->
                 val username = user.usernames?.activeUsernames?.firstOrNull().orEmpty()
@@ -127,6 +130,21 @@ private fun MentionList(chatId: Long, query: String, onPick: (String) -> Unit) {
 }
 
 @Composable
+private fun Modifier.slideIn(): Modifier {
+    val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+    val spec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    LaunchedEffect(Unit) { progress.animateTo(1f, spec) }
+    return graphicsLayer {
+        val p = progress.value
+        translationY = (1f - p) * size.height * 0.6f
+        alpha = p.coerceIn(0f, 1f)
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+        scaleY = 0.9f + 0.1f * p
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 private fun InlineResults(chatId: Long, bot: InlineBot, onSend: (Long, String) -> Unit) {
     val graph = LocalGraph.current
     var results by remember(bot.user.id) { mutableStateOf<TdApi.InlineQueryResults?>(null) }
@@ -134,10 +152,18 @@ private fun InlineResults(chatId: Long, bot: InlineBot, onSend: (Long, String) -
         delay(300)
         results = runCatching { graph.td.send(TdApi.GetInlineQueryResults(bot.user.id, chatId, null, bot.query, "")) }.getOrNull()
     }
-    val current = results ?: return
-    if (current.results.isEmpty() && current.button == null) return
+    val current = results
+    if (current == null || current.results.isEmpty() && current.button == null) {
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).slideIn()) {
+            Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
+                if (current == null) androidx.compose.material3.LoadingIndicator(Modifier.size(36.dp))
+                else Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.inline_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
     val visual = current.results.isNotEmpty() && current.results.all { it is TdApi.InlineQueryResultPhoto || it is TdApi.InlineQueryResultAnimation || it is TdApi.InlineQueryResultSticker }
-    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).slideIn().animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec())) {
         Column {
             current.button?.let { button ->
                 Text(
