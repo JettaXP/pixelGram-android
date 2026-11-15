@@ -20,34 +20,32 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.airbnb.lottie.LottieComposition
 import com.airbnb.lottie.LottieCompositionFactory
 import com.airbnb.lottie.LottieDrawable
+import java.io.File
+import java.util.zip.GZIPInputStream
 
 object EmojiRenderer {
-    private class Entry(val composition: LottieComposition, val px: Int) {
-        val drawable = LottieDrawable().apply {
-            composition = this@Entry.composition
-            setBounds(0, 0, px, px)
-        }
-        val buffers = Array(Buffers) { Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888) }
+    private class Entry(val path: String, val px: Int) {
+        var drawable: LottieDrawable? = null
+        var buffers: Array<Bitmap>? = null
         @Volatile var front = -1
         var next = 0
         var users = 0
-        var started = SystemClock.uptimeMillis()
-        val duration = composition.duration.toLong().coerceAtLeast(1L)
+        var duration = 1L
+        var failed = false
+        val started = SystemClock.uptimeMillis()
     }
 
-    private val entries = HashMap<String, Entry>()
+    private val entries = LinkedHashMap<String, Entry>()
     private val thread = HandlerThread("emoji-render").apply { start() }
     private val worker = Handler(thread.looper)
     private val main = Handler(Looper.getMainLooper())
     private var running = false
+    private var tickPosted = false
     val tick = mutableIntStateOf(0)
 
     private val loop = object : Runnable {
@@ -55,31 +53,77 @@ object EmojiRenderer {
             val now = SystemClock.uptimeMillis()
             val active = synchronized(entries) { entries.values.filter { it.users > 0 } }
             active.forEach { render(it, now) }
-            main.post { tick.intValue++ }
+            postTick()
             val keep = synchronized(entries) { entries.values.any { it.users > 0 } }
             if (keep) worker.postDelayed(this, FrameMs) else synchronized(entries) { running = false }
         }
     }
 
+    private fun postTick() {
+        synchronized(entries) {
+            if (tickPosted) return
+            tickPosted = true
+        }
+        main.post {
+            synchronized(entries) { tickPosted = false }
+            tick.intValue++
+        }
+    }
+
+    private fun prepare(entry: Entry): Boolean {
+        if (entry.drawable != null) return true
+        if (entry.failed) return false
+        val composition = runCatching {
+            val bytes = File(entry.path).readBytes()
+            val gzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+            val json = if (gzip) GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() } else String(bytes)
+            LottieCompositionFactory.fromJsonStringSync(json, null).value
+        }.getOrNull()
+        if (composition == null) {
+            entry.failed = true
+            return false
+        }
+        entry.drawable = LottieDrawable().apply {
+            this.composition = composition
+            setBounds(0, 0, entry.px, entry.px)
+        }
+        entry.duration = composition.duration.toLong().coerceAtLeast(1L)
+        entry.buffers = Array(Buffers) { Bitmap.createBitmap(entry.px, entry.px, Bitmap.Config.ARGB_8888) }
+        return true
+    }
+
     private fun render(entry: Entry, now: Long) {
         runCatching {
-            val target = entry.buffers[entry.next]
+            if (!prepare(entry)) return
+            val drawable = entry.drawable ?: return
+            val buffers = entry.buffers ?: return
+            val target = buffers[entry.next]
             target.eraseColor(0)
-            entry.drawable.progress = ((now - entry.started) % entry.duration).toFloat() / entry.duration
-            entry.drawable.draw(Canvas(target))
+            drawable.progress = ((now - entry.started) % entry.duration).toFloat() / entry.duration
+            drawable.draw(Canvas(target))
             entry.front = entry.next
             entry.next = (entry.next + 1) % Buffers
         }
     }
 
-    fun composition(json: String, key: String): LottieComposition? =
-        runCatching { LottieCompositionFactory.fromJsonStringSync(json, key).value }.getOrNull()
-
-    private fun acquire(key: String, composition: LottieComposition, px: Int): Entry {
-        val entry = synchronized(entries) {
-            entries.getOrPut("$key@$px") { Entry(composition, px) }.also { it.users++ }
+    private fun free(entry: Entry) {
+        worker.post {
+            if (entry.users > 0) return@post
+            entry.front = -1
+            entry.drawable = null
+            entry.buffers = null
         }
-        if (entry.front < 0) worker.post { render(entry, SystemClock.uptimeMillis()); main.post { tick.intValue++ } }
+    }
+
+    private fun acquire(path: String, px: Int): Entry {
+        val id = "$path@$px"
+        val entry = synchronized(entries) {
+            (entries.remove(id) ?: Entry(path, px)).also {
+                entries[id] = it
+                it.users++
+            }
+        }
+        if (entry.front < 0) worker.post { render(entry, SystemClock.uptimeMillis()); postTick() }
         synchronized(entries) {
             if (!running) {
                 running = true
@@ -89,28 +133,33 @@ object EmojiRenderer {
         return entry
     }
 
-    private fun release(key: String, px: Int) {
+    private fun release(path: String, px: Int) {
+        val evicted = ArrayList<Entry>()
         synchronized(entries) {
-            val id = "$key@$px"
-            val entry = entries[id] ?: return
-            entry.users--
-            if (entry.users <= 0 && entries.size > MaxIdle) entries.remove(id)
+            entries["$path@$px"]?.let { it.users-- }
+            val idle = entries.entries.filter { it.value.users <= 0 }
+            val extra = idle.size - MaxIdle
+            if (extra > 0) idle.take(extra).forEach {
+                entries.remove(it.key)
+                evicted += it.value
+            }
         }
+        evicted.forEach(::free)
     }
 
     private fun bucket(px: Int): Int = Sizes.firstOrNull { it >= px } ?: Sizes.last()
 
     @Composable
-    fun Frame(key: String, composition: LottieComposition, modifier: Modifier, tint: Color?) {
+    fun Frame(path: String, modifier: Modifier, tint: Color?) {
         var size by remember { mutableStateOf(IntSize.Zero) }
         val px = if (size.width > 0) bucket(maxOf(size.width, size.height)) else 0
         var entry by remember { mutableStateOf<Entry?>(null) }
         if (px > 0) {
-            DisposableEffect(key, px) {
-                entry = acquire(key, composition, px)
+            DisposableEffect(path, px) {
+                entry = acquire(path, px)
                 onDispose {
                     entry = null
-                    release(key, px)
+                    release(path, px)
                 }
             }
         }
@@ -120,9 +169,10 @@ object EmojiRenderer {
                 tick.intValue
                 val current = entry ?: return@drawBehind
                 val index = current.front
+                val buffers = current.buffers ?: return@drawBehind
                 if (index < 0) return@drawBehind
                 drawImage(
-                    current.buffers[index].asImageBitmap(),
+                    buffers[index].asImageBitmap(),
                     srcOffset = IntOffset.Zero,
                     srcSize = IntSize(current.px, current.px),
                     dstSize = IntSize(this.size.width.toInt(), this.size.height.toInt()),
@@ -132,8 +182,8 @@ object EmojiRenderer {
         )
     }
 
-    private const val Buffers = 3
+    private const val Buffers = 2
     private const val FrameMs = 33L
-    private const val MaxIdle = 96
-    private val Sizes = intArrayOf(32, 48, 64, 96, 128, 192, 256, 384, 512)
+    private const val MaxIdle = 12
+    private val Sizes = intArrayOf(48, 72, 96, 128, 192, 256, 384, 512)
 }

@@ -175,6 +175,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -882,224 +883,227 @@ internal fun MessageBubble(
         MaterialTheme.motionScheme.fastEffectsSpec(),
         label = "selection",
     )
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(selectionTint)
-            .onGloballyPositioned { rowBounds = it.boundsInWindow() }
-        .pointerInput(Unit) {
-                val doubleWindow = 220L
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
-                    val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
-                    if (inside) interaction.tryEmit(press)
-                    val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
-                    var cancelled = false
-                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                        waitForUpOrCancellation().also { if (it == null) cancelled = true }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(selectionTint)
+                .onGloballyPositioned { rowBounds = it.boundsInWindow() }
+            .pointerInput(Unit) {
+                    val doubleWindow = 220L
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
+                        val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
+                        if (inside) interaction.tryEmit(press)
+                        val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
+                        var cancelled = false
+                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            waitForUpOrCancellation().also { if (it == null) cancelled = true }
+                        }
+                        interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                        if (cancelled) return@awaitEachGesture
+                        if (up == null) {
+                            val current = currentEvent.changes.firstOrNull { it.id == down.id }
+                            val moved = current != null && (current.position - down.position).getDistance() > viewConfiguration.touchSlop
+                            if (current == null || !current.pressed || current.isConsumed || moved) return@awaitEachGesture
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            latestLongPress(pointAt(down.position.x, down.position.y))
+                            current.consume()
+                            do {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                latestSelectDrag(rowBounds.top + change.position.y)
+                                event.changes.forEach { it.consume() }
+                            } while (change.pressed)
+                            latestSelectDrag(null)
+                            return@awaitEachGesture
+                        }
+                        up.consume()
+                        if (latestSelecting) {
+                            latestTap(pointAt(up.position.x, up.position.y))
+                            return@awaitEachGesture
+                        }
+                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                        if (second != null) {
+                            waitForUpOrCancellation()?.consume()
+                            latestDoubleTap()
+                        } else {
+                            latestTap(pointAt(up.position.x, up.position.y))
+                        }
                     }
-                    interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
-                    if (cancelled) return@awaitEachGesture
-                    if (up == null) {
-                        val current = currentEvent.changes.firstOrNull { it.id == down.id }
-                        val moved = current != null && (current.position - down.position).getDistance() > viewConfiguration.touchSlop
-                        if (current == null || !current.pressed || current.isConsumed || moved) return@awaitEachGesture
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        latestLongPress(pointAt(down.position.x, down.position.y))
-                        current.consume()
-                        do {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            latestSelectDrag(rowBounds.top + change.position.y)
-                            event.changes.forEach { it.consume() }
-                        } while (change.pressed)
-                        latestSelectDrag(null)
-                        return@awaitEachGesture
-                    }
-                    up.consume()
-                    if (latestSelecting) {
-                        latestTap(pointAt(up.position.x, up.position.y))
-                        return@awaitEachGesture
-                    }
-                    val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
-                    if (second != null) {
-                        waitForUpOrCancellation()?.consume()
-                        latestDoubleTap()
+                }
+                .padding(top = if (joinsAbove) 2.dp else 6.dp),
+            horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            androidx.compose.animation.AnimatedVisibility(
+                selecting,
+                enter = androidx.compose.animation.expandHorizontally() + fadeIn(),
+                exit = androidx.compose.animation.shrinkHorizontally() + fadeOut(),
+            ) {
+                Box(Modifier.padding(start = 4.dp, end = 8.dp, bottom = 6.dp).size(24.dp), contentAlignment = Alignment.Center) {
+                    if (selected) {
+                        Box(Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                        }
                     } else {
-                        latestTap(pointAt(up.position.x, up.position.y))
+                        Box(Modifier.size(24.dp).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
                     }
                 }
             }
-            .padding(top = if (joinsAbove) 2.dp else 6.dp),
-        horizontalArrangement = if (message.outgoing) Arrangement.End else Arrangement.Start,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        androidx.compose.animation.AnimatedVisibility(
-            selecting,
-            enter = androidx.compose.animation.expandHorizontally() + fadeIn(),
-            exit = androidx.compose.animation.shrinkHorizontally() + fadeOut(),
-        ) {
-            Box(Modifier.padding(start = 4.dp, end = 8.dp, bottom = 6.dp).size(24.dp), contentAlignment = Alignment.Center) {
-                if (selected) {
-                    Box(Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
-                    }
-                } else {
-                    Box(Modifier.size(24.dp).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
-                }
+            if (selecting && message.outgoing) Spacer(Modifier.weight(1f))
+            if (senderAvatar != null) {
+                Box(Modifier.size(34.dp)) { senderAvatar() }
+                Spacer(Modifier.width(6.dp))
             }
-        }
-        if (selecting && message.outgoing) Spacer(Modifier.weight(1f))
-        if (senderAvatar != null) {
-            Box(Modifier.size(34.dp)) { senderAvatar() }
-            Spacer(Modifier.width(6.dp))
-        }
-        Surface(
-            shape = shape,
-            color = container,
-            contentColor = onContainer,
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .onGloballyPositioned { bounds = it.boundsInWindow() }
-                .clip(shape)
-                .indication(interaction, androidx.compose.material3.ripple()),
-        ) {
-            WidestColumn(Modifier.padding(4.dp)) {
-                if (senderName != null) {
-                    Text(
-                        senderName,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.senderId]?.let { com.pixelgram.android.td.AccentColors.colors(it.accentColorId, com.pixelgram.android.ui.theme.LocalDarkTheme.current).first() } ?: com.pixelgram.android.ui.components.avatarColor(message.senderId),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
-                    )
-                }
-                if (message.viaBotId != 0L) {
-                    val bot = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.viaBotId]?.username
-                    if (bot != null) Text(
-                        "via @$bot",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp).clickable { ComposerRequests.text = "@$bot " },
-                    )
-                }
-                if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth()) }
-                val meta: @Composable (Color) -> Unit = { tint ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (message.views > 0) {
-                            Icon(Icons.Rounded.Visibility, stringResource(R.string.message_views), Modifier.size(13.dp), tint = tint)
-                            Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = tint, modifier = Modifier.padding(end = 4.dp))
-                        }
-                        if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = tint)
-                        if (message.outgoing) {
-                            Icon(
-                                when {
-                                    message.failed -> Icons.Rounded.ErrorOutline
-                                    message.pending -> Icons.Rounded.Schedule
-                                    message.read -> Icons.Rounded.DoneAll
-                                    else -> Icons.Rounded.Done
-                                },
-                                null,
-                                Modifier.size(14.dp),
-                                tint = if (message.failed) MaterialTheme.colorScheme.error else tint,
-                            )
-                        }
-                        Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = tint)
+            Surface(
+                shape = shape,
+                color = container,
+                contentColor = onContainer,
+                modifier = Modifier
+                    .widthIn(max = 320.dp)
+                    .onGloballyPositioned { bounds = it.boundsInWindow() }
+                    .clip(shape)
+                    .indication(interaction, androidx.compose.material3.ripple()),
+            ) {
+                WidestColumn(Modifier.padding(4.dp)) {
+                    if (senderName != null) {
+                        Text(
+                            senderName,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.senderId]?.let { com.pixelgram.android.td.AccentColors.colors(it.accentColorId, com.pixelgram.android.ui.theme.LocalDarkTheme.current).first() } ?: com.pixelgram.android.ui.components.avatarColor(message.senderId),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
+                        )
                     }
-                }
-                val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
-                val mediaOnly = photos.isNotEmpty() && message.text.isBlank() && message.reactions.isEmpty()
-                if (photos.isNotEmpty()) Box {
-                    PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
-                    if (mediaOnly) {
-                        Surface(shape = RoundedCornerShape(10.dp), color = Color.Black.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                            Box(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) { meta(Color.White) }
+                    if (message.viaBotId != 0L) {
+                        val bot = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.viaBotId]?.username
+                        if (bot != null) Text(
+                            "via @$bot",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp).clickable { ComposerRequests.text = "@$bot " },
+                        )
+                    }
+                    if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth()) }
+                    val meta: @Composable (Color) -> Unit = { tint ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            if (message.views > 0) {
+                                Icon(Icons.Rounded.Visibility, stringResource(R.string.message_views), Modifier.size(13.dp), tint = tint)
+                                Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = tint, modifier = Modifier.padding(end = 4.dp))
+                            }
+                            if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = tint)
+                            if (message.outgoing) {
+                                Icon(
+                                    when {
+                                        message.failed -> Icons.Rounded.ErrorOutline
+                                        message.pending -> Icons.Rounded.Schedule
+                                        message.read -> Icons.Rounded.DoneAll
+                                        else -> Icons.Rounded.Done
+                                    },
+                                    null,
+                                    Modifier.size(14.dp),
+                                    tint = if (message.failed) MaterialTheme.colorScheme.error else tint,
+                                )
+                            }
+                            Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = tint)
                         }
                     }
-                }
-                (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
-                val metaInside = message.content is TdApi.MessageVoiceNote && message.text.isBlank() && message.reactions.isEmpty()
-                if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay, meta = if (metaInside) ({ meta(onContainer.copy(alpha = 0.7f)) }) else null)
-                (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
-                (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
-                if (bigEmoji != null && !zalgo) {
-                    val size = BigEmojiSizes.getOrElse(bigEmoji.size - 1) { BigEmojiSizes.last() }
-                    androidx.compose.foundation.layout.FlowRow(
-                        Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp, if (message.outgoing) Alignment.End else Alignment.Start),
-                    ) {
-                        bigEmoji.forEach { (id, alt) ->
-                            if (id != null && bigEmoji.size == 1) EmojiTapEffect(alt, message.outgoing, size, files, onNeedFile) { tap -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, tap, size = size) }
-                            else if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, Modifier.clickable(interactionSource = null, indication = null) { EmojiPreview.openPack(id) }, size = size)
-                            else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-                                Text(alt, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.82f).toSp() }, lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { size.toSp() }, maxLines = 1)
+                    val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
+                    val mediaOnly = photos.isNotEmpty() && message.text.isBlank() && message.reactions.isEmpty()
+                    if (photos.isNotEmpty()) Box {
+                        PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
+                        if (mediaOnly) {
+                            Surface(shape = RoundedCornerShape(10.dp), color = Color.Black.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
+                                Box(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) { meta(Color.White) }
                             }
                         }
                     }
-                    if (message.reactions.isEmpty()) BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
-                } else if (message.text.isNotBlank()) {
-                    val text = if (zalgo) com.pixelgram.android.util.stripZalgo(message.text) else message.text
-                    val entities = if (zalgo) emptyList() else message.entities
-                    val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
-                    TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(horizontal = 10.dp, vertical = 5.dp)) {
-                        MessageText(
-                            text,
-                            entities,
-                            MaterialTheme.colorScheme.primary,
-                            onContainer,
-                            MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
-                            prefs.messageFontSize.toFloat(),
-                            onLastLine = { lastLine.floatValue = it },
-                        )
-                        if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
-                    }
-                } else if (bare && bigEmoji == null && message.reactions.isEmpty()) {
-                    BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
-                } else if (message.reactions.isEmpty() && !mediaOnly && !metaInside) {
-                    Box(Modifier.layoutId(AlignEnd).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
-                }
-                (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
-                if (message.reactions.isNotEmpty()) {
-                    ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
-                        message.reactions.forEach { reaction ->
-                            val chosen = reaction.chosen
-                            Surface(
-                                onClick = { onReact(reaction.emoji) },
-                                shape = RoundedCornerShape(if (chosen) 16.dp else 10.dp),
-                                color = if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f),
-                                contentColor = if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                ) {
-                                    ReactionGlyph(reaction.emoji, 18.dp)
-                                    if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
-                                            reaction.recent.forEach { id ->
-                                                Box(
-                                                    Modifier
-                                                        .size(ReactorSize + 2.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (chosen) MaterialTheme.colorScheme.primary else container)
-                                                        .padding(1.dp),
-                                                ) { reactor(id, ReactorSize) }
-                                            }
-                                        }
-                                    } else {
-                                        Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
-                                    }
+                    (message.content as? TdApi.MessageAnimation)?.let { GifView(it.animation, files, onNeedFile) }
+                    val metaInside = message.content is TdApi.MessageVoiceNote && message.text.isBlank() && message.reactions.isEmpty()
+                    if (isRichContent(message.content)) RichContent(message, files, onNeedFile, onContainer, onOpenUser, onVote, onPay, meta = if (metaInside) ({ meta(onContainer.copy(alpha = 0.7f)) }) else null)
+                    (message.content as? TdApi.MessageDocument)?.let { DocumentRow(it.document, onContainer) }
+                    (message.content as? TdApi.MessageAudio)?.let { AudioRow(it.audio, message.outgoing) { onPlayAudio(it.audio) } }
+                    if (bigEmoji != null && !zalgo) {
+                        val size = BigEmojiSizes.getOrElse(bigEmoji.size - 1) { BigEmojiSizes.last() }
+                        androidx.compose.foundation.layout.FlowRow(
+                            Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp, if (message.outgoing) Alignment.End else Alignment.Start),
+                        ) {
+                            bigEmoji.forEach { (id, alt) ->
+                                if (id != null && bigEmoji.size == 1) EmojiTapEffect(alt, message.outgoing, size, files, onNeedFile) { tap -> com.pixelgram.android.ui.components.CustomEmojiView(id, alt, tap, size = size) }
+                                else if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, Modifier.clickable(interactionSource = null, indication = null) { EmojiPreview.openPack(id) }, size = size)
+                                else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+                                    Text(alt, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.82f).toSp() }, lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { size.toSp() }, maxLines = 1)
                                 }
                             }
                         }
-                        meta(onContainer.copy(alpha = 0.7f))
+                        if (message.reactions.isEmpty()) BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
+                    } else if (message.text.isNotBlank()) {
+                        val text = if (zalgo) com.pixelgram.android.util.stripZalgo(message.text) else message.text
+                        val entities = if (zalgo) emptyList() else message.entities
+                        val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
+                        TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                            MessageText(
+                                text,
+                                entities,
+                                MaterialTheme.colorScheme.primary,
+                                onContainer,
+                                MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
+                                prefs.messageFontSize.toFloat(),
+                                onLastLine = { lastLine.floatValue = it },
+                            )
+                            if (message.reactions.isEmpty()) meta(onContainer.copy(alpha = 0.7f))
+                        }
+                    } else if (bare && bigEmoji == null && message.reactions.isEmpty()) {
+                        BareMeta(Modifier.layoutId(AlignEnd)) { meta(Color.White) }
+                    } else if (message.reactions.isEmpty() && !mediaOnly && !metaInside) {
+                        Box(Modifier.layoutId(AlignEnd).padding(horizontal = 8.dp, vertical = 4.dp)) { meta(onContainer.copy(alpha = 0.7f)) }
+                    }
+                    (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
+                    if (message.reactions.isNotEmpty()) {
+                        ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
+                            message.reactions.forEach { reaction ->
+                                val chosen = reaction.chosen
+                                Surface(
+                                    onClick = { onReact(reaction.emoji) },
+                                    shape = RoundedCornerShape(if (chosen) 16.dp else 10.dp),
+                                    color = if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f),
+                                    contentColor = if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    ) {
+                                        ReactionGlyph(reaction.emoji, 18.dp)
+                                        if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                                                reaction.recent.forEach { id ->
+                                                    Box(
+                                                        Modifier
+                                                            .size(ReactorSize + 2.dp)
+                                                            .clip(CircleShape)
+                                                            .background(if (chosen) MaterialTheme.colorScheme.primary else container)
+                                                            .padding(1.dp),
+                                                    ) { reactor(id, ReactorSize) }
+                                                }
+                                            }
+                                        } else {
+                                            Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
+                                }
+                            }
+                            meta(onContainer.copy(alpha = 0.7f))
+                        }
                     }
                 }
             }
         }
+        if (selecting) Box(Modifier.matchParentSize().clickable(interactionSource = null, indication = null) { latestTap(rowBounds) })
     }
 }
 
@@ -1310,7 +1314,7 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
             val replySticker = (reply.content as? TdApi.MessageSticker)?.sticker
             if (replySticker != null) {
                 val graph = com.pixelgram.android.LocalGraph.current
-                StickerView(replySticker, files, { graph.store.requestFileAsync(it) }, Modifier.padding(start = 9.dp).size(36.dp))
+                StickerView(replySticker, files, { graph.store.requestFileAsync(it) }, Modifier.padding(start = 9.dp).size(36.dp), video = false)
             } else if (thumb != null) {
                 AsyncImage(
                     model = thumb.localPath?.let(::File) ?: files[thumb.mediaFileId]?.let(::File) ?: thumb.mediaThumb,
@@ -2315,7 +2319,7 @@ private fun SelectionBottomBar(canReply: Boolean, onReply: () -> Unit, onForward
 
 private val ReactorSize = 18.dp
 private const val DatePillMs = 1_500L
-private val SpoilerBlur = 7.dp
+private val SpoilerBlur = 8.dp
 private const val ReactorAvatars = 4
 private const val HighlightMs = 1_400L
 private const val QuoteLines = 3
@@ -2494,23 +2498,120 @@ private fun PlainText(
     var revealed by remember(text) { mutableStateOf(false) }
     val blurSupported = android.os.Build.VERSION.SDK_INT >= 31
     val radius by androidx.compose.animation.core.animateDpAsState(if (revealed) 0.dp else SpoilerBlur, MaterialTheme.motionScheme.slowEffectsSpec(), label = "spoiler")
+    var spoilerLayout by remember(text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val ranges = remember(entities) { entities.filter { it.type is TdApi.TextEntityTypeSpoiler }.map { it.offset until (it.offset + it.length) } }
+    val path = remember(spoilerLayout, ranges) {
+        androidx.compose.ui.graphics.Path().apply { spoilerLayout?.let { l -> ranges.forEach { addPath(spoilerPill(l, it.first, it.last + 1, density)) } } }
+    }
+    val trackLayout: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { spoilerLayout = it; report(it) }
     Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
         when {
             revealed && radius == 0.dp -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Shown), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = reportAll, modifier = wave)
             !blurSupported -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Block), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = report)
             else -> {
-                com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Hidden), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = report)
+                val strength = radius / SpoilerBlur
+                val shape = remember(path) {
+                    object : androidx.compose.ui.graphics.Shape {
+                        override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density) = androidx.compose.ui.graphics.Outline.Generic(path)
+                    }
+                }
+                com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Hidden), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = trackLayout)
                 Text(
-                    formatted(text, entities, link, content, SpoilerMode.Only),
+                    formatted(text, entities, link, content, SpoilerMode.Shown),
                     style = style,
                     maxLines = maxLines,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.blur(radius, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded),
+                    modifier = Modifier.graphicsLayer {
+                        clip = true
+                        this.shape = shape
+                        alpha = strength
+                    }.blur(SpoilerBlur * strength, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded),
                 )
+                if (!revealed) SpoilerShimmer(path, content, Modifier.matchParentSize())
             }
         }
     }
 }
+
+@Composable
+private fun SpoilerShimmer(path: androidx.compose.ui.graphics.Path, tint: Color, modifier: Modifier) {
+    val sweep by androidx.compose.runtime.produceState(0f) {
+        val start = System.nanoTime()
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { now -> value = ((now - start) / 1_000_000L % ShimmerMs) / ShimmerMs.toFloat() }
+        }
+    }
+    Spacer(
+        modifier.drawBehind {
+            val bounds = path.getBounds()
+            if (bounds.isEmpty) return@drawBehind
+            val band = maxOf(bounds.width * ShimmerBand, ShimmerMinBand.toPx())
+            val x = bounds.left - band + sweep * (bounds.width + band * 2)
+            clipPath(path) {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(Color.Transparent, tint.copy(alpha = ShimmerAlpha), Color.Transparent),
+                        start = androidx.compose.ui.geometry.Offset(x - band, bounds.top),
+                        end = androidx.compose.ui.geometry.Offset(x + band, bounds.bottom),
+                    ),
+                )
+            }
+        },
+    )
+}
+
+private fun spoilerPill(layout: androidx.compose.ui.text.TextLayoutResult, start: Int, end: Int, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Path {
+    val path = androidx.compose.ui.graphics.Path()
+    val length = layout.layoutInput.text.length
+    if (length == 0 || start >= end) return path
+    val from = start.coerceIn(0, length)
+    val to = end.coerceIn(0, length)
+    with(density) {
+        val firstLine = layout.getLineForOffset(from)
+        val lastLine = layout.getLineForOffset(maxOf(from, to - 1))
+        for (line in firstLine..lastLine) {
+            val first = line == firstLine
+            val last = line == lastLine
+            val charStart = if (first) from else layout.getLineStart(line)
+            var charEnd = if (last) to else layout.getLineEnd(line, visibleEnd = true)
+            if (charEnd > charStart && layout.layoutInput.text[charEnd - 1] == '\n') charEnd -= 1
+            if (charStart >= charEnd && firstLine != lastLine) continue
+            val startBox = layout.getBoundingBox(charStart)
+            val endBox = layout.getBoundingBox(maxOf(charStart, charEnd - 1))
+            val left = if (first) startBox.left else layout.getLineLeft(line)
+            val right = if (last) endBox.right else layout.getLineRight(line)
+            val lineTop = layout.getLineTop(line)
+            val lineBottom = layout.getLineBottom(line)
+            val centerY = (lineTop + lineBottom) / 2f
+            val half = (lineBottom - lineTop) / 2f - PillInset.toPx()
+            val round = minOf(half, PillRadius.toPx())
+            val startRadius = if (first) round else 2.dp.toPx()
+            val endRadius = if (last) round else 2.dp.toPx()
+            val pad = 3.dp.toPx()
+            path.addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(
+                    left = minOf(left, right) - pad,
+                    top = centerY - half,
+                    right = maxOf(left, right) + pad,
+                    bottom = centerY + half,
+                    topLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(startRadius),
+                    bottomLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(startRadius),
+                    topRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(endRadius),
+                    bottomRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(endRadius),
+                ),
+            )
+        }
+    }
+    return path
+}
+
+private const val ShimmerMs = 1_800
+private const val ShimmerBand = 0.35f
+private const val ShimmerAlpha = 0.38f
+private val ShimmerMinBand = 28.dp
+private val PillRadius = 10.dp
+private val PillInset = 1.dp
 
 @Composable
 private fun QuoteBlock(expandable: Boolean, content: Color, body: @Composable (Int) -> Unit) {

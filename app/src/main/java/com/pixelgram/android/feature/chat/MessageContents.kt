@@ -462,19 +462,16 @@ internal fun EmojiTapEffect(
 private const val MaxTapEffects = 4
 
 @Composable
-internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier) {
+internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier, video: Boolean = true) {
     val path = localPath(sticker.sticker, files)
     if (path == null) LaunchedEffect(sticker.sticker.id) { onNeedFile(sticker.sticker.id) }
     val thumb = localPath(sticker.thumbnail?.file, files)
     Box(modifier, contentAlignment = Alignment.Center) {
         when {
-            path != null && sticker.format is TdApi.StickerFormatTgs -> {
-                val json by androidx.compose.runtime.produceState<String?>(null, path) { value = com.pixelgram.android.ui.components.EmojiStickers.tgs(path) }
-                val text = json
-                if (text != null) {
-                    val composition by com.airbnb.lottie.compose.rememberLottieComposition(com.airbnb.lottie.compose.LottieCompositionSpec.JsonString(text), cacheKey = "tgs:$path")
-                    com.airbnb.lottie.compose.LottieAnimation(composition, modifier = Modifier.fillMaxSize(), iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever)
-                }
+            path != null && sticker.format is TdApi.StickerFormatTgs -> com.pixelgram.android.ui.components.EmojiRenderer.Frame(path, Modifier.fillMaxSize(), null)
+            path != null && sticker.format is TdApi.StickerFormatWebm && !video -> {
+                if (thumb != null) AsyncImage(model = File(thumb), contentDescription = sticker.emoji, modifier = Modifier.fillMaxSize())
+                else LaunchedEffect(sticker.thumbnail?.file?.id) { sticker.thumbnail?.file?.id?.let(onNeedFile) }
             }
             path != null && sticker.format is TdApi.StickerFormatWebm -> VideoPlayer(path, muted = true, loop = true, controls = false, modifier = Modifier.fillMaxSize())
             path != null -> AsyncImage(model = File(path), contentDescription = sticker.emoji, modifier = Modifier.fillMaxSize())

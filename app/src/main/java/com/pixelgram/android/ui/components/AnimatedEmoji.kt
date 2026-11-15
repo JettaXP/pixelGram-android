@@ -114,14 +114,7 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
     Box(sized, contentAlignment = Alignment.Center) {
         when {
             current == null || path == null -> Fallback(fallback, size)
-            current.format is TdApi.StickerFormatTgs -> {
-                val json by produceState(EmojiStickers.cachedTgs(path), path) { value = EmojiStickers.tgs(path) }
-                val text = json
-                if (text != null) {
-                    val composition = androidx.compose.runtime.remember(path, text) { EmojiRenderer.composition(text, "tgs:$path") }
-                    if (composition != null) EmojiRenderer.Frame(path, composition, Modifier.matchParentSize(), if (repaint) tint else null)
-                }
-            }
+            current.format is TdApi.StickerFormatTgs -> EmojiRenderer.Frame(path, Modifier.matchParentSize(), if (repaint) tint else null)
             else -> AsyncImage(model = File(path), contentDescription = fallback, modifier = painted)
         }
     }

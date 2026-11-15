@@ -868,4 +868,6 @@
     <string name="pack_stickers_add">Add %d stickers</string>
     <string name="pack_stickers_remove">Remove %d stickers</string>
     <string name="pack_title">Stickers</string>
+    <string name="stickers_recent">Recently Used</string>
+    <string name="stickers_favorites">Favorites</string>
 </resources>

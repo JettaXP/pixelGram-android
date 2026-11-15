@@ -9,7 +9,9 @@ class PixelApp : Application() {
     lateinit var graph: AppGraph
         private set
 
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
     override fun onCreate() {
+        androidx.compose.foundation.ComposeFoundationFlags.isNewContextMenuEnabled = false
         super.onCreate()
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

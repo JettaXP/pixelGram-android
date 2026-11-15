@@ -897,4 +897,6 @@
     <string name="pack_stickers_add">Добавить %d стикеров</string>
     <string name="pack_stickers_remove">Удалить %d стикеров</string>
     <string name="pack_title">Стикеры</string>
+    <string name="stickers_recent">Недавние</string>
+    <string name="stickers_favorites">Избранные</string>
 </resources>

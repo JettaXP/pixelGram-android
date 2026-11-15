@@ -305,7 +305,7 @@ private fun EmojiSetSheet(setId: Long, onDismiss: () -> Unit) {
                             contentAlignment = Alignment.Center,
                         ) {
                             if (id != 0L) CustomEmojiView(id, sticker.emoji, Modifier.fillMaxSize())
-                            else StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize())
+                            else StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(), video = false)
                         }
                     }
                 }

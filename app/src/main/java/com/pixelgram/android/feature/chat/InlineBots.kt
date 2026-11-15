@@ -229,7 +229,7 @@ private fun ResultThumb(result: TdApi.InlineQueryResult, modifier: Modifier) {
         else -> null
     }
     if (result is TdApi.InlineQueryResultSticker) {
-        StickerView(result.sticker, snapshot.files, { graph.store.requestFileAsync(it) }, modifier)
+        StickerView(result.sticker, snapshot.files, { graph.store.requestFileAsync(it) }, modifier, video = false)
         return
     }
     val path = file?.let { snapshot.files[it.id] }

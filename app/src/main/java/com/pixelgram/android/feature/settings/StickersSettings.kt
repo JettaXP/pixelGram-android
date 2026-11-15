@@ -128,7 +128,7 @@ fun StickersSettingsScreen(graph: AppGraph, navigator: Navigator) {
                             colors = segmentedColors(),
                             leadingContent = {
                                 Box(Modifier.size(44.dp)) {
-                                    set.covers?.firstOrNull()?.let { StickerView(it, snapshot.files, { id -> graph.store.requestFileAsync(id) }, Modifier.fillMaxSize()) }
+                                    set.covers?.firstOrNull()?.let { StickerView(it, snapshot.files, { id -> graph.store.requestFileAsync(id) }, Modifier.fillMaxSize(), video = false) }
                                 }
                             },
                             supportingContent = { Text(pluralStringResource(R.plurals.stickers_count, set.size, set.size)) },

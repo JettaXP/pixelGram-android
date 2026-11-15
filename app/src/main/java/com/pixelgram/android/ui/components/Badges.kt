@@ -244,13 +244,26 @@ fun UserBadgeView(badge: UserBadge, size: Dp = 18.dp) {
     val own = custom[badge.userId]
     val notice = stringResource(badge.notice)
     val text = own?.text?.takeIf { it.isNotBlank() } ?: notice
+    val meId = graph.store.snapshot.collectAsState().value.meId
+    val editable = badge.userId == meId && graph.remote.customAllowed(badge.userId)
+    var editing by remember(badge.userId) { androidx.compose.runtime.mutableStateOf(false) }
+    if (editing) com.pixelgram.android.feature.pixel.BadgeEditorSheet(badge.userId, own) { editing = false }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .padding(start = 4.dp)
             .size(size)
             .then(if (own == null) Modifier.clip(MaterialShapes.Cookie12Sided.toShape()).background(scheme.primary) else Modifier)
-            .clickable(interactionSource = null, indication = null) { Notice.show(text) },
+            .combinedClickable(
+                interactionSource = null,
+                indication = null,
+                onClick = { Notice.show(text) },
+                onLongClick = if (editable) ({
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    editing = true
+                }) else null,
+            ),
     ) {
         if (own != null) {
             CustomEmoji(own, size)

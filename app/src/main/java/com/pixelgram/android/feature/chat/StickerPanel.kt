@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -54,6 +58,7 @@ import java.io.File
 private enum class PanelTab { Emoji, Gifs, Stickers }
 
 private const val RecentId = -1L
+private const val FavoritesId = -2L
 private const val StandardId = 0L
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -132,7 +137,7 @@ private fun SetHeader(sets: List<TdApi.StickerSetInfo>, selected: Long, leading:
         itemsIndexed(sets, key = { _, s -> s.id }) { _, set ->
             HeaderCell(set.id == selected, { onSelect(set.id) }) {
                 val cover = set.covers?.firstOrNull()
-                if (cover != null) StickerView(cover, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(28.dp))
+                if (cover != null) StickerView(cover, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(28.dp), video = false)
                 else Text(set.title.take(1), style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -197,24 +202,66 @@ private fun rememberSet(id: Long): List<TdApi.Sticker> {
     return stickers
 }
 
+private class StickerSection(val id: Long, val title: String, val stickers: List<TdApi.Sticker>)
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StickersTab(onSticker: (TdApi.Sticker) -> Unit) {
     val graph = LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
+    val recentTitle = androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.stickers_recent)
+    val favoritesTitle = androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.stickers_favorites)
     val sets by produceState(emptyList<TdApi.StickerSetInfo>()) {
         value = runCatching { graph.td.send(TdApi.GetInstalledStickerSets(TdApi.StickerTypeRegular())).sets.toList() }.getOrDefault(emptyList())
     }
-    var selected by rememberSaveable { mutableStateOf(RecentId) }
-    LaunchedEffect(sets) { if (selected == RecentId && sets.isNotEmpty()) Unit }
+    val sections by produceState(emptyList<StickerSection>(), sets) {
+        val out = ArrayList<StickerSection>()
+        val faves = runCatching { graph.td.send(TdApi.GetFavoriteStickers()).stickers.toList() }.getOrDefault(emptyList())
+        if (faves.isNotEmpty()) out += StickerSection(FavoritesId, favoritesTitle, faves)
+        val recent = runCatching { graph.td.send(TdApi.GetRecentStickers(false)).stickers.toList() }.getOrDefault(emptyList())
+        if (recent.isNotEmpty()) out += StickerSection(RecentId, recentTitle, recent)
+        value = out.toList()
+        sets.forEach { info ->
+            val stickers = runCatching { graph.td.send(TdApi.GetStickerSet(info.id)).stickers.toList() }.getOrDefault(emptyList())
+            if (stickers.isNotEmpty()) {
+                out += StickerSection(info.id, info.title, stickers)
+                value = out.toList()
+            }
+        }
+    }
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val starts = remember(sections) {
+        var index = 0
+        sections.associate { section -> (section.id to index).also { index += 1 + section.stickers.size } }
+    }
+    val selected by remember(sections) {
+        androidx.compose.runtime.derivedStateOf {
+            val first = grid.firstVisibleItemIndex
+            starts.entries.lastOrNull { it.value <= first }?.key ?: sections.firstOrNull()?.id ?: RecentId
+        }
+    }
     Column(Modifier.fillMaxSize()) {
-        SetHeader(sets, selected, listOf(RecentId to Icons.Rounded.History)) { selected = it }
-        val stickers = rememberSet(selected)
-        LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 64.dp)) {
-            items(stickers, key = { it.id }) { sticker ->
-                Box(
-                    Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onLongClick = { MediaPreview.sticker = sticker }) { onSticker(sticker) }.padding(6.dp),
-                    contentAlignment = Alignment.Center,
-                ) { StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize()) }
+        SetHeader(sets, selected, listOf(FavoritesId to androidx.compose.material.icons.Icons.Rounded.Star, RecentId to Icons.Rounded.History).filter { (id, _) -> sections.any { it.id == id } }) { id ->
+            starts[id]?.let { scope.launch { grid.animateScrollToItem(it) } }
+        }
+        LazyVerticalGrid(GridCells.Fixed(5), Modifier.fillMaxSize(), state = grid, contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 64.dp)) {
+            sections.forEach { section ->
+                item(key = "h${section.id}", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }, contentType = "header") {
+                    Text(
+                        section.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 6.dp),
+                    )
+                }
+                items(section.stickers, key = { "${section.id}:${it.id}" }, contentType = { "sticker" }) { sticker ->
+                    Box(
+                        Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onLongClick = { MediaPreview.sticker = sticker }) { onSticker(sticker) }.padding(5.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(), video = false) }
+                }
             }
         }
     }
@@ -227,27 +274,58 @@ private fun GifsTab(onGif: (TdApi.Animation) -> Unit) {
     val gifs by produceState(emptyList<TdApi.Animation>()) {
         value = runCatching { graph.td.send(TdApi.GetSavedAnimations()).animations.toList() }.getOrDefault(emptyList())
     }
-    androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid(
-        androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells.Fixed(2),
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 64.dp),
-        verticalItemSpacing = 4.dp,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        items(gifs.size, key = { gifs[it].animation.id }) { index ->
-            val gif = gifs[index]
-            val thumb = gif.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg || it.format is TdApi.ThumbnailFormatPng || it.format is TdApi.ThumbnailFormatWebp }?.file
-            val path = thumb?.let { snapshot.files[it.id] }
-            if (thumb != null && path == null) LaunchedEffect(thumb.id) { graph.store.requestFileAsync(thumb.id) }
-            val ratio = if (gif.width > 0 && gif.height > 0) (gif.width.toFloat() / gif.height).coerceIn(0.5f, 2.5f) else 1f
-            Box(
-                Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).combinedClickable(onLongClick = { MediaPreview.gif = gif }) { onGif(gif) },
-            ) {
-                AsyncImage(model = path?.let(::File) ?: gif.minithumbnail?.data, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val gap = 4.dp
+        val available = maxWidth - 8.dp
+        val rows = remember(gifs, available) { gifRows(gifs, available.value, GifRowHeight.value, gap.value) }
+        androidx.compose.foundation.lazy.LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 64.dp),
+            verticalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            items(rows.size) { r ->
+                val row = rows[r]
+                Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.fillMaxWidth().height(row.height.dp)) {
+                    row.items.forEach { (gif, width) ->
+                        val thumb = gif.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg || it.format is TdApi.ThumbnailFormatPng || it.format is TdApi.ThumbnailFormatWebp }?.file
+                        val path = thumb?.let { snapshot.files[it.id] }
+                        if (thumb != null && path == null) LaunchedEffect(thumb.id) { graph.store.requestFileAsync(thumb.id) }
+                        Box(
+                            Modifier.width(width.dp).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).combinedClickable(onLongClick = { MediaPreview.gif = gif }) { onGif(gif) },
+                        ) {
+                            AsyncImage(model = path?.let(::File) ?: gif.minithumbnail?.data, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+private class GifRow(val items: List<Pair<TdApi.Animation, Float>>, val height: Float)
+
+private fun gifRows(gifs: List<TdApi.Animation>, width: Float, target: Float, gap: Float): List<GifRow> {
+    val rows = ArrayList<GifRow>()
+    var current = ArrayList<Pair<TdApi.Animation, Float>>()
+    var sum = 0f
+    fun ratio(gif: TdApi.Animation) = if (gif.width > 0 && gif.height > 0) (gif.width.toFloat() / gif.height).coerceIn(0.5f, 3f) else 1f
+    for (gif in gifs) {
+        val r = ratio(gif)
+        current += gif to r
+        sum += r
+        val spacing = gap * (current.size - 1)
+        if (sum * target + spacing >= width) {
+            val height = (width - spacing) / sum
+            rows += GifRow(current.map { (g, k) -> g to k * height }, height)
+            current = ArrayList()
+            sum = 0f
+        }
+    }
+    if (current.isNotEmpty()) rows += GifRow(current.map { (g, k) -> g to k * target }, target)
+    return rows
+}
+
+private val GifRowHeight = 110.dp
 
 fun stickerInput(sticker: TdApi.Sticker): TdApi.InputMessageContent =
     TdApi.InputMessageSticker(TdApi.InputSticker().apply {
