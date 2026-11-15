@@ -153,6 +153,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             } else return
             is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
                 messages[update.messageId]?.editDate = update.editDate
+                messages[update.messageId]?.replyMarkup = update.replyMarkup
             } else return
             is TdApi.UpdateChatAction -> if (update.chatId == chatId) {
                 val sender = when (val from = update.senderId) {

@@ -807,4 +807,13 @@
     <string name="channel_discussion">Discuss</string>
     <string name="channel_comments">Comments</string>
     <string name="channel_leave_comment">Leave a comment</string>
+    <string name="button_copy_title">Copy Title</string>
+    <string name="button_copy_callback">Copy Callback Data</string>
+    <string name="button_copy_link">Copy Link</string>
+    <string name="button_copy_query">Copy Query</string>
+    <string name="button_copy_text">Copy Text</string>
+    <plurals name="channel_comments_count">
+        <item quantity="one">%d comment</item>
+        <item quantity="other">%d comments</item>
+    </plurals>
 </resources>

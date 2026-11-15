@@ -146,6 +146,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
     com.pixelgram.android.feature.pixel.SupportSheet()
+    com.pixelgram.android.feature.chat.WebAppHost()
     com.pixelgram.android.feature.premium.PaymentHost()
     com.pixelgram.android.feature.premium.EmojiStatusHost { navigator.open(PremiumKey) }
     val linkContext = androidx.compose.ui.platform.LocalContext.current

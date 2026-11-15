@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.material.icons.rounded.Web
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material.icons.automirrored.rounded.Chat
@@ -552,6 +553,18 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     },
                                 )
                             }
+                            MessageBotExtras(
+                                message = message,
+                                chatId = chatId,
+                                channel = ui.channel,
+                                onOpenUrl = { url -> linkOpener.url(url) },
+                                onComments = {
+                                    controller.openComments(message) { chat, root ->
+                                        navigator.open(ChatKey(chat))
+                                        com.pixelgram.android.nav.PendingNav.jump = chat to root
+                                    }
+                                },
+                            )
                         }
                     }
                 }
@@ -936,6 +949,15 @@ internal fun MessageBubble(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
+                    )
+                }
+                if (message.viaBotId != 0L) {
+                    val bot = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.viaBotId]?.username
+                    if (bot != null) Text(
+                        "via @$bot",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp).clickable { ComposerRequests.text = "@$bot " },
                     )
                 }
                 if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth()) }
@@ -1473,6 +1495,13 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
         attach = false
     }) { attach = false }
     LaunchedEffect(editing?.id) { if (editing != null) draft = RichDraft.of(editing.text, editing.entities) }
+    LaunchedEffect(ComposerRequests.text) {
+        val request = ComposerRequests.text ?: return@LaunchedEffect
+        ComposerRequests.text = null
+        draft = RichDraft.of(request, emptyList())
+        focus.requestFocus()
+        keyboard?.show()
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -1584,6 +1613,27 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                 ) {
                     Row(verticalAlignment = Alignment.Bottom) {
+                        val graphHere = com.pixelgram.android.LocalGraph.current
+                        val menuButton by androidx.compose.runtime.produceState<TdApi.BotMenuButton?>(null, controller.chatId) {
+                            val bot = (graphHere.store.chat(controller.chatId)?.type as? TdApi.ChatTypePrivate)?.userId ?: return@produceState
+                            if (graphHere.store.snapshot.value.users[bot]?.bot != true) return@produceState
+                            value = runCatching { graphHere.td.send(TdApi.GetUserFullInfo(bot)).botInfo?.menuButton }.getOrNull()?.takeIf { it.url.isNotBlank() }
+                        }
+                        val menuScope = rememberCoroutineScope()
+                        menuButton?.let { button ->
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    val bot = (graphHere.store.chat(controller.chatId)?.type as? TdApi.ChatTypePrivate)?.userId ?: return@Button
+                                    menuScope.launch { openWebApp(graphHere, controller.chatId, bot, button.url, button.text) }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp),
+                                modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).height(36.dp),
+                            ) {
+                                Icon(Icons.Rounded.Web, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(button.text, maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
                         IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
                             Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
                         }
