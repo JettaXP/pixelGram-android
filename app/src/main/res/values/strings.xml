@@ -804,4 +804,7 @@
     <string name="format_date">Date</string>
     <string name="format_markdown_on">Enable Markdown</string>
     <string name="format_markdown_off">Disable Markdown</string>
+    <string name="channel_discussion">Discuss</string>
+    <string name="channel_comments">Comments</string>
+    <string name="channel_leave_comment">Leave a comment</string>
 </resources>

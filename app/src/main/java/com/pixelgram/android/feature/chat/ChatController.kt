@@ -39,6 +39,10 @@ data class UiMessage(
     val reactions: List<ReactionUi> = emptyList(),
     val views: Int = 0,
     val chatId: Long = 0,
+    val comments: Int = -1,
+    val commenters: List<Long> = emptyList(),
+    val viaBotId: Long = 0,
+    val markup: TdApi.ReplyMarkup? = null,
 )
 
 @Immutable
@@ -60,6 +64,7 @@ data class ChatUi(
     val online: Int = 0,
     val channel: Boolean = false,
     val pinned: UiMessage? = null,
+    val linkedChatId: Long = 0,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -97,6 +102,18 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                 }
             }.getOrDefault(0)
             ui.value = ui.value.copy(members = members, channel = (chat?.type as? TdApi.ChatTypeSupergroup)?.isChannel == true)
+            (chat?.type as? TdApi.ChatTypeSupergroup)?.let { type ->
+                val group = runCatching { graph.td.send(TdApi.GetSupergroup(type.supergroupId)) }.getOrNull()
+                val full = runCatching { graph.td.send(TdApi.GetSupergroupFullInfo(type.supergroupId)) }.getOrNull()
+                val canPost = when (val status = group?.status) {
+                    is TdApi.ChatMemberStatusCreator -> true
+                    is TdApi.ChatMemberStatusAdministrator -> !type.isChannel || status.rights.canPostMessages
+                    is TdApi.ChatMemberStatusRestricted -> !type.isChannel && status.permissions.canSendBasicMessages
+                    is TdApi.ChatMemberStatusLeft, is TdApi.ChatMemberStatusBanned -> !type.isChannel && chat.permissions.canSendBasicMessages
+                    else -> !type.isChannel && chat.permissions.canSendBasicMessages
+                }
+                ui.value = ui.value.copy(canSend = canPost, linkedChatId = if (type.isChannel) full?.linkedChatId ?: 0 else 0)
+            }
         }
         loadPinned()
         loadMore()
@@ -308,6 +325,14 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun openComments(message: UiMessage, open: (Long, Long) -> Unit) {
+        scope.launch {
+            val info = runCatching { graph.td.send(TdApi.GetMessageThread(chatId, message.id)) }.getOrNull() ?: return@launch
+            val root = info.messages.lastOrNull()?.id ?: info.messageThreadId
+            open(info.chatId, root)
+        }
+    }
+
     fun react(message: UiMessage, emoji: String) {
         if (emoji.isBlank()) return
         if (message.reactions.any { it.emoji == emoji && it.chosen }) {
@@ -508,6 +533,10 @@ internal fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
             }
         },
         views = if (isChannelPost) interactionInfo?.viewCount ?: 0 else 0,
+        comments = if (isChannelPost) interactionInfo?.replyInfo?.replyCount ?: -1 else -1,
+        commenters = interactionInfo?.replyInfo?.recentReplierIds?.mapNotNull { (it as? TdApi.MessageSenderUser)?.userId ?: (it as? TdApi.MessageSenderChat)?.chatId }.orEmpty(),
+        viaBotId = viaBotUserId,
+        markup = replyMarkup,
         chatId = chatId,
     )
 }

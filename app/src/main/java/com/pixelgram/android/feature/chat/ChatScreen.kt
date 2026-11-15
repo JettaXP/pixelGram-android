@@ -1,5 +1,10 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.runtime.key
 import androidx.compose.ui.draw.drawWithContent
@@ -394,6 +399,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                         modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(vertical = 18.dp),
                     )
                 }
+            } else if (!ui.canSend) {
+                ChannelBar(graph, chatId, ui.linkedChatId) { navigator.open(ChatKey(it)) }
             } else {
                 Composer(ui.replyTo, ui.editing, controller) { navigator.open(ChatKey(it)) }
             }
@@ -2334,8 +2341,10 @@ private fun PlainText(
     maxLines: Int = Int.MAX_VALUE,
     onLastLine: (Float) -> Unit = {},
 ) {
+    @Suppress("NAME_SHADOWING")
+    val entities = remember(text, entities) { withAutoLinks(text, entities) }
     val report: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { layout -> onLastLine(layout.getLineRight(layout.lineCount - 1)) }
-    val inline = remember(text, entities, fontSize) { com.pixelgram.android.ui.components.customEmojiContent(entities, text, (fontSize * 1.25f).sp) }
+    val inline = remember(text, entities) { com.pixelgram.android.ui.components.customEmojiSlots(entities, text) }
     val hasSpoiler = remember(entities) { entities.any { it.type is TdApi.TextEntityTypeSpoiler } }
     val strikes = remember(text, entities) { entities.filter { it.type is TdApi.TextEntityTypeStrikethrough }.map { it.offset until (it.offset + it.length) } }
     var strikeLayout by remember(text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
@@ -2345,8 +2354,9 @@ private fun PlainText(
         strikeLayout?.let { l -> strikes.forEach { drawWavyStrike(l, it, waveColor) } }
     }
     val reportAll: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { strikeLayout = it; report(it) }
+
     if (!hasSpoiler) {
-        Text(formatted(text, entities, link, content), style = style, maxLines = maxLines, overflow = if (inline.isEmpty()) TextOverflow.Ellipsis else TextOverflow.Clip, inlineContent = inline, modifier = modifier.then(wave), onTextLayout = reportAll)
+        com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, modifier = modifier.then(wave), onTextLayout = reportAll)
         return
     }
     var revealed by remember(text) { mutableStateOf(false) }
@@ -2354,10 +2364,10 @@ private fun PlainText(
     val radius by androidx.compose.animation.core.animateDpAsState(if (revealed) 0.dp else SpoilerBlur, MaterialTheme.motionScheme.slowEffectsSpec(), label = "spoiler")
     Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
         when {
-            revealed && radius == 0.dp -> Text(formatted(text, entities, link, content, SpoilerMode.Shown), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = reportAll, modifier = wave)
-            !blurSupported -> Text(formatted(text, entities, link, content, SpoilerMode.Block), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
+            revealed && radius == 0.dp -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Shown), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = reportAll, modifier = wave)
+            !blurSupported -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Block), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = report)
             else -> {
-                Text(formatted(text, entities, link, content, SpoilerMode.Hidden), style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, inlineContent = inline, onTextLayout = report)
+                com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Hidden), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = report)
                 Text(
                     formatted(text, entities, link, content, SpoilerMode.Only),
                     style = style,
@@ -2711,14 +2721,14 @@ private fun PinnedBar(message: UiMessage, modifier: Modifier = Modifier, onClick
                         }
                     }
                 }
-                Text(
+                com.pixelgram.android.ui.components.OverlayEmojiText(
                     annotated,
+                    com.pixelgram.android.ui.components.customEmojiSlots(message.entities, text),
                     style = style,
-                    maxLines = 1,
                     softWrap = false,
+                    maxLines = 1,
                     overflow = TextOverflow.Clip,
                     modifier = Modifier.fillMaxWidth().fadeEnd(),
-                    inlineContent = com.pixelgram.android.ui.components.customEmojiContent(message.entities, text, style.fontSize * 1.15f),
                 )
             }
             Icon(Icons.Rounded.PushPin, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -2812,4 +2822,77 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWavyStrike(layo
         }
         drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
     }
+}
+
+private val AutoLink = Regex("""(?:https?://|www\.|t\.me/)[^\s<>()]+|(?<![\w@])@[A-Za-z][A-Za-z0-9_]{3,31}""")
+
+private fun withAutoLinks(text: String, entities: List<TdApi.TextEntity>): List<TdApi.TextEntity> {
+    val covered = BooleanArray(text.length)
+    entities.forEach { e -> for (i in e.offset.coerceAtLeast(0) until (e.offset + e.length).coerceAtMost(text.length)) covered[i] = true }
+    val extra = AutoLink.findAll(text).mapNotNull { m ->
+        var end = m.range.last + 1
+        while (end > m.range.first && text[end - 1] in ".,!?:;\"'") end--
+        val start = m.range.first
+        if (end <= start || (start until end).any { covered[it] }) return@mapNotNull null
+        val type: TdApi.TextEntityType = if (text[start] == '@') TdApi.TextEntityTypeMention() else TdApi.TextEntityTypeUrl()
+        TdApi.TextEntity(start, end - start, type)
+    }.toList()
+    return if (extra.isEmpty()) entities else (entities + extra).sortedBy { it.offset }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChannelBar(graph: com.pixelgram.android.AppGraph, chatId: Long, linkedChatId: Long, onOpenChat: (Long) -> Unit) {
+    val snapshot by graph.store.snapshot.collectAsState()
+    val chat = remember(chatId, snapshot) { graph.store.chat(chatId) }
+    val muted = (chat?.notificationSettings?.muteFor ?: 0) > 0
+    val scope = rememberCoroutineScope()
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            androidx.compose.material3.FilledTonalButton(
+                onClick = {
+                    scope.launch {
+                        runCatching {
+                            graph.td.send(TdApi.SetChatNotificationSettings(chatId, TdApi.ChatNotificationSettings().apply {
+                                useDefaultMuteFor = false
+                                muteFor = if (muted) 0 else Int.MAX_VALUE
+                                useDefaultSound = true
+                                useDefaultShowPreview = true
+                                useDefaultMuteStories = true
+                                useDefaultShowStoryPoster = true
+                                useDefaultDisablePinnedMessageNotifications = true
+                                useDefaultDisableMentionNotifications = true
+                            }))
+                        }
+                    }
+                },
+                shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                modifier = Modifier.weight(1f).height(52.dp),
+            ) {
+                Icon(if (muted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff, null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (muted) R.string.chat_unmute else R.string.chat_mute), style = MaterialTheme.typography.titleMedium)
+            }
+            if (linkedChatId != 0L) {
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { onOpenChat(linkedChatId) },
+                    shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.Chat, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.channel_discussion), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.clampHeight(max: androidx.compose.ui.unit.Dp): Modifier = this.layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+    val height = minOf(placeable.height, max.roundToPx(), constraints.maxHeight)
+    layout(placeable.width, height) { placeable.place(0, 0) }
 }

@@ -496,7 +496,7 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val prefix = buildString {
         if (row.outgoing) append(stringResource(R.string.preview_you)).append(": ")
         else if (preview?.sender != null) append(preview.sender).append(": ")
-        if (hasThumb) append("\uFFFC ")
+        if (hasThumb) append("\u2B1B ")
         if (kindLabel != null && !(hasThumb && preview.text.isNotBlank())) {
             append(kindLabel)
             if (preview.text.isNotBlank()) append(", ")
@@ -507,8 +507,6 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val shifted = preview?.entities.orEmpty().map { org.drinkless.tdlib.TdApi.TextEntity(it.offset + prefix.length, it.length, it.type) }
     val annotated = androidx.compose.ui.text.buildAnnotatedString {
         append(body)
-        val at = body.indexOf('\uFFFC')
-        if (hasThumb && at >= 0) addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, "thumb", at, at + 1)
         shifted.forEach { e ->
             val type = e.type as? org.drinkless.tdlib.TdApi.TextEntityTypeCustomEmoji ?: return@forEach
             val start = e.offset.coerceIn(0, body.length)
@@ -517,25 +515,27 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         }
     }
     val style = MaterialTheme.typography.bodyMedium
-    Text(
+    val thumbSlot = if (hasThumb && preview != null) {
+        val at = body.indexOf('\u2B1B')
+        if (at >= 0) listOf(com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
+            val graph = com.pixelgram.android.LocalGraph.current
+            val snapshot by graph.store.snapshot.collectAsState()
+            val path = preview.thumbFileId.takeIf { it != 0 }?.let { snapshot.files[it] }
+            if (path == null && preview.thumbFileId != 0) androidx.compose.runtime.LaunchedEffect(preview.thumbFileId) { graph.store.requestFileAsync(preview.thumbFileId) }
+            Box(Modifier.size(side).padding(1.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                coil.compose.AsyncImage(model = path?.let { java.io.File(it) } ?: preview.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                if (preview.playable) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.7f))
+            }
+        }) else emptyList()
+    } else emptyList()
+    com.pixelgram.android.ui.components.OverlayEmojiText(
         annotated,
+        com.pixelgram.android.ui.components.customEmojiSlots(shifted, body) + thumbSlot,
         style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
         softWrap = false,
+        maxLines = 1,
         overflow = TextOverflow.Clip,
-        inlineContent = com.pixelgram.android.ui.components.customEmojiContent(shifted, body, style.fontSize * 1.15f) + if (hasThumb && preview != null) mapOf(
-            "thumb" to androidx.compose.foundation.text.InlineTextContent(androidx.compose.ui.text.Placeholder(style.fontSize * 1.35f, style.fontSize * 1.35f, androidx.compose.ui.text.PlaceholderVerticalAlign.TextCenter)) {
-                val graph = com.pixelgram.android.LocalGraph.current
-                val snapshot by graph.store.snapshot.collectAsState()
-                val path = preview.thumbFileId.takeIf { it != 0 }?.let { snapshot.files[it] }
-                if (path == null && preview.thumbFileId != 0) androidx.compose.runtime.LaunchedEffect(preview.thumbFileId) { graph.store.requestFileAsync(preview.thumbFileId) }
-                Box(Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-                    coil.compose.AsyncImage(model = path?.let { java.io.File(it) } ?: preview.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    if (preview.playable) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.7f))
-                }
-            },
-        ) else emptyMap(),
         modifier = modifier,
     )
 }

@@ -827,4 +827,7 @@
     <string name="format_date">Дата</string>
     <string name="format_markdown_on">Включить Markdown</string>
     <string name="format_markdown_off">Выключить Markdown</string>
+    <string name="channel_discussion">Обсуждение</string>
+    <string name="channel_comments">Комментарии</string>
+    <string name="channel_leave_comment">Оставить комментарий</string>
 </resources>
