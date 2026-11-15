@@ -1,6 +1,6 @@
 package com.pixelgram.android.ui.components
 
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -59,7 +59,7 @@ fun <K> CapsuleBar(
         contentAlignment = Alignment.Center,
     ) {
         HorizontalFloatingToolbar(
-            modifier = Modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } },
+            modifier = Modifier.clickable(interactionSource = null, indication = null) {},
             expanded = true,
             colors = FloatingToolbarDefaults.standardFloatingToolbarColors(toolbarContainerColor = MaterialTheme.colorScheme.surfaceBright),
             expandedShadowElevation = 6.dp,
