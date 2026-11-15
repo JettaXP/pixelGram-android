@@ -372,19 +372,38 @@ private fun StickerContent(sticker: TdApi.Sticker, files: Map<Int, String>, onNe
 }
 
 object EmojiEffects {
-    private val cache = java.util.concurrent.ConcurrentHashMap<String, TdApi.Sticker>()
+    private var map: Map<String, List<TdApi.Sticker>>? = null
+    private val lock = kotlinx.coroutines.sync.Mutex()
+    private val hearts = listOf("🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎")
+
+    fun unwrap(emoji: String): String = emoji.replace("\uFE0F", "").replace(Regex("[\uD83C][\uDFFB-\uDFFF]"), "")
 
     suspend fun load(td: com.pixelgram.android.td.TdClient, emoji: String): TdApi.Sticker? {
-        cache[emoji]?.let { return it }
-        val candidates = listOf(emoji, emoji.replace("\uFE0F", "")).distinct()
-        for (candidate in candidates) {
-            val sticker = runCatching { td.send(TdApi.GetEmojiReaction(candidate)).effectAnimation }.getOrNull() ?: continue
-            cache[emoji] = sticker
-            return sticker
-        }
-        return null
+        val stickers = lock.withLockOrLoad(td) ?: return null
+        return stickers[unwrap(emoji)]?.randomOrNull()
     }
+
+    private suspend fun kotlinx.coroutines.sync.Mutex.withLockOrLoad(td: com.pixelgram.android.td.TdClient): Map<String, List<TdApi.Sticker>>? {
+        lock()
+        try {
+            map?.let { return it }
+            val set = runCatching { td.send(TdApi.SearchStickerSet(InteractionsPack, false)) }.getOrNull() ?: return null
+            val out = HashMap<String, MutableList<TdApi.Sticker>>()
+            set.stickers.forEachIndexed { i, sticker ->
+                val keys = set.emojis.getOrNull(i)?.emojis?.toList().orEmpty().ifEmpty { listOf(sticker.emoji) }
+                keys.forEach { out.getOrPut(unwrap(it)) { mutableListOf() } += sticker }
+            }
+            out["\u2764"]?.let { heart -> hearts.forEach { out.getOrPut(it) { heart } } }
+            return out.also { map = it }
+        } finally {
+            unlock()
+        }
+    }
+
+    private const val InteractionsPack = "EmojiAnimations"
 }
+
+private class TapEffect(val id: Int, val sticker: TdApi.Sticker, val dx: Float, val dy: Float)
 
 @Composable
 internal fun EmojiTapEffect(
@@ -397,42 +416,50 @@ internal fun EmojiTapEffect(
 ) {
     val graph = com.pixelgram.android.LocalGraph.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var effect by remember { mutableStateOf<TdApi.Sticker?>(null) }
-    var runs by remember { mutableStateOf(0) }
-    var bounce by remember { mutableStateOf(0) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val effects = remember { androidx.compose.runtime.mutableStateListOf<TapEffect>() }
+    var counter by remember { mutableStateOf(0) }
+    LaunchedEffect(emoji) { EmojiEffects.load(graph.td, emoji)?.let { onNeedFile(it.sticker.id) } }
     Box(contentAlignment = Alignment.Center) {
-        androidx.compose.runtime.key(bounce) {
         content(
             Modifier.clickable(interactionSource = null, indication = null) {
-                bounce++
-                if (effect == null) scope.launch {
-                    val result = EmojiEffects.load(graph.td, emoji)
-                    if (result != null && effect == null) {
-                        effect = result
-                        runs++
-                    }
+                if (effects.size >= MaxTapEffects) return@clickable
+                scope.launch {
+                    val sticker = EmojiEffects.load(graph.td, emoji) ?: return@launch
+                    val random = java.util.Random()
+                    counter++
+                    effects += TapEffect(counter, sticker, (random.nextInt() % 101) / 100f / 4f, (random.nextInt() % 101) / 100f / 4f)
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 }
             },
         )
-        }
-        effect?.let { shown ->
-            val shift = with(androidx.compose.ui.platform.LocalDensity.current) { (size * EffectShift).roundToPx() }
-            androidx.compose.ui.window.Popup(
-                alignment = Alignment.Center,
-                offset = androidx.compose.ui.unit.IntOffset(if (outgoing) -shift else shift, 0),
-            ) {
-                OneShotSticker(
-                    shown,
-                    files,
-                    onNeedFile,
-                    runs,
-                    Modifier.size(size * EffectScale).graphicsLayer { if (!outgoing) scaleX = -1f },
-                    fallback = null,
-                ) { effect = null }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        effects.forEach { effect ->
+            androidx.compose.runtime.key(effect.id) {
+                val w = with(density) { size.toPx() }
+                val pad = with(density) { 24.dp.toPx() }
+                val x = (if (outgoing) -2f * w + pad else -pad) + w * effect.dx
+                val y = -w + w * effect.dy
+                androidx.compose.ui.window.Popup(
+                    alignment = Alignment.TopStart,
+                    offset = androidx.compose.ui.unit.IntOffset(x.toInt(), y.toInt()),
+                    properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false),
+                ) {
+                    OneShotSticker(
+                        effect.sticker,
+                        files,
+                        onNeedFile,
+                        1,
+                        Modifier.size(size * EffectScale).graphicsLayer { if (!outgoing) scaleX = -1f },
+                        fallback = null,
+                    ) { effects.removeAll { it.id == effect.id } }
+                }
             }
         }
     }
 }
+
+private const val MaxTapEffects = 4
 
 @Composable
 internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier) {

@@ -860,4 +860,12 @@
     <string name="action_select">Select</string>
     <string name="sticker_fave">Add to Favorites</string>
     <string name="sticker_unfave">Remove from Favorites</string>
+    <string name="pack_share">Share</string>
+    <string name="pack_copy_link">Copy link</string>
+    <string name="pack_refresh">Refresh</string>
+    <string name="pack_owner">Owner</string>
+    <string name="pack_owner_copied">Owner ID copied</string>
+    <string name="pack_stickers_add">Add %d stickers</string>
+    <string name="pack_stickers_remove">Remove %d stickers</string>
+    <string name="pack_title">Stickers</string>
 </resources>

@@ -56,6 +56,7 @@ object PendingNav {
     var chat by androidx.compose.runtime.mutableStateOf<Long?>(null)
     var link by androidx.compose.runtime.mutableStateOf<String?>(null)
     var jump by androidx.compose.runtime.mutableStateOf<Pair<Long, Long>?>(null)
+    var profile by androidx.compose.runtime.mutableStateOf<Long?>(null)
 }
 
 object PixelLinks {
@@ -159,6 +160,12 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         PendingNav.link?.let { link ->
             PendingNav.link = null
             (if (SettingsLinks.matches(link)) SettingsLinks.resolve(linkContext, link) else PixelLinks.key(link))?.let { navigator.open(it) }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(PendingNav.profile) {
+        PendingNav.profile?.let { id ->
+            PendingNav.profile = null
+            navigator.open(ProfileKey(id))
         }
     }
     androidx.compose.runtime.LaunchedEffect(PendingNav.chat) {

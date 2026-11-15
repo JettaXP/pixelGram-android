@@ -619,7 +619,15 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                 ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
             }
             if (ui.pins.isNotEmpty()) {
-                var pinIndex by remember(ui.pins.size) { mutableStateOf(0) }
+                var pinIndex by remember(ui.pins) { mutableStateOf(0) }
+                val latestPins by androidx.compose.runtime.rememberUpdatedState(ui.pins)
+                LaunchedEffect(Unit) {
+                    androidx.compose.runtime.snapshotFlow {
+                        val pins = latestPins
+                        val visible = listState.layoutInfo.visibleItemsInfo.firstNotNullOfOrNull { it.key as? Long }
+                        if (pins.isEmpty() || visible == null) null else pins.indexOfFirst { it.id <= visible }.let { if (it < 0) pins.lastIndex else it }
+                    }.collect { found -> if (found != null) pinIndex = found }
+                }
                 val index = pinIndex.coerceIn(0, ui.pins.lastIndex)
                 PinnedBar(ui.pins, index, Modifier.align(Alignment.TopCenter)) {
                     jumpTo(ui.pins[index].id)
@@ -909,7 +917,6 @@ internal fun MessageBubble(
                         latestSelectDrag(null)
                         return@awaitEachGesture
                     }
-                    if (!inside && !latestSelecting) return@awaitEachGesture
                     up.consume()
                     if (latestSelecting) {
                         latestTap(pointAt(up.position.x, up.position.y))

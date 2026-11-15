@@ -20,6 +20,13 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material3.Button
@@ -190,34 +197,141 @@ private fun PreviewAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmojiSetSheet(setId: Long, onDismiss: () -> Unit) {
     val graph = LocalGraph.current
     val scope = rememberCoroutineScope()
-    val set by produceState<TdApi.StickerSet?>(null, setId) { value = runCatching { graph.td.send(TdApi.GetStickerSet(setId)) }.getOrNull() }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        val current = set
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp)) {
-            Text(current?.title.orEmpty(), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp))
-            LazyVerticalGrid(GridCells.Fixed(8), Modifier.fillMaxWidth().height(320.dp)) {
-                items(current?.stickers.orEmpty().toList(), key = { it.id }) { sticker ->
-                    val id = (sticker.fullType as? TdApi.StickerFullTypeCustomEmoji)?.customEmojiId ?: 0L
-                    Box(Modifier.aspectRatio(1f).padding(3.dp), contentAlignment = Alignment.Center) {
-                        if (id != 0L) CustomEmojiView(id, sticker.emoji, Modifier.fillMaxSize())
-                        else StickerView(sticker, graph.store.snapshot.value.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize())
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    var set by androidx.compose.runtime.remember(setId) { mutableStateOf<TdApi.StickerSet?>(null) }
+    var busy by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var menu by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var ownerCopied by androidx.compose.runtime.remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(setId) { set = runCatching { graph.td.send(TdApi.GetStickerSet(setId)) }.getOrNull() }
+    androidx.compose.runtime.LaunchedEffect(menu) { if (!menu) ownerCopied = false }
+    val loaded = set
+    val emoji = loaded?.stickerType is TdApi.StickerTypeCustomEmoji
+    val link = loaded?.let { "https://t.me/${if (emoji) "addemoji" else "addstickers"}/${it.name}" }
+    val snapshot by graph.store.snapshot.collectAsState()
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    loaded?.title ?: stringResource(R.string.pack_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                )
+                Box {
+                    androidx.compose.material3.IconButton(onClick = { menu = true }, enabled = link != null) {
+                        Icon(Icons.Rounded.MoreVert, stringResource(R.string.action_more))
+                    }
+                    androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(16.dp)) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.pack_share)) },
+                            leadingIcon = { Icon(Icons.Rounded.Share, null) },
+                            onClick = {
+                                menu = false
+                                link?.let { url ->
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, url)
+                                    context.startActivity(android.content.Intent.createChooser(intent, null))
+                                }
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.pack_copy_link)) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, null) },
+                            onClick = {
+                                menu = false
+                                link?.let { clipboard.setText(AnnotatedString(it)) }
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.pack_refresh)) },
+                            leadingIcon = { Icon(Icons.Rounded.Refresh, null) },
+                            enabled = loaded != null,
+                            onClick = {
+                                menu = false
+                                val name = loaded?.name ?: return@DropdownMenuItem
+                                scope.launch { runCatching { graph.td.send(TdApi.SearchStickerSet(name, true)) }.getOrNull()?.let { set = it } }
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(if (ownerCopied) R.string.pack_owner_copied else R.string.pack_owner)) },
+                            leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                            enabled = loaded != null && !ownerCopied,
+                            onClick = {
+                                val owner = loaded?.let { packOwner(it.id) } ?: return@DropdownMenuItem
+                                scope.launch {
+                                    val user = runCatching { graph.td.send(TdApi.GetUser(owner)) }.getOrNull()
+                                    if (user != null) {
+                                        menu = false
+                                        onDismiss()
+                                        com.pixelgram.android.nav.PendingNav.profile = owner
+                                    } else {
+                                        clipboard.setText(AnnotatedString(owner.toString()))
+                                        ownerCopied = true
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
+                androidx.compose.material3.IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, stringResource(R.string.action_close)) }
             }
-            if (current != null) {
+            if (loaded == null) {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { androidx.compose.material3.LoadingIndicator() }
+            } else {
+                LazyVerticalGrid(
+                    GridCells.Adaptive(if (emoji) 44.dp else 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                ) {
+                    val chat = com.pixelgram.android.notify.AppVisibility.openChat
+                    val sendable = !emoji && chat != 0L
+                    items(loaded.stickers.toList(), key = { it.sticker.id }) { sticker ->
+                        val id = (sticker.fullType as? TdApi.StickerFullTypeCustomEmoji)?.customEmojiId ?: 0L
+                        Box(
+                            Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).then(
+                                if (sendable) Modifier.clickable {
+                                    scope.launch { runCatching { graph.td.send(TdApi.SendMessage().apply { chatId = chat; inputMessageContent = stickerInput(sticker) }) } }
+                                    onDismiss()
+                                } else Modifier,
+                            ).padding(3.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (id != 0L) CustomEmojiView(id, sticker.emoji, Modifier.fillMaxSize())
+                            else StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize())
+                        }
+                    }
+                }
+                val installed = loaded.isInstalled && !loaded.isArchived
                 Button(
                     onClick = {
-                        scope.launch { runCatching { graph.td.send(TdApi.ChangeStickerSet(setId, !current.isInstalled, false)) } }
-                        onDismiss()
+                        busy = true
+                        scope.launch {
+                            runCatching { graph.td.send(TdApi.ChangeStickerSet(setId, !installed, false)) }
+                            set = runCatching { graph.td.send(TdApi.GetStickerSet(setId)) }.getOrNull() ?: set
+                            busy = false
+                        }
                     },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                ) { Text(stringResource(if (current.isInstalled) R.string.emoji_set_remove else R.string.emoji_set_add, current.stickers.size)) }
+                    enabled = !busy,
+                    colors = if (installed) androidx.compose.material3.ButtonDefaults.filledTonalButtonColors() else androidx.compose.material3.ButtonDefaults.buttonColors(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).height(52.dp),
+                ) {
+                    val count = loaded.stickers.size
+                    Text(stringResource(if (emoji) (if (installed) R.string.emoji_set_remove else R.string.emoji_set_add) else (if (installed) R.string.pack_stickers_remove else R.string.pack_stickers_add), count))
+                }
             }
         }
     }
+}
+
+private fun packOwner(setId: Long): Long {
+    val high = setId ushr 32
+    return if ((setId ushr 24) and 0xFF != 0L) high + 0x100000000L else high
 }

@@ -889,4 +889,12 @@
     <string name="action_select">Выбрать</string>
     <string name="sticker_fave">В избранное</string>
     <string name="sticker_unfave">Убрать из избранного</string>
+    <string name="pack_share">Поделиться</string>
+    <string name="pack_copy_link">Копировать ссылку</string>
+    <string name="pack_refresh">Обновить</string>
+    <string name="pack_owner">Владелец</string>
+    <string name="pack_owner_copied">ID владельца скопирован</string>
+    <string name="pack_stickers_add">Добавить %d стикеров</string>
+    <string name="pack_stickers_remove">Удалить %d стикеров</string>
+    <string name="pack_title">Стикеры</string>
 </resources>
