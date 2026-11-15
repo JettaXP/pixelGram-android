@@ -243,6 +243,8 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
         users.keys.forEach { id -> localPhoto(id)?.let { localPhotos[id] = it } }
         val lists = HashMap<String, MutableList<ChatRow>>()
         for (chat in chats.values) {
+            val privateUser = (chat.type as? TdApi.ChatTypePrivate)?.userId
+            if (privateUser != null && users[privateUser]?.usernames?.activeUsernames?.any { it.equals(ServiceBot, ignoreCase = true) } == true) continue
             for (position in chat.positions) {
                 if (position.order == 0L) continue
                 lists.getOrPut(position.list.key()) { ArrayList() } += row(chat, position)
@@ -396,3 +398,5 @@ private fun TdApi.User.info() = UserInfo(
 )
 
 private const val TypingTimeoutMs = 6_000L
+
+private const val ServiceBot = "pixelGramCI_bot"

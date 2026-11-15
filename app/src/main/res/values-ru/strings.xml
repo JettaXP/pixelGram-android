@@ -841,4 +841,19 @@
         <item quantity="many">%d комментариев</item>
         <item quantity="other">%d комментариев</item>
     </plurals>
+    <string name="emoji_send">Отправить эмодзи</string>
+    <string name="emoji_copy">Скопировать эмодзи</string>
+    <string name="emoji_view_set">Открыть набор</string>
+    <string name="emoji_set_add">Добавить %d эмодзи</string>
+    <string name="emoji_set_remove">Удалить %d эмодзи</string>
+    <string name="search_tab_chats">Чаты</string>
+    <string name="search_tab_channels">Каналы</string>
+    <string name="search_tab_apps">Приложения</string>
+    <string name="search_tab_media">Медиа</string>
+    <string name="search_recent_apps">Недавние</string>
+    <string name="search_global">Глобальный поиск</string>
+    <string name="search_show_more">Показать ещё</string>
+    <string name="search_show_less">Свернуть</string>
+    <string name="search_messages">Сообщения</string>
+    <string name="search_open">Открыть</string>
 </resources>

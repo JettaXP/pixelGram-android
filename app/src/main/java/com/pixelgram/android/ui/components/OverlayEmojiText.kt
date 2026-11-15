@@ -1,5 +1,6 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Text
@@ -28,7 +29,7 @@ fun customEmojiSlots(entities: List<TdApi.TextEntity>, text: String, shift: Int 
     val end = (e.offset + e.length + shift).coerceIn(start, text.length)
     if (end <= start) return@mapNotNull null
     val fallback = text.substring(start, end)
-    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, size = side) }
+    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, androidx.compose.ui.Modifier.clickable(interactionSource = null, indication = null) { com.pixelgram.android.feature.chat.EmojiPreview.request = type.customEmojiId to fallback }, size = side) }
 }
 
 @Composable

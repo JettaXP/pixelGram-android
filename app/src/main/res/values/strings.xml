@@ -816,4 +816,19 @@
         <item quantity="one">%d comment</item>
         <item quantity="other">%d comments</item>
     </plurals>
+    <string name="emoji_send">Send Emoji</string>
+    <string name="emoji_copy">Copy Emoji</string>
+    <string name="emoji_view_set">View Emoji Set</string>
+    <string name="emoji_set_add">Add %d emoji</string>
+    <string name="emoji_set_remove">Remove %d emoji</string>
+    <string name="search_tab_chats">Chats</string>
+    <string name="search_tab_channels">Channels</string>
+    <string name="search_tab_apps">Apps</string>
+    <string name="search_tab_media">Media</string>
+    <string name="search_recent_apps">Recent</string>
+    <string name="search_global">Global search</string>
+    <string name="search_show_more">Show more</string>
+    <string name="search_show_less">Show less</string>
+    <string name="search_messages">Messages</string>
+    <string name="search_open">Open</string>
 </resources>

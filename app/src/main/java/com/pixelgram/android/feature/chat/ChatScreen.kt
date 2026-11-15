@@ -1006,7 +1006,7 @@ internal fun MessageBubble(
                         horizontalArrangement = Arrangement.spacedBy(2.dp, if (message.outgoing) Alignment.End else Alignment.Start),
                     ) {
                         bigEmoji.forEach { (id, alt) ->
-                            if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, size = size)
+                            if (id != null) com.pixelgram.android.ui.components.CustomEmojiView(id, alt, Modifier.clickable(interactionSource = null, indication = null) { EmojiPreview.request = id to alt }, size = size)
                             else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
                                 Text(alt, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.82f).toSp() }, lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { size.toSp() }, maxLines = 1)
                             }
@@ -1761,14 +1761,8 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 EmojiStickerPanel(
                     onEmoji = { draft = draft.insert(it) },
                     onCustomEmoji = { id, alt -> draft = draft.insert(alt, TdApi.TextEntityTypeCustomEmoji(id)) },
-                    onSticker = {
-                        emoji = false
-                        controller.sendContent(stickerInput(it))
-                    },
-                    onGif = {
-                        emoji = false
-                        controller.sendContent(gifInput(it))
-                    },
+                    onSticker = { controller.sendContent(stickerInput(it)) },
+                    onGif = { controller.sendContent(gifInput(it)) },
                     modifier = Modifier.fillMaxWidth().height(EmojiPanelHeight),
                 )
             }

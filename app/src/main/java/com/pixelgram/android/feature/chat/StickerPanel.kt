@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,10 +65,22 @@ fun EmojiStickerPanel(
 ) {
     var tab by rememberSaveable { mutableStateOf(PanelTab.Emoji) }
     Box(modifier) {
-        when (tab) {
-            PanelTab.Emoji -> EmojiTab(onEmoji, onCustomEmoji)
-            PanelTab.Stickers -> StickersTab(onSticker)
-            PanelTab.Gifs -> GifsTab(onGif)
+        androidx.compose.animation.AnimatedContent(
+            tab,
+            transitionSpec = {
+                val forward = targetState.ordinal > initialState.ordinal
+                val spatial = androidx.compose.animation.core.spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 0.9f, stiffness = 1400f)
+                (androidx.compose.animation.slideInHorizontally(spatial) { if (forward) it / 6 else -it / 6 } + androidx.compose.animation.fadeIn()) togetherWith
+                    (androidx.compose.animation.slideOutHorizontally(spatial) { if (forward) -it / 6 else it / 6 } + androidx.compose.animation.fadeOut())
+            },
+            label = "panel-tab",
+            modifier = Modifier.fillMaxSize(),
+        ) { current ->
+            when (current) {
+                PanelTab.Emoji -> EmojiTab(onEmoji, onCustomEmoji)
+                PanelTab.Stickers -> StickersTab(onSticker)
+                PanelTab.Gifs -> GifsTab(onGif)
+            }
         }
         Surface(
             shape = CircleShape,
@@ -212,13 +225,21 @@ private fun GifsTab(onGif: (TdApi.Animation) -> Unit) {
     val gifs by produceState(emptyList<TdApi.Animation>()) {
         value = runCatching { graph.td.send(TdApi.GetSavedAnimations()).animations.toList() }.getOrDefault(emptyList())
     }
-    LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 64.dp)) {
-        items(gifs, key = { it.animation.id }) { gif ->
+    androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid(
+        androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells.Fixed(2),
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 64.dp),
+        verticalItemSpacing = 4.dp,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items(gifs.size, key = { gifs[it].animation.id }) { index ->
+            val gif = gifs[index]
             val thumb = gif.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg || it.format is TdApi.ThumbnailFormatPng || it.format is TdApi.ThumbnailFormatWebp }?.file
             val path = thumb?.let { snapshot.files[it.id] }
             if (thumb != null && path == null) LaunchedEffect(thumb.id) { graph.store.requestFileAsync(thumb.id) }
+            val ratio = if (gif.width > 0 && gif.height > 0) (gif.width.toFloat() / gif.height).coerceIn(0.5f, 2.5f) else 1f
             Box(
-                Modifier.padding(2.dp).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).clickable { onGif(gif) },
+                Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).clickable { onGif(gif) },
             ) {
                 AsyncImage(model = path?.let(::File) ?: gif.minithumbnail?.data, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
