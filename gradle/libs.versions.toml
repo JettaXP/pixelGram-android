@@ -1,4 +1,5 @@
 [versions]
+camerax = "1.6.2"
 markdown = "0.7.18"
 agp = "9.3.3"
 kotlin = "2.4.20"
@@ -27,6 +28,10 @@ emojipicker = "1.7.0"
 robolectric = "4.17"
 
 [libraries]
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+camera-video = { module = "androidx.camera:camera-video", version.ref = "camerax" }
 markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }

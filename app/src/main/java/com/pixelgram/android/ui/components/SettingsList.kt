@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -255,14 +256,23 @@ private fun SettingLinkDialog(title: String, link: String, onDismiss: () -> Unit
     val context = androidx.compose.ui.platform.LocalContext.current
     val copied = androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.settings_link_copied)
     androidx.compose.material3.BasicAlertDialog(onDismissRequest = onDismiss) {
-        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-            androidx.compose.foundation.layout.Column(Modifier.padding(24.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
-                        Icon(androidx.compose.material.icons.Icons.Rounded.Link, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                    }
-                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        val appear = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(Unit) { appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 420f)) }
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.graphicsLayer {
+                val p = appear.value
+                scaleX = 0.86f + 0.14f * p
+                scaleY = 0.86f + 0.14f * p
+                alpha = p.coerceIn(0f, 1f)
+            },
+        ) {
+            androidx.compose.foundation.layout.Column(Modifier.padding(24.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                    Icon(androidx.compose.material.icons.Icons.Rounded.Link, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
+                Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
                 androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
                     Text(link, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
                 }

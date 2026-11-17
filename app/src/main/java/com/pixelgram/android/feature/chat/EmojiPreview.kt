@@ -2,6 +2,7 @@ package com.pixelgram.android.feature.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Refresh
@@ -64,6 +71,8 @@ import org.drinkless.tdlib.TdApi
 object MediaPreview {
     var sticker by mutableStateOf<TdApi.Sticker?>(null)
     var gif by mutableStateOf<TdApi.Animation?>(null)
+    var scheduling by mutableStateOf<((TdApi.MessageSchedulingState) -> Unit)?>(null)
+    var captioning by mutableStateOf<TdApi.Animation?>(null)
 }
 
 object EmojiPreview {
@@ -146,28 +155,90 @@ fun EmojiPreviewHost() {
                             else coil.compose.AsyncImage(gif.minithumbnail?.data, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         }
                     }
-                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp, modifier = Modifier.width(240.dp)) {
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp, modifier = Modifier.width(260.dp)) {
                         Column(Modifier.padding(vertical = 6.dp)) {
+                            val content = { if (sticker != null) stickerInput(sticker) else gifInput(gif!!) }
                             PreviewAction(Icons.AutoMirrored.Rounded.Send, stringResource(if (sticker != null) R.string.sticker_send else R.string.gif_send)) {
-                                val chat = com.pixelgram.android.notify.AppVisibility.openChat
-                                if (chat != 0L) scope.launch {
-                                    runCatching {
-                                        graph.td.send(TdApi.SendMessage().apply {
-                                            chatId = chat
-                                            inputMessageContent = if (sticker != null) stickerInput(sticker) else gifInput(gif!!)
-                                        })
-                                    }
-                                }
+                                sendMedia(graph, content(), null)
                                 close()
                             }
-                            if (sticker != null && sticker.setId != 0L) PreviewAction(Icons.Rounded.GridView, stringResource(R.string.sticker_view_set)) {
-                                EmojiPreview.pack = sticker.setId
+                            PreviewAction(Icons.Rounded.NotificationsOff, stringResource(R.string.send_silent)) {
+                                sendMedia(graph, content(), TdApi.MessageSendOptions().apply { disableNotification = true })
                                 close()
+                            }
+                            PreviewAction(Icons.Rounded.CalendarMonth, stringResource(R.string.media_schedule)) {
+                                val input = content()
+                                MediaPreview.scheduling = { state -> sendMedia(graph, input, TdApi.MessageSendOptions().apply { schedulingState = state }) }
+                                close()
+                            }
+                            if (sticker != null) {
+                                val faved by androidx.compose.runtime.produceState(false, sticker.sticker.id) {
+                                    value = runCatching { graph.td.send(TdApi.GetFavoriteStickers()).stickers.any { it.sticker.id == sticker.sticker.id } }.getOrDefault(false)
+                                }
+                                PreviewAction(if (faved) Icons.Rounded.StarOutline else Icons.Rounded.Star, stringResource(if (faved) R.string.sticker_unfave else R.string.sticker_fave)) {
+                                    scope.launch {
+                                        val file = TdApi.InputFileId(sticker.sticker.id)
+                                        runCatching { graph.td.send(if (faved) TdApi.RemoveFavoriteSticker(file) else TdApi.AddFavoriteSticker(file)) }
+                                    }
+                                    close()
+                                }
+                                if (sticker.setId != 0L) PreviewAction(Icons.Rounded.GridView, stringResource(R.string.sticker_view_set)) {
+                                    EmojiPreview.pack = sticker.setId
+                                    close()
+                                }
+                            }
+                            if (gif != null) {
+                                PreviewAction(Icons.Rounded.PlaylistAdd, stringResource(R.string.gif_add_caption)) {
+                                    MediaPreview.captioning = gif
+                                    close()
+                                }
+                                PreviewAction(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error) {
+                                    scope.launch { runCatching { graph.td.send(TdApi.RemoveSavedAnimation(TdApi.InputFileId(gif.animation.id))) } }
+                                    close()
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+    MediaPreview.scheduling?.let { action ->
+        val chat = com.pixelgram.android.notify.AppVisibility.openChat
+        ScheduleSheet(reminder = chat == graph.store.snapshot.value.meId, onlineName = null, onDismiss = { MediaPreview.scheduling = null }) { state ->
+            MediaPreview.scheduling = null
+            action(state)
+        }
+    }
+    MediaPreview.captioning?.let { animation ->
+        var caption by androidx.compose.runtime.remember(animation.animation.id) { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { MediaPreview.captioning = null },
+            title = { Text(stringResource(R.string.gif_add_caption)) },
+            text = { androidx.compose.material3.OutlinedTextField(caption, { caption = it }, placeholder = { Text(stringResource(R.string.send_caption_hint)) }, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val input = gifInput(animation) as TdApi.InputMessageAnimation
+                    input.caption = TdApi.FormattedText(caption.trim(), emptyArray())
+                    sendMedia(graph, input, null)
+                    MediaPreview.captioning = null
+                }) { Text(stringResource(R.string.action_send)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { MediaPreview.captioning = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+private fun sendMedia(graph: com.pixelgram.android.AppGraph, content: TdApi.InputMessageContent, options: TdApi.MessageSendOptions?) {
+    val chat = com.pixelgram.android.notify.AppVisibility.openChat
+    if (chat == 0L) return
+    kotlinx.coroutines.MainScope().launch {
+        runCatching {
+            graph.td.send(TdApi.SendMessage().apply {
+                chatId = chat
+                this.options = options
+                inputMessageContent = content
+            })
         }
     }
 }
@@ -186,18 +257,18 @@ private fun Modifier.popIn(): Modifier {
 }
 
 @Composable
-private fun PreviewAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+private fun PreviewAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = Color.Unspecified, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
     ) {
-        Icon(icon, null, modifier = Modifier.size(20.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Icon(icon, null, modifier = Modifier.size(20.dp), tint = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint)
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun EmojiSetSheet(setId: Long, onDismiss: () -> Unit) {
     val graph = LocalGraph.current
@@ -297,7 +368,7 @@ private fun EmojiSetSheet(setId: Long, onDismiss: () -> Unit) {
                         val id = (sticker.fullType as? TdApi.StickerFullTypeCustomEmoji)?.customEmojiId ?: 0L
                         Box(
                             Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).then(
-                                if (sendable) Modifier.clickable {
+                                if (sendable) Modifier.combinedClickable(onLongClick = { MediaPreview.sticker = sticker }) {
                                     scope.launch { runCatching { graph.td.send(TdApi.SendMessage().apply { chatId = chat; inputMessageContent = stickerInput(sticker) }) } }
                                     onDismiss()
                                 } else Modifier,

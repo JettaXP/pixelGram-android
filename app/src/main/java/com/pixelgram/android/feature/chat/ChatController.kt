@@ -133,7 +133,10 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) loadPinned()
-            is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && inTopic(update.message)) {
+            is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState != null) {
+                loadScheduled()
+                return
+            } else if (update.message.chatId == chatId && inTopic(update.message)) {
                 messages[update.message.id] = update.message
                 graph.td.fire(TdApi.ViewMessages(chatId, longArrayOf(update.message.id), null, true))
             } else return
@@ -488,7 +491,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
 
     fun send(text: String) = send(TdApi.FormattedText(text.trim(), emptyArray()))
 
-    fun send(formatted: TdApi.FormattedText, markdown: Boolean = false) {
+    fun send(formatted: TdApi.FormattedText, markdown: Boolean = false, options: TdApi.MessageSendOptions? = null) {
         if (formatted.text.isEmpty()) return
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
@@ -499,6 +502,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     chatId = this@ChatController.chatId
                     topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
+                    this.options = options
                     inputMessageContent = TdApi.InputMessageText().apply {
                         val premium = graph.store.snapshot.value.let { it.users[it.meId]?.premium } == true
                         this.text = TdApi.FormattedText(formatted.text, com.pixelgram.android.td.LocalPremiumEmoji.outgoing(formatted.entities, premium))
@@ -509,7 +513,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
-    fun sendContent(content: TdApi.InputMessageContent) {
+    fun sendContent(content: TdApi.InputMessageContent, options: TdApi.MessageSendOptions? = null) {
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
         scope.launch {
@@ -518,9 +522,40 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     chatId = this@ChatController.chatId
                     topicId = topic
                     replyTo = reply?.let { TdApi.InputMessageReplyToMessage().apply { messageId = it.id } }
+                    this.options = options
                     inputMessageContent = content
                 })
             }
+        }
+    }
+
+    val scheduled = kotlinx.coroutines.flow.MutableStateFlow<List<TdApi.Message>>(emptyList())
+
+    fun loadScheduled() {
+        scope.launch {
+            scheduled.value = runCatching { graph.td.send(TdApi.GetChatScheduledMessages(chatId)).messages.toList() }.getOrDefault(emptyList()).sortedBy { (it.schedulingState as? TdApi.MessageSchedulingStateSendAtDate)?.sendDate ?: Int.MAX_VALUE }
+        }
+    }
+
+    fun reschedule(messageId: Long, state: TdApi.MessageSchedulingState?) {
+        scope.launch {
+            runCatching { graph.td.send(TdApi.EditMessageSchedulingState(chatId, messageId, state)) }
+            kotlinx.coroutines.delay(300)
+            loadScheduled()
+        }
+    }
+
+    fun deleteScheduled(messageId: Long) {
+        scope.launch {
+            runCatching { graph.td.send(TdApi.DeleteMessages(chatId, longArrayOf(messageId), true)) }
+            loadScheduled()
+        }
+    }
+
+    fun editScheduledText(messageId: Long, text: String) {
+        scope.launch {
+            runCatching { graph.td.send(TdApi.EditMessageText(chatId, messageId, null, TdApi.InputMessageText().apply { this.text = TdApi.FormattedText(text, emptyArray()) })) }
+            loadScheduled()
         }
     }
 
@@ -533,6 +568,31 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             }
             caption = TdApi.FormattedText("", emptyArray())
         })
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    fun sendLocation(context: android.content.Context, livePeriod: Int) {
+        val manager = context.getSystemService(android.location.LocationManager::class.java) ?: return
+        val provider = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER).firstOrNull { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+            ?: android.location.LocationManager.PASSIVE_PROVIDER
+        val send: (android.location.Location) -> Unit = { location ->
+            val point = TdApi.Location(location.latitude, location.longitude, location.accuracy.toDouble())
+            sendContent(
+                if (livePeriod > 0) TdApi.InputMessageLiveLocation(TdApi.LiveLocation(point, livePeriod, 0, 0))
+                else TdApi.InputMessageLocation(point),
+            )
+        }
+        val last = runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            runCatching {
+                manager.getCurrentLocation(provider, null, context.mainExecutor) { location -> (location ?: last)?.let(send) }
+            }.onFailure { last?.let(send) }
+        } else {
+            last?.let(send) ?: runCatching {
+                @Suppress("DEPRECATION")
+                manager.requestSingleUpdate(provider, { location -> send(location) }, android.os.Looper.getMainLooper())
+            }
+        }
     }
 
     fun sendDocuments(paths: List<String>) {

@@ -172,6 +172,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateAccentColors -> AccentColors.update(update.colors)
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
             is TdApi.UpdateAnimatedEmojiMessageClicked -> EmojiTaps.received(update.chatId, update.messageId, update.sticker)
+            is TdApi.UpdateAvailableMessageEffects -> MessageEffects.ids = update.reactionEffectIds.toList() + update.stickerEffectIds.toList()
             is TdApi.UpdateChatTitle -> chats[update.chatId]?.title = update.title
             is TdApi.UpdateChatPhoto -> chats[update.chatId]?.photo = update.photo
             is TdApi.UpdateChatLastMessage -> chats[update.chatId]?.let {

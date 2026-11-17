@@ -45,6 +45,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.material.icons.rounded.FormatClear
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.TextFields
@@ -1544,14 +1547,53 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
             if (paths.isNotEmpty()) preparing = paths
         }
     }
+    var camera by remember { mutableStateOf(false) }
+    var pendingLive by remember { mutableStateOf(0) }
+    var sendOptions by remember { mutableStateOf(false) }
+    var scheduling by remember { mutableStateOf<((TdApi.MessageSchedulingState) -> Unit)?>(null) }
+    var showScheduled by remember { mutableStateOf(false) }
+    val sendHaptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val graphForSend = com.pixelgram.android.LocalGraph.current
+    val sendSnapshot by graphForSend.store.snapshot.collectAsState()
+    val reminderChat = controller.chatId == sendSnapshot.meId
+    val privateUser = remember(controller.chatId, sendSnapshot.meId) {
+        (graphForSend.store.chat(controller.chatId)?.type as? TdApi.ChatTypePrivate)?.userId?.let { id ->
+            sendSnapshot.users[id]?.takeIf { it.bot != true }?.name ?: graphForSend.store.chat(controller.chatId)?.title
+        }
+    }
+    val scheduledList by controller.scheduled.collectAsState()
+    LaunchedEffect(controller.chatId) { controller.loadScheduled() }
+    val locationPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.any { it }) controller.sendLocation(context, pendingLive)
+    }
     val voice = remember { VoiceRecorder(context) }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voice.cancel() } }
     val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
     val holdHint = stringResource(R.string.voice_hold_hint)
-    if (attach) AttachSheet(controller, onGallery = {
-        attach = false
-        picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-    }) { attach = false }
+    if (attach) AttachSheet(
+        controller,
+        onGallery = {
+            attach = false
+            picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+        },
+        onCamera = {
+            attach = false
+            camera = true
+        },
+        onLocation = { seconds ->
+            attach = false
+            pendingLive = seconds
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                controller.sendLocation(context, seconds)
+            } else {
+                locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION))
+            }
+        },
+    ) { attach = false }
+    if (camera) CameraCapture(onDismiss = { camera = false }) { shots ->
+        camera = false
+        if (shots.isNotEmpty()) preparing = shots
+    }
     LaunchedEffect(editing?.id) { if (editing != null) draft = RichDraft.of(editing.text, editing.entities) }
     LaunchedEffect(ComposerRequests.text) {
         val request = ComposerRequests.text ?: return@LaunchedEffect
@@ -1662,6 +1704,15 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     },
                     onDismiss = { forwardPick = false },
                 )
+            }
+            val sendDraft: (TdApi.MessageSendOptions?) -> Unit = { options ->
+                val formatted = draft.formatted()
+                if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted, markdown, options)
+                if (forward != null) {
+                    ForwardDrafts.map.remove(controller.chatId)
+                    controller.forwardDraft(forward)
+                }
+                draft = RichDraft()
             }
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
@@ -1825,6 +1876,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                 draft = draft.toggle(Format.Link, url)
                             }
                         }
+                        androidx.compose.animation.AnimatedVisibility(scheduledList.isNotEmpty(), enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
+                            IconButton(onClick = { showScheduled = true }, modifier = Modifier.padding(vertical = 4.dp)) {
+                                Icon(androidx.compose.material.icons.Icons.Rounded.CalendarMonth, stringResource(R.string.scheduled_title))
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 if (emoji) {
@@ -1857,23 +1913,41 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     onRequestPermission = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
                     onHint = { android.widget.Toast.makeText(context, holdHint, android.widget.Toast.LENGTH_SHORT).show() },
                     onSend = { controller.sendVoice(it) },
-                ) else FilledIconButton(
-                    onClick = {
-                        val formatted = draft.formatted()
-                        if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted, markdown)
-                        if (forward != null) {
-                            ForwardDrafts.map.remove(controller.chatId)
-                            controller.forwardDraft(forward)
-                        }
-                        draft = RichDraft()
-                    },
-                    enabled = ready,
-                    shape = RoundedCornerShape(corner),
-                    modifier = Modifier.size(56.dp),
+                ) else Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
+                        enabled = ready,
+                        onLongClick = if (editing == null) ({
+                            sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            keyboard?.hide()
+                            sendOptions = true
+                        }) else null,
+                    ) { sendDraft(null) },
                 ) {
-                    Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
+                    Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
+            if (sendOptions) SendOptionsPopup(
+                preview = draft.text.ifBlank { forward?.let { "…" } ?: "" },
+                effects = privateUser != null,
+                canWhenOnline = privateUser != null && !reminderChat,
+                onDismiss = { sendOptions = false },
+                onSend = { options ->
+                    sendOptions = false
+                    sendDraft(options)
+                },
+                onSchedule = {
+                    sendOptions = false
+                    scheduling = { state -> sendDraft(TdApi.MessageSendOptions().apply { schedulingState = state }) }
+                },
+            )
+            scheduling?.let { action ->
+                ScheduleSheet(reminder = reminderChat, onlineName = privateUser?.takeIf { !reminderChat }, onDismiss = { scheduling = null }) { state ->
+                    scheduling = null
+                    action(state)
+                }
+            }
+            if (showScheduled) ScheduledMessagesScreen(controller) { showScheduled = false }
             AnimatedVisibility(emoji, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 EmojiStickerPanel(
                     onEmoji = { draft = draft.insert(it) },
@@ -2819,7 +2893,7 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onDismiss: () -> Unit) {
+private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onCamera: () -> Unit, onLocation: (Int) -> Unit, onDismiss: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var poll by remember { mutableStateOf(false) }
@@ -2861,37 +2935,78 @@ private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onDis
         }
         return
     }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+    var live by remember { mutableStateOf(false) }
+    if (live) {
+        LivePeriodDialog(onDismiss = { live = false; onDismiss() }) { seconds ->
+            live = false
+            onLocation(seconds)
+        }
+        return
+    }
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         val items = listOf(
             Triple(Icons.Rounded.Image, R.string.attach_gallery) { onGallery() },
-            Triple(Icons.Rounded.Description, R.string.attach_file) { files.launch(arrayOf("*/*")) },
+            Triple(androidx.compose.material.icons.Icons.Rounded.PhotoCamera, R.string.attach_camera) { onCamera() },
+            Triple(Icons.Rounded.AttachFile, R.string.attach_files) { files.launch(arrayOf("*/*")) },
+            Triple(androidx.compose.material.icons.Icons.Rounded.MyLocation, R.string.attach_live_location) { live = true },
+            Triple(androidx.compose.material.icons.Icons.Rounded.Person, R.string.attach_contacts) { contact = true },
             Triple(Icons.Rounded.Poll, R.string.attach_poll) { poll = true },
-            Triple(Icons.Rounded.Person, R.string.attach_contact) { contact = true },
+            Triple(androidx.compose.material.icons.Icons.Rounded.Place, R.string.attach_location) { onLocation(0) },
         )
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        androidx.compose.foundation.layout.FlowRow(
+            maxItemsInEachRow = 4,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 4.dp, bottom = 28.dp),
+        ) {
             items.forEachIndexed { index, (icon, label, action) ->
-                val shape = when (index) {
-                    0 -> androidx.compose.material3.MaterialShapes.Cookie9Sided
-                    1 -> androidx.compose.material3.MaterialShapes.Clover4Leaf
-                    2 -> androidx.compose.material3.MaterialShapes.Sunny
-                    else -> androidx.compose.material3.MaterialShapes.Pentagon
+                val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(index * 25L)
+                    appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 500f))
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = action).padding(8.dp)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f).graphicsLayer {
+                        alpha = appear.value.coerceIn(0f, 1f)
+                        translationY = (1f - appear.value) * 24.dp.toPx()
+                    },
+                ) {
                     Box(
-                        Modifier.size(60.dp).clip(shape.toShape()).background(
-                            when (index % 3) {
-                                0 -> MaterialTheme.colorScheme.primaryContainer
-                                1 -> MaterialTheme.colorScheme.secondaryContainer
-                                else -> MaterialTheme.colorScheme.tertiaryContainer
-                            },
-                        ),
+                        Modifier.size(width = 76.dp, height = 56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLowest).clickable(onClick = action),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(icon, null) }
-                    Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
+                    ) {
+                        Icon(icon, null, tint = if (index == 3) androidx.compose.ui.graphics.Color(0xFF2EBD59) else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(26.dp))
+                    }
+                    Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
                 }
             }
+            repeat((4 - items.size % 4) % 4) { Spacer(Modifier.weight(1f)) }
         }
     }
+}
+
+@Composable
+private fun LivePeriodDialog(onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    val options = listOf(15 * 60 to R.string.live_15m, 60 * 60 to R.string.live_1h, 8 * 60 * 60 to R.string.live_8h, 0x7FFFFFFF to R.string.live_forever)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.attach_live_location)) },
+        text = {
+            Column {
+                options.forEach { (seconds, label) ->
+                    Text(
+                        stringResource(label),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onPick(seconds) }.padding(horizontal = 8.dp, vertical = 14.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable
