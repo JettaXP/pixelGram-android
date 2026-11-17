@@ -55,14 +55,14 @@ data class Curves(
     }
 }
 
-enum class PaintTool { Pen, Arrow, Marker, Neon, Eraser }
+enum class PaintTool { Pen, Arrow, Marker, Neon, Blur, Mosaic, Eraser }
 
 enum class ShapeKind { Circle, Rectangle, Star, Bubble, Arrow }
 
 sealed interface PaintItem {
     data class Stroke(val points: List<Pair<Float, Float>>, val color: Int, val width: Float, val tool: PaintTool) : PaintItem
     data class Shape(val kind: ShapeKind, val left: Float, val top: Float, val right: Float, val bottom: Float, val color: Int, val width: Float) : PaintItem
-    data class Label(val text: String, val x: Float, val y: Float, val color: Int, val size: Float) : PaintItem
+    data class Label(val text: String, val x: Float, val y: Float, val color: Int, val size: Float, val align: Int = 1, val style: Int = 0, val font: Int = 0) : PaintItem
     data class Sticker(val path: String, val x: Float, val y: Float, val size: Float) : PaintItem
 }
 
@@ -339,15 +339,50 @@ object PhotoRenderer {
 
     fun paint(bitmap: Bitmap, items: List<PaintItem>) {
         if (items.isEmpty()) return
+        val source = if (items.any { it is PaintItem.Stroke && (it.tool == PaintTool.Blur || it.tool == PaintTool.Mosaic) }) bitmap.copy(Bitmap.Config.ARGB_8888, false) else null
         val canvas = Canvas(bitmap)
-        drawPaint(canvas, items, bitmap.width.toFloat(), bitmap.height.toFloat())
+        drawPaint(canvas, items, bitmap.width.toFloat(), bitmap.height.toFloat(), source)
+        source?.recycle()
     }
 
-    fun drawPaint(canvas: Canvas, items: List<PaintItem>, width: Float, height: Float) {
+    val LabelFonts = listOf("sans-serif", "serif", "monospace", "sans-serif-condensed", "cursive", "sans-serif-black")
+
+    fun labelTypeface(font: Int): Typeface = Typeface.create(LabelFonts.getOrElse(font) { LabelFonts[0] }, Typeface.BOLD)
+
+    private val effects = HashMap<Pair<Int, PaintTool>, Bitmap>()
+
+    private fun effect(source: Bitmap, tool: PaintTool): Bitmap {
+        val key = System.identityHashCode(source) to tool
+        effects[key]?.takeIf { !it.isRecycled }?.let { return it }
+        if (effects.size > 4) effects.clear()
+        val divisor = if (tool == PaintTool.Mosaic) max(8, max(source.width, source.height) / 48) else 14
+        val small = Bitmap.createScaledBitmap(source, max(1, source.width / divisor), max(1, source.height / divisor), tool != PaintTool.Mosaic)
+        val out = Bitmap.createScaledBitmap(small, source.width, source.height, tool != PaintTool.Mosaic)
+        if (small !== out) small.recycle()
+        effects[key] = out
+        return out
+    }
+
+    fun drawPaint(canvas: Canvas, items: List<PaintItem>, width: Float, height: Float, source: Bitmap? = null) {
         val unit = min(width, height) / 400f
         for (item in items) {
             when (item) {
-                is PaintItem.Stroke -> drawStroke(canvas, item, width, height, unit)
+                is PaintItem.Stroke -> if ((item.tool == PaintTool.Blur || item.tool == PaintTool.Mosaic)) {
+                    if (source != null && item.points.isNotEmpty()) {
+                        val shader = android.graphics.BitmapShader(effect(source, item.tool), android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+                        shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(width / source.width, height / source.height) })
+                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            style = Paint.Style.STROKE
+                            strokeCap = Paint.Cap.ROUND
+                            strokeJoin = Paint.Join.ROUND
+                            strokeWidth = item.width * unit * 3f
+                            this.shader = shader
+                        }
+                        val path = strokePath(item.points, width, height)
+                        if (item.points.size == 1) path.lineTo(item.points[0].first * width + 0.1f, item.points[0].second * height)
+                        canvas.drawPath(path, paint)
+                    }
+                } else drawStroke(canvas, item, width, height, unit)
                 is PaintItem.Shape -> drawShape(canvas, item, width, height, unit)
                 is PaintItem.Sticker -> {
                     val bitmap = StickerBitmaps.get(item.path)
@@ -361,16 +396,53 @@ object PhotoRenderer {
                         canvas.drawBitmap(bitmap, null, RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
                     }
                 }
-                is PaintItem.Label -> {
-                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = item.color
-                        textSize = item.size * unit
-                        typeface = Typeface.DEFAULT_BOLD
-                        textAlign = Paint.Align.CENTER
-                        setShadowLayer(4f * unit, 0f, unit, android.graphics.Color.argb(120, 0, 0, 0))
-                    }
-                    canvas.drawText(item.text, item.x * width, item.y * height, paint)
+                is PaintItem.Label -> drawLabel(canvas, item, width, height, unit)
+            }
+        }
+    }
+
+    fun drawLabel(canvas: Canvas, item: PaintItem.Label, width: Float, height: Float, unit: Float) {
+        val lines = item.text.split('\n')
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = item.size * unit
+            typeface = labelTypeface(item.font)
+            textAlign = Paint.Align.LEFT
+        }
+        val metrics = paint.fontMetrics
+        val lineHeight = (metrics.descent - metrics.ascent) * 1.12f
+        val widths = lines.map { paint.measureText(it) }
+        val block = widths.maxOrNull() ?: 0f
+        val pad = paint.textSize * 0.3f
+        val cx = item.x * width
+        val top = item.y * height - lineHeight * lines.size / 2f
+        val light = android.graphics.Color.luminance(item.color) > 0.6f
+        lines.forEachIndexed { i, line ->
+            val w = widths[i]
+            val x = when (item.align) {
+                0 -> cx - block / 2f
+                2 -> cx + block / 2f - w
+                else -> cx - w / 2f
+            }
+            val baseline = top + lineHeight * i - metrics.ascent
+            if (item.style == 2 && line.isNotEmpty()) {
+                val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = item.color }
+                canvas.drawRoundRect(RectF(x - pad, baseline + metrics.ascent - pad * 0.4f, x + w + pad, baseline + metrics.descent + pad * 0.4f), pad, pad, bg)
+                paint.color = if (light) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                canvas.drawText(line, x, baseline, paint)
+            } else if (item.style == 1) {
+                val stroke = Paint(paint).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = paint.textSize * 0.14f
+                    strokeJoin = Paint.Join.ROUND
+                    color = if (light) android.graphics.Color.BLACK else android.graphics.Color.WHITE
                 }
+                canvas.drawText(line, x, baseline, stroke)
+                paint.color = item.color
+                canvas.drawText(line, x, baseline, paint)
+            } else {
+                paint.color = item.color
+                paint.setShadowLayer(4f * unit, 0f, unit, android.graphics.Color.argb(120, 0, 0, 0))
+                canvas.drawText(line, x, baseline, paint)
             }
         }
     }
@@ -411,7 +483,7 @@ object PhotoRenderer {
                     drawArrowHead(canvas, x1 * width, y1 * height, x2 * width, y2 * height, paint)
                 }
             }
-            PaintTool.Pen, PaintTool.Eraser -> canvas.drawPath(path, paint)
+            else -> canvas.drawPath(path, paint)
         }
     }
 

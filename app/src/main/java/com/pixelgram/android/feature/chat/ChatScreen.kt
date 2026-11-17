@@ -2122,22 +2122,33 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
     val items = remember(paths) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(paths) } }
     var text by remember { mutableStateOf(caption) }
     val edits = remember(paths) { androidx.compose.runtime.mutableStateMapOf<String, PhotoEdit>() }
+    val videoEdits = remember(paths) { androidx.compose.runtime.mutableStateMapOf<String, VideoEdit>() }
     var hd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<String?>(null) }
+    var editingVideo by remember { mutableStateOf<String?>(null) }
     var exporting by remember { mutableStateOf(false) }
-    var round by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    val single = items.singleOrNull()
+    val round = single != null && isVideoPath(single) && videoEdits[single]?.round == true
     val send = {
-        if (round && items.size == 1 && isVideoPath(items.first())) {
-            onRound(items.first())
-        } else if (!exporting) {
+        if (!exporting) {
             exporting = true
             val list = items.toList()
             val edited = edits.toMap()
+            val videoEdited = videoEdits.toMap()
             scope.launch {
-                val out = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    list.map { path -> if (isVideoPath(path)) path else runCatching { PhotoRenderer.export(context, path, edited[path] ?: PhotoEdit(), hd) }.getOrDefault(path) }
+                if (round) {
+                    val path = list.first()
+                    val edit = videoEdited[path]!!.let { if (it.endMs < 0 || it.endMs - it.startMs > 60_000) it.copy(endMs = it.startMs + minOf(60_000L, videoInfo(path).durationMs - it.startMs)) else it }
+                    val out = runCatching { exportVideo(context, path, edit) }.getOrDefault(path)
+                    exporting = false
+                    onRound(out)
+                    return@launch
+                }
+                val out = list.map { path ->
+                    if (isVideoPath(path)) runCatching { exportVideo(context, path, videoEdited[path] ?: VideoEdit()) }.getOrDefault(path)
+                    else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { PhotoRenderer.export(context, path, edited[path] ?: PhotoEdit(), hd) }.getOrDefault(path) }
                 }
                 exporting = false
                 onSend(out, text)
@@ -2160,80 +2171,108 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
             },
         )
     }
+    editingVideo?.let { path ->
+        VideoEditScreen(path, videoEdits[path] ?: VideoEdit(), onClose = { editingVideo = null }) {
+            videoEdits[path] = it
+            editingVideo = null
+        }
+    }
     val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            val videos = items.count { isVideoPath(it) }
             Text(
-                pluralStringResource(R.plurals.send_photos_title, items.size, items.size),
+                when {
+                    round -> stringResource(R.string.send_as_round)
+                    videos == 0 -> pluralStringResource(R.plurals.send_photos_title, items.size, items.size)
+                    videos == items.size -> pluralStringResource(R.plurals.send_videos_title, items.size, items.size)
+                    else -> pluralStringResource(R.plurals.send_media_title, items.size, items.size)
+                },
                 style = MaterialTheme.typography.titleLargeEmphasized,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
-            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(items.size, key = { items[it] }) { index ->
                     val path = items[index]
-                    Box(Modifier.size(if (items.size == 1) 240.dp else 140.dp).animateItem().clip(RoundedCornerShape(18.dp)).clickable(enabled = !isVideoPath(path)) { editing = path }) {
-                        val video = isVideoPath(path)
+                    val video = isVideoPath(path)
+                    val shape = if (video && round) CircleShape else RoundedCornerShape(20.dp)
+                    Box(Modifier.size(if (items.size == 1) 260.dp else 160.dp).animateItem().clip(shape).clickable { if (video) editingVideo = path else editing = path }) {
                         val edit = edits[path]
                         val rendered by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path, edit) {
                             value = if (edit == null || edit.untouched) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { PhotoRenderer.render(path, edit, 480) }.getOrNull() }
                         }
-                        val frame by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path) {
+                        val start = videoEdits[path]?.startMs ?: 0L
+                        val frame by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path, start) {
                             if (video) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                runCatching { android.media.MediaMetadataRetriever().run { setDataSource(path); getFrameAtTime(0).also { release() } } }.getOrNull()
+                                runCatching { android.media.MediaMetadataRetriever().run { setDataSource(path); getFrameAtTime(start * 1000).also { release() } } }.getOrNull()
                             }
                         }
                         AsyncImage(
                             model = if (video) frame else rendered ?: File(path),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize().clip(RoundedCornerShape(18.dp)),
+                            modifier = Modifier.matchParentSize(),
                         )
-                        if (!video) Icon(Icons.Rounded.Edit, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape).padding(5.dp))
-                        if (video) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(40.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape).padding(6.dp))
+                        Icon(Icons.Rounded.Edit, stringResource(R.string.action_edit), tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).size(36.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape).padding(8.dp))
+                        if (video) {
+                            Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(48.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape).padding(8.dp))
+                            val ve = videoEdits[path]
+                            val length = remember(path) { videoInfo(path).durationMs }
+                            val shown = if (ve == null) length else (if (ve.endMs > 0) ve.endMs else length) - ve.startMs
+                            Text(
+                                "%d:%02d".format(shown / 60000, shown / 1000 % 60),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp).background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
                         if (items.size > 1) {
                             Surface(
                                 onClick = { items.remove(path) },
                                 shape = CircleShape,
                                 color = Color.Black.copy(alpha = 0.55f),
                                 contentColor = Color.White,
-                                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp),
-                            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Close, stringResource(R.string.action_remove), Modifier.size(18.dp)) } }
+                                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(32.dp),
+                            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Close, stringResource(R.string.action_remove), Modifier.size(20.dp)) } }
                         }
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text(stringResource(R.string.send_caption_hint)) },
-                    shape = RoundedCornerShape(24.dp),
-                    maxLines = 4,
-                    modifier = Modifier.weight(1f),
-                )
-                if (items.size == 1 && isVideoPath(items.first())) {
+            if (!round) androidx.compose.material3.OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text(stringResource(R.string.send_caption_hint)) },
+                shape = RoundedCornerShape(24.dp),
+                maxLines = 5,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (single != null && isVideoPath(single)) {
                     androidx.compose.material3.FilterChip(
                         selected = round,
-                        onClick = { round = !round },
-                        label = { Text(stringResource(R.string.send_as_round)) },
-                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Rounded.Videocam, null, Modifier.size(18.dp)) },
-                        modifier = Modifier.height(56.dp),
+                        onClick = { videoEdits[single] = (videoEdits[single] ?: VideoEdit()).let { it.copy(round = !it.round) } },
+                        label = { Text(stringResource(R.string.send_as_round), style = MaterialTheme.typography.titleSmall) },
+                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Rounded.Videocam, null, Modifier.size(22.dp)) },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(52.dp),
                     )
                 }
-                Box(
-                    Modifier.size(width = 48.dp, height = 56.dp).clip(RoundedCornerShape(12.dp)).clickable { hd = !hd },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(if (hd) "HD" else "SD", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (hd) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                if (videos < items.size) androidx.compose.material3.FilterChip(
+                    selected = hd,
+                    onClick = { hd = !hd },
+                    label = { Text("HD", style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.height(52.dp),
+                )
+                Spacer(Modifier.weight(1f))
                 FilledIconButton(
                     onClick = { send() },
                     enabled = items.isNotEmpty() && !exporting,
-                    shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.size(64.dp),
                 ) {
-                    if (exporting) androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
+                    if (exporting) androidx.compose.material3.CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp)
+                    else Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), Modifier.size(28.dp))
                 }
             }
         }

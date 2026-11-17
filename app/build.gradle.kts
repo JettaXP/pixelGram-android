@@ -136,6 +136,8 @@ dependencies {
     implementation(libs.libphonenumber)
     implementation(libs.phonecarrier)
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.transformer)
+    implementation(libs.media3.effect)
     implementation(libs.media3.session)
     implementation(libs.media3.ui.compose)
     implementation(libs.lottie.compose)

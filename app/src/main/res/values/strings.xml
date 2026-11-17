@@ -431,6 +431,14 @@
     <string name="chat_scroll_down">Scroll down</string>
     <string name="send_caption_hint">Add a caption</string>
     <string name="action_remove">Remove</string>
+    <plurals name="send_videos_title">
+        <item quantity="one">Send %1$d video</item>
+        <item quantity="other">Send %1$d videos</item>
+    </plurals>
+    <plurals name="send_media_title">
+        <item quantity="one">Send %1$d file</item>
+        <item quantity="other">Send %1$d files</item>
+    </plurals>
     <plurals name="send_photos_title">
         <item quantity="one">Send %1$d photo</item>
         <item quantity="other">Send %1$d photos</item>
@@ -949,6 +957,11 @@
     <string name="composer_right">Right button</string>
     <string name="composer_extra">Extra button</string>
     <string name="send_as_round">Video message</string>
+    <string name="video_edit_title">Edit video</string>
+    <string name="video_smaller">Smaller size</string>
+    <string name="video_higher">Higher quality</string>
+    <string name="video_muted">Muted</string>
+    <string name="video_sound">Sound</string>
     <string name="schedule_repeat">Repeat</string>
     <string name="schedule_repeat_premium">Repeating messages need Telegram Premium</string>
     <string name="repeat_never">Never</string>

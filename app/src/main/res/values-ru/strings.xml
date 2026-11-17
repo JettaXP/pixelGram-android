@@ -430,6 +430,18 @@
     <string name="chat_scroll_down">Вниз</string>
     <string name="send_caption_hint">Добавить подпись</string>
     <string name="action_remove">Убрать</string>
+    <plurals name="send_videos_title">
+        <item quantity="one">Отправить %1$d видео</item>
+        <item quantity="few">Отправить %1$d видео</item>
+        <item quantity="many">Отправить %1$d видео</item>
+        <item quantity="other">Отправить %1$d видео</item>
+    </plurals>
+    <plurals name="send_media_title">
+        <item quantity="one">Отправить %1$d медиафайл</item>
+        <item quantity="few">Отправить %1$d медиафайла</item>
+        <item quantity="many">Отправить %1$d медиафайлов</item>
+        <item quantity="other">Отправить %1$d медиафайла</item>
+    </plurals>
     <plurals name="send_photos_title">
         <item quantity="one">Отправить %1$d фото</item>
         <item quantity="few">Отправить %1$d фото</item>
@@ -978,6 +990,11 @@
     <string name="composer_right">Правая кнопка</string>
     <string name="composer_extra">Доп. кнопка</string>
     <string name="send_as_round">Видеосообщение</string>
+    <string name="video_edit_title">Редактирование видео</string>
+    <string name="video_smaller">Меньше размер</string>
+    <string name="video_higher">Выше качество</string>
+    <string name="video_muted">Без звука</string>
+    <string name="video_sound">Со звуком</string>
     <string name="schedule_repeat">Повтор</string>
     <string name="schedule_repeat_premium">Повтор сообщений доступен с Telegram Premium</string>
     <string name="repeat_never">Никогда</string>

@@ -1,5 +1,14 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.rounded.FormatAlignRight
+import androidx.compose.material.icons.rounded.FormatAlignCenter
 import android.graphics.Bitmap
 import android.graphics.RectF
 import androidx.compose.animation.AnimatedContent
@@ -312,6 +321,7 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
     var shapesMenu by remember { mutableStateOf(false) }
     var palette by remember { mutableStateOf(false) }
     var texting by remember { mutableStateOf(false) }
+    var textIndex by remember { mutableStateOf(-1) }
     var stickering by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(-1) }
     var live by remember { mutableStateOf<PaintItem?>(null) }
@@ -336,11 +346,16 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                                 }
                             }
                             if (hit >= 0) {
+                                val wasSelected = selected == hit
                                 selected = hit
+                                var moved = false
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     change.consume()
+                                    if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                    if (!change.pressed) break
+                                    if (!moved) continue
                                     val nx = (change.position.x / size.width).coerceIn(0f, 1f)
                                     val ny = (change.position.y / size.height).coerceIn(0f, 1f)
                                     items[hit] = when (val item = items[hit]) {
@@ -348,7 +363,10 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                                         is PaintItem.Label -> item.copy(x = nx, y = ny)
                                         else -> item
                                     }
-                                    if (!change.pressed) break
+                                }
+                                if (!moved && wasSelected && items.getOrNull(hit) is PaintItem.Label) {
+                                    textIndex = hit
+                                    texting = true
                                 }
                                 return@awaitEachGesture
                             }
@@ -376,27 +394,24 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                     },
                 ) {
                     drawIntoCanvas { canvas ->
-                        PhotoRenderer.drawPaint(canvas.nativeCanvas, items.toList() + listOfNotNull(live), this.size.width, this.size.height)
+                        PhotoRenderer.drawPaint(canvas.nativeCanvas, items.toList() + listOfNotNull(live), this.size.width, this.size.height, base)
                     }
                 }
             }
-            Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp).width(36.dp).fillMaxHeight(0.5f)) {
-                Slider(
-                    width,
-                    { value ->
-                        width = value
-                        val item = items.getOrNull(selected)
-                        if (item is PaintItem.Sticker) items[selected] = item.copy(size = (value / 40f).coerceIn(0.08f, 1f))
-                        if (item is PaintItem.Label) items[selected] = item.copy(size = value * 4f)
-                    },
-                    valueRange = 2f..40f,
-                    modifier = Modifier.align(Alignment.Center).width(220.dp).graphicsLayerRotate(),
-                )
+            SizeWedge(
+                value = width,
+                range = 2f..40f,
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp).width(44.dp).fillMaxHeight(0.62f),
+            ) { value ->
+                width = value
+                val item = items.getOrNull(selected)
+                if (item is PaintItem.Sticker) items[selected] = item.copy(size = (value / 40f).coerceIn(0.08f, 1f))
+                if (item is PaintItem.Label) items[selected] = item.copy(size = value * 4f)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
             Box {
-                Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(2.dp, Color.White, CircleShape).clickable { palette = true })
+                Box(Modifier.size(40.dp).clip(CircleShape).background(color).border(2.dp, Color.White, CircleShape).clickable { palette = true })
                 DropdownMenu(expanded = palette, onDismissRequest = { palette = false }) {
                     Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Palette.forEach { c -> Box(Modifier.size(28.dp).clip(CircleShape).background(c).border(1.dp, Color.Gray, CircleShape).clickable { color = c; palette = false }) }
@@ -406,9 +421,9 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
             PaintTool.entries.forEach { t ->
                 val active = shape == null && tool == t
                 Box(
-                    Modifier.size(42.dp).clip(CircleShape).background(if (active) Color.White.copy(alpha = 0.25f) else Color.Transparent).clickable { tool = t; shape = null },
+                    Modifier.size(46.dp).clip(CircleShape).background(if (active) Color.White.copy(alpha = 0.25f) else Color.Transparent).clickable { tool = t; shape = null },
                     contentAlignment = Alignment.Center,
-                ) { Text(toolGlyph(t), color = Color.White, fontWeight = FontWeight.Bold) }
+                ) { Text(toolGlyph(t), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp) }
             }
             Box {
                 TextButtonIcon(Icons.Rounded.Add, tint = if (shape != null) MaterialTheme.colorScheme.primary else Color.White) { shapesMenu = true }
@@ -430,20 +445,153 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
         selected = items.lastIndex
     }
     if (texting) {
-        var value by remember { mutableStateOf("") }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { texting = false },
-            title = { Text(stringResource(R.string.editor_text)) },
-            text = { OutlinedTextField(value, { value = it }, modifier = Modifier.fillMaxWidth()) },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (value.isNotBlank()) items += PaintItem.Label(value.trim(), 0.5f, 0.5f, color.toArgb(), width * 4f)
-                    texting = false
-                }) { Text(stringResource(R.string.action_done)) }
+        val existing = items.getOrNull(textIndex) as? PaintItem.Label
+        TextEditorOverlay(
+            initial = existing ?: PaintItem.Label("", 0.5f, 0.5f, color.toArgb(), width * 4f),
+            onCancel = {
+                texting = false
+                textIndex = -1
             },
-        )
+        ) { label ->
+            val index = textIndex
+            if (index >= 0 && index < items.size) {
+                if (label.text.isBlank()) items.removeAt(index) else items[index] = label
+            } else if (label.text.isNotBlank()) {
+                items += label
+                selected = items.lastIndex
+            }
+            texting = false
+            textIndex = -1
+        }
     }
 }
+
+@Composable
+private fun SizeWedge(value: Float, range: ClosedFloatingPointRange<Float>, modifier: Modifier, onChange: (Float) -> Unit) {
+    val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+    Canvas(
+        modifier.pointerInput(range) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                fun apply(y: Float) {
+                    val f = (1f - y / size.height).coerceIn(0f, 1f)
+                    onChange(range.start + f * (range.endInclusive - range.start))
+                }
+                apply(down.position.y)
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    if (!change.pressed) break
+                    apply(change.position.y)
+                }
+            }
+        },
+    ) {
+        val cx = this.size.width / 2f
+        val top = 14.dp.toPx()
+        val bottom = this.size.height - 14.dp.toPx()
+        val wedge = Path().apply {
+            moveTo(cx - 12.dp.toPx(), top)
+            lineTo(cx + 12.dp.toPx(), top)
+            lineTo(cx + 2.dp.toPx(), bottom)
+            lineTo(cx - 2.dp.toPx(), bottom)
+            close()
+        }
+        drawPath(wedge, Color.White.copy(alpha = 0.45f))
+        val y = bottom - (bottom - top) * fraction
+        drawCircle(Color.Black.copy(alpha = 0.25f), 15.dp.toPx(), Offset(cx, y + 1.dp.toPx()))
+        drawCircle(Color.White, 14.dp.toPx(), Offset(cx, y))
+    }
+}
+
+@Composable
+private fun TextEditorOverlay(initial: PaintItem.Label, onCancel: () -> Unit, onDone: (PaintItem.Label) -> Unit) {
+    var label by remember { mutableStateOf(initial) }
+    var value by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial.text, androidx.compose.ui.text.TextRange(initial.text.length))) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).statusBarsPadding().imePadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { onDone(label.copy(text = value.text.trimEnd())) }) { Text(stringResource(R.string.action_done).uppercase(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
+                val fontFamily = remember(label.font) { androidx.compose.ui.text.font.FontFamily(PhotoRenderer.labelTypeface(label.font)) }
+                val light = androidx.compose.ui.graphics.Color(label.color).luminance() > 0.6f
+                val contrast = if (light) Color.Black else Color.White
+                androidx.compose.foundation.text.BasicTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = if (label.style == 2) contrast else Color(label.color),
+                        fontSize = 34.sp,
+                        fontFamily = fontFamily,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = when (label.align) { 0 -> androidx.compose.ui.text.style.TextAlign.Start; 2 -> androidx.compose.ui.text.style.TextAlign.End; else -> androidx.compose.ui.text.style.TextAlign.Center },
+                        drawStyle = null,
+                    ),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    decorationBox = { inner ->
+                        Box(
+                            Modifier
+                                .then(if (label.style == 2) Modifier.background(Color(label.color), RoundedCornerShape(12.dp)) else Modifier)
+                                .then(if (label.style == 1) Modifier.border(2.dp, contrast.copy(alpha = 0.6f), RoundedCornerShape(12.dp)) else Modifier)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) { inner() }
+                    },
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                PhotoRenderer.LabelFonts.forEachIndexed { i, name ->
+                    val family = remember(i) { androidx.compose.ui.text.font.FontFamily(PhotoRenderer.labelTypeface(i)) }
+                    val active = label.font == i
+                    Box(
+                        Modifier.clip(RoundedCornerShape(12.dp)).background(if (active) Color.White else Color.White.copy(alpha = 0.15f)).clickable { label = label.copy(font = i) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) { Text(FontNames.getOrElse(i) { name }, color = if (active) Color.Black else Color.White, fontFamily = family, fontWeight = FontWeight.Bold) }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                IconButton(onClick = { label = label.copy(align = (label.align + 1) % 3) }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        when (label.align) { 0 -> Icons.AutoMirrored.Rounded.FormatAlignLeft; 2 -> Icons.AutoMirrored.Rounded.FormatAlignRight; else -> Icons.Rounded.FormatAlignCenter },
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+                Box(
+                    Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).clickable { label = label.copy(style = (label.style + 1) % 3) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .size(30.dp)
+                            .then(if (label.style == 2) Modifier.background(Color.White, RoundedCornerShape(8.dp)) else Modifier)
+                            .then(if (label.style == 1) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("A", color = if (label.style == 2) Color.Black else Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp) }
+                }
+                Spacer(Modifier.width(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                    Palette.forEach { c ->
+                        val active = c.toArgb() == label.color
+                        Box(Modifier.size(32.dp).clip(CircleShape).background(c).border(if (active) 3.dp else 1.dp, if (active) Color.White else Color.Gray, CircleShape).clickable { label = label.copy(color = c.toArgb()) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val FontNames = listOf("Roboto", "Serif", "Mono", "Condensed", "Cursive", "Black")
 
 private fun Modifier.graphicsLayerRotate(): Modifier = this.then(androidx.compose.ui.Modifier.graphicsLayer { rotationZ = -90f })
 
@@ -452,6 +600,8 @@ private fun toolGlyph(tool: PaintTool): String = when (tool) {
     PaintTool.Arrow -> "➚"
     PaintTool.Marker -> "▮"
     PaintTool.Neon -> "✦"
+    PaintTool.Blur -> "◍"
+    PaintTool.Mosaic -> "▦"
     PaintTool.Eraser -> "⌫"
 }
 

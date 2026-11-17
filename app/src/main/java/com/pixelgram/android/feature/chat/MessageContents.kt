@@ -56,6 +56,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -225,7 +228,7 @@ internal fun VideoPlayer(path: String, muted: Boolean, loop: Boolean, controls: 
     DisposableEffect(player) { onDispose { player.release() } }
     var playing by remember { mutableStateOf(true) }
     Box(modifier.then(if (controls) Modifier.clickable { playing = !playing; player.playWhenReady = playing; if (player.playbackState == Player.STATE_ENDED) player.seekTo(0) } else Modifier)) {
-        PlayerSurface(player, Modifier.fillMaxSize())
+        PlayerSurface(player, Modifier.fillMaxSize(), surfaceType = androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW)
         if (controls && !playing) {
             Box(Modifier.align(Alignment.Center).size(64.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(40.dp))
@@ -348,20 +351,112 @@ private fun VideoNoteView(note: TdApi.VideoNote, files: Map<Int, String>, onNeed
     val path = localPath(note.video, files)
     if (path == null) LaunchedEffect(note.video.id) { onNeedFile(note.video.id) }
     val thumb = localPath(note.thumbnail?.file, files)
-    var sound by remember { mutableStateOf(false) }
-    Box(
-        Modifier.padding(4.dp).size(VideoNoteSize).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest).clickable { sound = !sound },
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(model = thumb?.let(::File) ?: note.minithumbnail?.data, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        if (path != null) VideoPlayer(path, muted = !sound, loop = true, controls = false, modifier = Modifier.fillMaxSize()) else LoadingIndicator()
-        if (!sound) {
-            Box(Modifier.align(Alignment.BottomCenter).padding(10.dp).size(24.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.VolumeOff, null, tint = Color.White, modifier = Modifier.size(14.dp))
+    var active by remember { mutableStateOf(false) }
+    var paused by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    var position by remember { mutableStateOf(0L) }
+    val context = LocalContext.current
+    val player = remember(path) {
+        path?.let {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(Uri.fromFile(File(it))))
+                repeatMode = Player.REPEAT_MODE_ONE
+                volume = 0f
+                prepare()
+                playWhenReady = true
             }
         }
-        Surface(shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.45f), contentColor = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(start = 18.dp, bottom = 18.dp)) {
-            Text(duration(note.duration), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+    }
+    DisposableEffect(player) { onDispose { player?.release() } }
+    LaunchedEffect(player, active) {
+        val p = player ?: return@LaunchedEffect
+        p.volume = if (active) 1f else 0f
+        p.repeatMode = if (active) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE
+        if (active) {
+            p.seekTo(0)
+            p.playWhenReady = true
+        }
+        while (true) {
+            val total = p.duration.takeIf { it > 0 } ?: (note.duration * 1000L).coerceAtLeast(1L)
+            position = p.currentPosition
+            progress = (p.currentPosition.toFloat() / total).coerceIn(0f, 1f)
+            if (active && p.playbackState == Player.STATE_ENDED) {
+                active = false
+                paused = false
+            }
+            kotlinx.coroutines.delay(33)
+        }
+    }
+    LaunchedEffect(paused) { player?.playWhenReady = !paused }
+    val ring = MaterialTheme.colorScheme.primary
+    val ringTrack = Color.White.copy(alpha = 0.35f)
+    Box(
+        Modifier
+            .padding(4.dp)
+            .size(VideoNoteSize)
+            .pointerInput(player, active) {
+                detectTapGestures {
+                    if (!active) {
+                        active = true
+                        paused = false
+                    } else paused = !paused
+                }
+            }
+            .pointerInput(player, active) {
+                if (!active) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { paused = true },
+                    onDragEnd = { paused = false },
+                    onDragCancel = { paused = false },
+                ) { change, _ ->
+                    val p = player ?: return@detectDragGestures
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val angle = Math.toDegrees(kotlin.math.atan2((change.position.y - cy).toDouble(), (change.position.x - cx).toDouble())) + 90.0
+                    val fraction = (((angle % 360.0) + 360.0) % 360.0 / 360.0).toFloat()
+                    val total = p.duration.takeIf { it > 0 } ?: return@detectDragGestures
+                    p.seekTo((total * fraction).toLong())
+                    progress = fraction
+                    change.consume()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.fillMaxSize().padding(4.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
+            AsyncImage(model = thumb?.let(::File) ?: note.minithumbnail?.data, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (player != null) {
+                PlayerSurface(
+                    player,
+                    modifier = Modifier.fillMaxSize(),
+                    surfaceType = androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW,
+                )
+            } else LoadingIndicator()
+            if (active && paused) {
+                Box(Modifier.size(56.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                }
+            }
+            if (!active) {
+                Box(Modifier.align(Alignment.BottomCenter).padding(12.dp).size(26.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.VolumeOff, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                }
+            }
+        }
+        if (active) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val stroke = 4.dp.toPx()
+                val inset = stroke / 2f
+                val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+                drawArc(ringTrack, 0f, 360f, false, topLeft, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawArc(ring, -90f, 360f * progress, false, topLeft, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                val angle = Math.toRadians((360.0 * progress) - 90.0)
+                val r = arcSize.width / 2f
+                drawCircle(Color.White, 7.dp.toPx(), androidx.compose.ui.geometry.Offset(center.x + (r * kotlin.math.cos(angle)).toFloat(), center.y + (r * kotlin.math.sin(angle)).toFloat()))
+            }
+        }
+        Surface(shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.45f), contentColor = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp)) {
+            Text(if (active) duration((position / 1000).toInt()) else duration(note.duration), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
         }
     }
 }
