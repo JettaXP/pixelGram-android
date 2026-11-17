@@ -983,12 +983,12 @@
     <string name="font_system">System</string>
     <string name="font_custom">From file</string>
     <string name="font_custom_sub">Pick a .ttf or .otf font</string>
-    <string name="font_import_failed">This font file can't be used</string>
+    <string name="font_import_failed">This font file can\'t be used</string>
     <string name="emoji_style_title">Emoji</string>
     <string name="emoji_style_system">System</string>
     <string name="emoji_style_noto">Noto</string>
     <string name="emoji_style_noto3d">Noto 3D</string>
     <string name="emoji_style_apple">iOS</string>
     <string name="emoji_style_download">Tap to download</string>
-    <string name="emoji_style_failed">Couldn't download this emoji set or this device can't draw it</string>
+    <string name="emoji_style_failed">Couldn\'t download this emoji set or this device can\'t draw it</string>
 </resources>

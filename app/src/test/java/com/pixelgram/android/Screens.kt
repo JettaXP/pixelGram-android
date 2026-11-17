@@ -190,8 +190,8 @@ class Screens {
     @Test fun messageMenu() = chatScene("message_menu", popup = true) {
         val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
         node.performTouchInput { click(center) }
-        rule.mainClock.advanceTimeBy(900)
-        rule.onAllNodes(androidx.compose.ui.test.hasText("Forward")).fetchSemanticsNodes().let { check(it.isNotEmpty()) { "message menu did not open on tap" } }
+        val seen = (1..18).map { rule.mainClock.advanceTimeBy(50); rule.onAllNodes(androidx.compose.ui.test.hasText("Select")).fetchSemanticsNodes().size }
+        check(seen.last() > 0) { "message menu did not open on tap: " + seen.joinToString(",") }
     }
 
     @Test fun messageSelection() = chatScene("message_selection") {
