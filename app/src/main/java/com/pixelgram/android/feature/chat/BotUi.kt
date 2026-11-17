@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.layout.width
 import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -78,17 +79,20 @@ fun MessageBotExtras(
     chatId: Long,
     channel: Boolean,
     indent: androidx.compose.ui.unit.Dp = 0.dp,
+    width: Int = 0,
     onOpenUrl: (String) -> Unit,
     onComments: () -> Unit,
 ) {
     val markup = message.markup as? TdApi.ReplyMarkupInlineKeyboard
     if (markup == null && !(channel && message.comments >= 0)) return
     Column(
-        Modifier.fillMaxWidth().padding(top = 3.dp, start = 8.dp + indent, end = 8.dp).widthIn(max = 320.dp + indent),
+        Modifier.fillMaxWidth().padding(top = 3.dp, start = 8.dp + indent, end = 8.dp),
         horizontalAlignment = if (message.outgoing) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        if (markup != null) InlineKeyboard(markup, message, chatId, onOpenUrl)
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val keyboardWidth = if (width > 0) with(density) { width.toDp() }.coerceAtLeast(200.dp) else 320.dp
+        if (markup != null) Box(Modifier.width(keyboardWidth)) { InlineKeyboard(markup, message, chatId, onOpenUrl) }
         if (channel && message.comments >= 0) CommentsBar(message, onComments)
     }
 }
@@ -100,14 +104,14 @@ private fun InlineKeyboard(markup: TdApi.ReplyMarkupInlineKeyboard, message: UiM
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     var details by remember { mutableStateOf<TdApi.InlineKeyboardButton?>(null) }
-    Column(Modifier.widthIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         markup.rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { button ->
                     Box(
                         Modifier
                             .weight(1f)
-                            .heightIn(min = 44.dp)
+                            .heightIn(min = 40.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .combinedClickable(
@@ -117,7 +121,7 @@ private fun InlineKeyboard(markup: TdApi.ReplyMarkupInlineKeyboard, message: UiM
                                     details = button
                                 },
                             )
-                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(button.text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)

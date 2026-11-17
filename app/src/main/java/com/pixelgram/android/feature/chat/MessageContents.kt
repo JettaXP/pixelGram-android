@@ -319,7 +319,8 @@ private fun VoiceRow(voice: TdApi.VoiceNote, files: Map<Int, String>, onNeedFile
                     wanted = true
                 }
             },
-            modifier = Modifier.size(44.dp),
+            shape = CircleShape,
+            modifier = Modifier.size(44.dp).clip(CircleShape),
         ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null) }
         Column(Modifier.weight(1f, fill = false)) {
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(28.dp)) {

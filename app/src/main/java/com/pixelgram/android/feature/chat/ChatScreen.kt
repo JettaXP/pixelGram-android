@@ -487,6 +487,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     val joinsAbove = older != null && !older.service && older.senderId == message.senderId && message.date - older.date < 300
                     val joinsBelow = newer != null && !newer.service && newer.senderId == message.senderId && newer.date - message.date < 300
                     Column(Modifier.animateItem()) {
+                        var bubbleWidth by remember(message.id) { mutableStateOf(0) }
                         if (older == null || !sameDay(older.date, message.date)) DayChip(message.date) { datePicker = message.date }
                         if (message.service) {
                             ServiceMessage(message, senderName(snapshot, message.senderId, chat)) { id -> snapshot.users[id]?.name ?: "" }
@@ -498,6 +499,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 val group = privateUserId == 0L && !ui.channel && !saved
                                 val sender = if (group && !message.outgoing) snapshot.users[message.senderId] else null
                                 MessageBubble(
+                                    onBubbleWidth = { bubbleWidth = it },
                                     message = message,
                                     senderName = sender?.name?.takeIf { !joinsAbove },
                                     senderAvatar = if (group && !message.outgoing) {
@@ -523,7 +525,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     onNeedFile = graph.store::requestFileAsync,
                                     onOpenPhoto = { list, index -> viewer = list to index },
                                     reply = reply,
-                                    replySender = reply?.let { senderName(snapshot, it.senderId, chat) },
+                                    replySender = reply?.let { snapshot.users[it.senderId]?.name ?: graph.store.chat(it.senderId)?.title.orEmpty() },
                                     onReplyClick = { jumpTo(message.replyToId) },
                                     onOpenUser = { userId -> navigator.open(ProfileKey(userId)) },
                                     onVote = { options -> controller.vote(message, options) },
@@ -572,6 +574,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 chatId = chatId,
                                 channel = ui.channel,
                                 indent = if (extrasGroup) 40.dp else 0.dp,
+                                width = bubbleWidth,
                                 onOpenUrl = { url -> linkOpener.url(url) },
                                 onComments = {
                                     controller.openComments(message) { chat, root ->
@@ -707,6 +710,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     }
 }
 
+private const val PressDelayMs = 90L
+
 private fun senderName(snapshot: StoreSnapshot, senderId: Long, chat: TdApi.Chat?): String =
     snapshot.users[senderId]?.name ?: chat?.title.orEmpty()
 
@@ -841,6 +846,7 @@ private val ReplyLimit = 110.dp
 
 @Composable
 internal fun MessageBubble(
+    onBubbleWidth: (Int) -> Unit = {},
     message: UiMessage,
     senderName: String? = null,
     senderAvatar: (@Composable () -> Unit)? = null,
@@ -910,13 +916,29 @@ internal fun MessageBubble(
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
                         val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
-                        if (inside) interaction.tryEmit(press)
                         val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
                         var cancelled = false
-                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        var pressed = false
+                        var up = withTimeoutOrNull(PressDelayMs) {
                             waitForUpOrCancellation().also { if (it == null) cancelled = true }
                         }
-                        interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                        if (up == null && !cancelled) {
+                            if (inside) {
+                                interaction.tryEmit(press)
+                                pressed = true
+                            }
+                            up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis - PressDelayMs) {
+                                waitForUpOrCancellation().also { if (it == null) cancelled = true }
+                            }
+                        } else if (up != null && !up.isConsumed && inside) {
+                            interaction.tryEmit(press)
+                            pressed = true
+                        }
+                        if (up != null && up.isConsumed) {
+                            if (pressed) interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Cancel(press))
+                            return@awaitEachGesture
+                        }
+                        if (pressed) interaction.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
                         if (cancelled) return@awaitEachGesture
                         if (up == null) {
                             val current = currentEvent.changes.firstOrNull { it.id == down.id }
@@ -972,7 +994,10 @@ internal fun MessageBubble(
                 contentColor = onContainer,
                 modifier = Modifier
                     .widthIn(max = 320.dp)
-                    .onGloballyPositioned { bounds = it.boundsInWindow() }
+                    .onGloballyPositioned {
+                        bounds = it.boundsInWindow()
+                        onBubbleWidth(it.size.width)
+                    }
                     .clip(shape)
                     .indication(interaction, androidx.compose.material3.ripple()),
             ) {
@@ -996,7 +1021,7 @@ internal fun MessageBubble(
                             modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp).clickable { ComposerRequests.text = "@$bot " },
                         )
                     }
-                    if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth()) }
+                    if (reply != null) Box(Modifier.layoutId(FillWidth)) { ReplyQuote(reply, replySender.orEmpty(), files, onReplyClick, Modifier.fillMaxWidth(), quote = message.replyQuote) }
                     val meta: @Composable (Color) -> Unit = { tint ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             if (message.views > 0) {
@@ -1280,9 +1305,10 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
 }
 
 @Composable
-private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}, modifier: Modifier = Modifier, quote: String = "") {
     val graph = com.pixelgram.android.LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
+    if (reply.senderId > 0 && snapshot.users[reply.senderId] == null) LaunchedEffect(reply.senderId) { runCatching { graph.td.send(TdApi.GetUser(reply.senderId)) } }
     val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
     val user = snapshot.users[reply.senderId]
     val chat = if (user == null && reply.senderId != 0L) graph.store.chat(reply.senderId) else null
@@ -1314,6 +1340,7 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
             }
             .height(IntrinsicSize.Min),
     ) {
+        if (quote.isNotBlank()) Icon(androidx.compose.material.icons.Icons.Rounded.FormatQuote, null, tint = main, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(16.dp))
         if (pattern != 0L) {
             Row(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).graphicsLayer { alpha = 0.22f }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = 14.dp)
@@ -1335,7 +1362,8 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
             }
             Column(Modifier.padding(start = 11.dp, end = 10.dp, top = 6.dp, bottom = 6.dp)) {
                 if (sender.isNotBlank()) Text(sender, style = MaterialTheme.typography.labelLarge, color = main, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
+                if (quote.isNotBlank()) Text(quote, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                else Text(
                     reply.text.ifBlank {
                         when (val c = reply.content) {
                             is TdApi.MessageSticker -> stringResource(R.string.preview_sticker) + " " + c.sticker.emoji
