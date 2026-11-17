@@ -211,8 +211,26 @@ internal fun WavySeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Mod
             }
         }
     }
+    val anchor = remember { floatArrayOf(fraction) }
+    val anchorTime = remember { longArrayOf(System.nanoTime()) }
+    var smooth by remember { mutableFloatStateOf(fraction) }
+    LaunchedEffect(fraction) {
+        anchor[0] = fraction
+        anchorTime[0] = System.nanoTime()
+    }
+    LaunchedEffect(playing, durationMs) {
+        var last = 0L
+        while (true) {
+            withFrameNanos { now ->
+                val predicted = if (playing && durationMs > 0) (anchor[0] + (now - anchorTime[0]) / 1_000_000f / durationMs).coerceIn(0f, 1f) else anchor[0]
+                val dt = if (last == 0L) 0f else (now - last) / 1_000_000_000f
+                last = now
+                smooth = if (kotlin.math.abs(predicted - smooth) > 0.02f || dt == 0f) predicted else smooth + (predicted - smooth) * (dt * 12f).coerceAtMost(1f)
+            }
+        }
+    }
     val colors = MaterialTheme.colorScheme
-    val shown = (drag ?: fraction).coerceIn(0f, 1f)
+    val shown = (drag ?: smooth).coerceIn(0f, 1f)
     Box(modifier.height(32.dp)) {
         Canvas(
             Modifier
@@ -249,10 +267,10 @@ internal fun WavySeekBar(fraction: Float, onSeek: (Float) -> Unit, modifier: Mod
             if (end > stroke / 2) {
                 val path = Path()
                 var px = stroke / 2
-                path.moveTo(px, mid + amp * sin((px / wavelength - phase) * 2f * PI.toFloat()))
+                path.moveTo(px, mid + amp * sin((px / wavelength + phase) * 2f * PI.toFloat()))
                 while (px < end) {
                     px = (px + 1f).coerceAtMost(end)
-                    path.lineTo(px, mid + amp * sin((px / wavelength - phase) * 2f * PI.toFloat()))
+                    path.lineTo(px, mid + amp * sin((px / wavelength + phase) * 2f * PI.toFloat()))
                 }
                 drawPath(path, colors.primary, style = Stroke(stroke, cap = StrokeCap.Round))
             }
