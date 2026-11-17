@@ -71,6 +71,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -310,6 +312,8 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
     var shapesMenu by remember { mutableStateOf(false) }
     var palette by remember { mutableStateOf(false) }
     var texting by remember { mutableStateOf(false) }
+    var stickering by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(-1) }
     var live by remember { mutableStateOf<PaintItem?>(null) }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp)) {
@@ -324,6 +328,31 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                         awaitEachGesture {
                             val down = awaitFirstDown()
                             val start = down.position.x / size.width to down.position.y / size.height
+                            val hit = items.indexOfLast { item ->
+                                when (item) {
+                                    is PaintItem.Sticker -> PhotoRenderer.distance(item.x to item.y, start) < item.size * 0.6f
+                                    is PaintItem.Label -> PhotoRenderer.distance(item.x to item.y, start) < 0.08f
+                                    else -> false
+                                }
+                            }
+                            if (hit >= 0) {
+                                selected = hit
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    change.consume()
+                                    val nx = (change.position.x / size.width).coerceIn(0f, 1f)
+                                    val ny = (change.position.y / size.height).coerceIn(0f, 1f)
+                                    items[hit] = when (val item = items[hit]) {
+                                        is PaintItem.Sticker -> item.copy(x = nx, y = ny)
+                                        is PaintItem.Label -> item.copy(x = nx, y = ny)
+                                        else -> item
+                                    }
+                                    if (!change.pressed) break
+                                }
+                                return@awaitEachGesture
+                            }
+                            selected = -1
                             val points = mutableListOf(start)
                             while (true) {
                                 val event = awaitPointerEvent()
@@ -354,7 +383,12 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
             Box(Modifier.align(Alignment.CenterStart).padding(start = 4.dp).width(36.dp).fillMaxHeight(0.5f)) {
                 Slider(
                     width,
-                    { width = it },
+                    { value ->
+                        width = value
+                        val item = items.getOrNull(selected)
+                        if (item is PaintItem.Sticker) items[selected] = item.copy(size = (value / 40f).coerceIn(0.08f, 1f))
+                        if (item is PaintItem.Label) items[selected] = item.copy(size = value * 4f)
+                    },
                     valueRange = 2f..40f,
                     modifier = Modifier.align(Alignment.Center).width(220.dp).graphicsLayerRotate(),
                 )
@@ -386,8 +420,14 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
             }
         }
         BottomActions(stringResource(R.string.action_cancel), stringResource(R.string.action_done), onCancel, { onDone(initial.copy(paint = items.toList())) }) {
+            TextButton(onClick = { stickering = true }) { Text(stringResource(R.string.editor_sticker).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
             TextButton(onClick = { texting = true }) { Text(stringResource(R.string.editor_text).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
         }
+    }
+    if (stickering) StickerPickerSheet(onDismiss = { stickering = false }) { path ->
+        stickering = false
+        items += PaintItem.Sticker(path, 0.5f, 0.5f, 0.35f)
+        selected = items.lastIndex
     }
     if (texting) {
         var value by remember { mutableStateOf("") }
@@ -549,6 +589,47 @@ private fun TintRow(label: String, selected: Int, onPick: (Int) -> Unit) {
             Box(
                 Modifier.padding(horizontal = 3.dp).size(26.dp).clip(CircleShape).border(if (selected == c) 7.dp else 2.dp, color, CircleShape).clickable { onPick(c) },
             )
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun StickerPickerSheet(onDismiss: () -> Unit, onPick: (String) -> Unit) {
+    val graph = com.pixelgram.android.LocalGraph.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val snapshot by graph.store.snapshot.collectAsState()
+    val stickers by produceState(emptyList<org.drinkless.tdlib.TdApi.Sticker>()) {
+        val recent = runCatching { graph.td.send(org.drinkless.tdlib.TdApi.GetRecentStickers(false)).stickers.toList() }.getOrDefault(emptyList())
+        value = recent
+        val sets = runCatching { graph.td.send(org.drinkless.tdlib.TdApi.GetInstalledStickerSets(org.drinkless.tdlib.TdApi.StickerTypeRegular())).sets.toList() }.getOrDefault(emptyList())
+        val all = recent.toMutableList()
+        sets.take(12).forEach { info ->
+            all += runCatching { graph.td.send(org.drinkless.tdlib.TdApi.GetStickerSet(info.id)).stickers.toList() }.getOrDefault(emptyList())
+            value = all.distinctBy { it.sticker.id }
+        }
+    }
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+            androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
+            Modifier.fillMaxWidth().height(420.dp),
+            contentPadding = PaddingValues(8.dp),
+        ) {
+            items(stickers.size, key = { stickers[it].sticker.id }) { index ->
+                val sticker = stickers[index]
+                Box(
+                    Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).clickable {
+                        scope.launch {
+                            val file = if (sticker.format is org.drinkless.tdlib.TdApi.StickerFormatWebm) sticker.thumbnail?.file else sticker.sticker
+                            val id = file?.id ?: return@launch
+                            val done = runCatching { graph.td.send(org.drinkless.tdlib.TdApi.DownloadFile(id, 32, 0, 0, true)) }.getOrNull()
+                            val path = done?.local?.path?.takeIf { done.local.isDownloadingCompleted && it.isNotEmpty() } ?: return@launch
+                            onPick(path)
+                        }
+                    }.padding(5.dp),
+                    contentAlignment = Alignment.Center,
+                ) { StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(), video = false) }
+            }
         }
     }
 }

@@ -114,7 +114,7 @@ fun SessionsScreen(graph: AppGraph, navigator: Navigator) {
         }
     }
     opened?.let { session ->
-        ModalBottomSheet(onDismissRequest = { opened = null }) {
+        ModalBottomSheet(onDismissRequest = { opened = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             SessionDetails(session) {
                 scope.launch {
                     runCatching { graph.td.send(TdApi.TerminateSession(session.id)) }

@@ -949,4 +949,17 @@
     <string name="composer_right">Right button</string>
     <string name="composer_extra">Extra button</string>
     <string name="send_as_round">Video message</string>
+    <string name="schedule_repeat">Repeat</string>
+    <string name="schedule_repeat_premium">Repeating messages need Telegram Premium</string>
+    <string name="repeat_never">Never</string>
+    <string name="repeat_daily">Daily</string>
+    <string name="repeat_weekly">Weekly</string>
+    <string name="repeat_biweekly">Biweekly</string>
+    <string name="repeat_monthly">Monthly</string>
+    <string name="repeat_quarterly">Every 3 Months</string>
+    <string name="repeat_half_year">Every 6 Months</string>
+    <string name="repeat_yearly">Yearly</string>
+    <string name="sticker_edit">Edit Sticker</string>
+    <string name="sticker_edit_emoji">Emoji for this sticker</string>
+    <string name="editor_sticker">Sticker</string>
 </resources>

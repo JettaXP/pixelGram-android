@@ -767,7 +767,7 @@ private fun NewMessageSheet(graph: AppGraph, navigator: Navigator, onDismiss: ()
     var ids by remember { mutableStateOf<List<Long>?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { ids = runCatching { graph.td.send(TdApi.GetContacts()).userIds.toList() }.getOrDefault(emptyList()) }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(stringResource(R.string.new_message), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         val list = ids
         if (list == null) {

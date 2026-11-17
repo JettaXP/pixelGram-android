@@ -132,7 +132,7 @@ private val AllPrivate get() = TdApi.BusinessRecipients(LongArray(0), LongArray(
 @Composable
 fun BusinessEditor(graph: AppGraph, key: String, onDismiss: () -> Unit) {
     val feature = BusinessFeatures.firstOrNull { it.key == key } ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

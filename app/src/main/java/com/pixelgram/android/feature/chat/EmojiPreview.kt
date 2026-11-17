@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Star
@@ -73,6 +74,7 @@ object MediaPreview {
     var gif by mutableStateOf<TdApi.Animation?>(null)
     var scheduling by mutableStateOf<((TdApi.MessageSchedulingState) -> Unit)?>(null)
     var captioning by mutableStateOf<TdApi.Animation?>(null)
+    var editing by mutableStateOf<TdApi.Sticker?>(null)
 }
 
 object EmojiPreview {
@@ -186,6 +188,13 @@ fun EmojiPreviewHost() {
                                     EmojiPreview.pack = sticker.setId
                                     close()
                                 }
+                                val owned by androidx.compose.runtime.produceState(false, sticker.setId) {
+                                    if (sticker.setId != 0L) value = runCatching { graph.td.send(TdApi.GetStickerSet(sticker.setId)).isOwned }.getOrDefault(false)
+                                }
+                                if (owned) PreviewAction(Icons.Rounded.Edit, stringResource(R.string.sticker_edit)) {
+                                    MediaPreview.editing = sticker
+                                    close()
+                                }
                             }
                             if (gif != null) {
                                 PreviewAction(Icons.Rounded.PlaylistAdd, stringResource(R.string.gif_add_caption)) {
@@ -209,6 +218,23 @@ fun EmojiPreviewHost() {
             MediaPreview.scheduling = null
             action(state)
         }
+    }
+    MediaPreview.editing?.let { target ->
+        var emojis by androidx.compose.runtime.remember(target.sticker.id) { mutableStateOf(target.emoji) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { MediaPreview.editing = null },
+            icon = { StickerView(target, graph.store.snapshot.value.files, { graph.store.requestFileAsync(it) }, Modifier.size(96.dp), video = false) },
+            title = { Text(stringResource(R.string.sticker_edit)) },
+            text = { androidx.compose.material3.OutlinedTextField(emojis, { emojis = it.take(20) }, label = { Text(stringResource(R.string.sticker_edit_emoji)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val value = emojis.trim()
+                    if (value.isNotEmpty()) scope.launch { runCatching { graph.td.send(TdApi.SetStickerEmojis(TdApi.InputFileRemote(target.sticker.remote.id), value)) } }
+                    MediaPreview.editing = null
+                }) { Text(stringResource(R.string.action_save)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { MediaPreview.editing = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
     MediaPreview.captioning?.let { animation ->
         var caption by androidx.compose.runtime.remember(animation.animation.id) { mutableStateOf("") }

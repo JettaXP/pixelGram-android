@@ -134,7 +134,7 @@ private fun InlineKeyboard(markup: TdApi.ReplyMarkupInlineKeyboard, message: UiM
     }
     details?.let { button ->
         val clipboard = LocalClipboardManager.current
-        ModalBottomSheet(onDismissRequest = { details = null }) {
+        ModalBottomSheet(onDismissRequest = { details = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
                 Text(button.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
                 SheetAction(stringResource(R.string.button_copy_title)) {

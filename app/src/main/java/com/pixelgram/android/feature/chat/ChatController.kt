@@ -585,7 +585,7 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             videoNote = TdApi.InputVideoNote().apply {
                 videoNote = TdApi.InputFileLocal(note.path)
                 duration = note.duration
-                length = 384
+                length = note.length
             }
         })
     }

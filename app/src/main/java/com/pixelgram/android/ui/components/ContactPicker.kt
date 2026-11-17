@@ -36,7 +36,7 @@ fun ContactPickerSheet(onDismiss: () -> Unit, onPick: (UserInfo) -> Unit) {
     val snapshot by graph.store.snapshot.collectAsState()
     var ids by remember { mutableStateOf<List<Long>?>(null) }
     LaunchedEffect(Unit) { ids = runCatching { graph.td.send(TdApi.GetContacts()).userIds.toList() }.getOrDefault(emptyList()) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(stringResource(R.string.attach_contact), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         val list = ids
         if (list == null) {

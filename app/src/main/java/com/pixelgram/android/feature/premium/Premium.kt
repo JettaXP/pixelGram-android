@@ -272,7 +272,7 @@ private fun planName(context: Context, months: Int): String = when {
 private fun PayMethodSheet(graph: AppGraph, title: String, link: TdApi.InternalLinkType?, invoice: TdApi.InputInvoice? = null, fragment: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             Text(stringResource(R.string.pay_choose), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
@@ -553,7 +553,7 @@ private fun TransactionSheet(graph: AppGraph, tx: TdApi.StarTransaction, onDismi
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val copied = stringResource(R.string.stars_tx_copied)
     val (from, to) = if (tx.incoming()) other to me else me to other
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when {
                 sticker != null -> TxSticker(graph, sticker, 140.dp)
@@ -625,7 +625,7 @@ private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit
     }
     var chosen by remember { mutableStateOf<TdApi.StarPaymentOption?>(null) }
     var more by remember { mutableStateOf(false) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.stars_top_up), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             val list = options
@@ -731,7 +731,7 @@ fun PaymentHost() {
             onDismiss = { web = null },
         )
     }
-    ModalBottomSheet(onDismissRequest = close) {
+    ModalBottomSheet(onDismissRequest = close, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val loaded = form
             when {
@@ -843,7 +843,7 @@ fun EmojiStatusHost(onPremium: () -> Unit) {
     }
     val close = { EmojiStatusSheet.emojiId = 0L }
     val me = snapshot.users[snapshot.meId]
-    ModalBottomSheet(onDismissRequest = close) {
+    ModalBottomSheet(onDismissRequest = close, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             com.pixelgram.android.ui.components.CustomEmojiView(emoji, "⭐", size = 120.dp)
             Text(

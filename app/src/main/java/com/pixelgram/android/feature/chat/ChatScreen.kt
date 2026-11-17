@@ -1568,7 +1568,8 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     val voice: MediaRecorderUi = if (videoMode) roundRecorder else voiceRecorder
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceRecorder.cancel(); roundRecorder.release() } }
     val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {}
-    if (roundRecorder.controller != null) androidx.compose.ui.window.Popup(properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false)) { VideoNoteOverlay(roundRecorder) }
+    LaunchedEffect(videoMode) { if (videoMode && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) roundRecorder.prepare() }
+    if (roundRecorder.preview != null) androidx.compose.ui.window.Popup(properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false)) { VideoNoteOverlay(roundRecorder) }
     if (attach) AttachSheet(
         controller,
         onGallery = {
@@ -1721,24 +1722,23 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     emoji = true
                 }
             }
+            val slotPad = if (telegramStyle) 0.dp else 4.dp
             val slot: @Composable (String) -> Unit = { kind ->
                 when (kind) {
-                    ComposerSlots.Emoji -> IconButton(onClick = toggleEmoji, modifier = Modifier.padding(vertical = 4.dp)) {
-                        if (emoji) Icon(Icons.Rounded.Keyboard, stringResource(R.string.chat_emoji))
-                        else if (telegramStyle) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.chat_emoji), Modifier.size(24.dp))
-                        else Icon(Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
+                    ComposerSlots.Emoji -> IconButton(onClick = toggleEmoji, modifier = Modifier.padding(vertical = slotPad)) {
+                        Icon(if (emoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
                     }
-                    ComposerSlots.Attach -> IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
+                    ComposerSlots.Attach -> IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = slotPad)) {
                         Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
                     }
                     ComposerSlots.Gallery -> IconButton(
                         onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(vertical = slotPad),
                     ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
-                    ComposerSlots.Camera -> IconButton(onClick = { camera = true }, modifier = Modifier.padding(vertical = 4.dp)) {
+                    ComposerSlots.Camera -> IconButton(onClick = { camera = true }, modifier = Modifier.padding(vertical = slotPad)) {
                         Icon(androidx.compose.material.icons.Icons.Rounded.PhotoCamera, stringResource(R.string.attach_camera))
                     }
-                    ComposerSlots.Send -> IconButton(onClick = { if (draft.text.isNotBlank() || forward != null) sendDraftHolder.value?.invoke(null) }, modifier = Modifier.padding(vertical = 4.dp)) {
+                    ComposerSlots.Send -> IconButton(onClick = { if (draft.text.isNotBlank() || forward != null) sendDraftHolder.value?.invoke(null) }, modifier = Modifier.padding(vertical = slotPad)) {
                         Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.primary)
                     }
                     else -> Unit
@@ -1754,11 +1754,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 draft = RichDraft()
             }
             sendDraftHolder.value = sendDraft
-            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.padding(if (telegramStyle) PaddingValues(horizontal = 8.dp, vertical = 6.dp) else PaddingValues(8.dp)), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(if (telegramStyle) 6.dp else 8.dp)) {
                 Surface(
-                    shape = RoundedCornerShape(28.dp),
+                    shape = if (telegramStyle) CircleShape else RoundedCornerShape(28.dp),
                     color = if (telegramStyle) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()),
+                    modifier = Modifier.weight(1f).heightIn(min = if (telegramStyle) 48.dp else 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()),
                 ) {
                     Box {
                     if (voice.active) RecordingBar(voice)
@@ -1847,7 +1847,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                             ),
-                            modifier = Modifier.weight(1f).heightIn(max = 176.dp).verticalScroll(fieldScroll).padding(vertical = 16.dp).then(Modifier.bringIntoViewRequester(caretRequester)).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
+                            modifier = Modifier.weight(1f).heightIn(max = 176.dp).verticalScroll(fieldScroll).padding(vertical = if (telegramStyle) 12.dp else 16.dp).then(Modifier.bringIntoViewRequester(caretRequester)).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
                             decorationBox = { inner ->
                                 Box {
                                     if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1931,6 +1931,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 if (!ready && editing == null) VoiceButton(
                     recorder = voice,
                     video = videoMode,
+                    size = if (telegramStyle) 48.dp else 56.dp,
                     hasPermission = {
                         val mic = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
                         val cam = !videoMode || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -1943,7 +1944,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     },
                 ) else Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
+                    modifier = Modifier.size(if (telegramStyle) 48.dp else 56.dp).clip(if (telegramStyle) CircleShape else RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
                         enabled = ready,
                         onLongClick = if (editing == null) ({
                             sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -1952,7 +1953,8 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         }) else null,
                     ) { sendDraft(null) },
                 ) {
-                    Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
+                    if (telegramStyle && editing == null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    else Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
             if (sendOptions) SendOptionsPopup(
@@ -2412,7 +2414,7 @@ private val MenuGap = 8.dp
 private fun MessageActions(message: UiMessage, controller: ChatController, onDismiss: () -> Unit, onForward: () -> Unit, onDelete: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val canEdit by androidx.compose.runtime.produceState(false, message.id) { value = controller.canEdit(message) }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         val close: (() -> Unit) -> Unit = { action ->
             action()
             onDismiss()

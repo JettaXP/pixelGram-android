@@ -65,6 +65,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
@@ -949,13 +951,26 @@ private fun ComposerSettings(settings: AppearanceSettings, update: ((AppearanceS
     val slots = com.pixelgram.android.feature.chat.ComposerSlots.of(settings)
     SettingsGroup(stringResource(R.string.composer_title)) {
         androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp, 24.dp, 6.dp, 6.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
                 listOf("messages" to R.string.composer_style_messages, "telegram" to R.string.composer_style_telegram).forEach { (key, label) ->
-                    androidx.compose.material3.ToggleButton(
-                        checked = settings.composerStyle == key,
-                        onCheckedChange = { update { it.copy(composerStyle = key, composerLeft = "", composerRight = "", composerExtra = "") } },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(label)) }
+                    val selected = settings.composerStyle == key
+                    val border by androidx.compose.animation.animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, label = "style-border")
+                    androidx.compose.foundation.layout.Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                            .border(if (selected) 2.dp else 1.dp, border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                            .clickable { update { it.copy(composerStyle = key, composerLeft = "", composerRight = "", composerExtra = "") } }
+                            .padding(10.dp),
+                    ) {
+                        ComposerMock(key == "telegram")
+                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                            androidx.compose.material3.RadioButton(selected = selected, onClick = null)
+                            androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
+                            Text(stringResource(label), style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
                 }
             }
         }
@@ -980,5 +995,40 @@ private fun SlotItem(title: String, value: String, position: SegmentPosition, on
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ComposerMock(telegram: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(scheme.surfaceContainerLowest).padding(8.dp),
+    ) {
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .weight(1f)
+                .height(if (telegram) 24.dp else 28.dp)
+                .clip(if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                .background(if (telegram) scheme.surfaceContainerHigh else scheme.surfaceContainerHighest)
+                .padding(horizontal = 6.dp),
+        ) {
+            androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant))
+            androidx.compose.foundation.layout.Spacer(Modifier.width(5.dp))
+            androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(4.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant.copy(alpha = 0.4f)))
+            androidx.compose.foundation.layout.Spacer(Modifier.width(5.dp))
+            androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant))
+            if (!telegram) {
+                androidx.compose.foundation.layout.Spacer(Modifier.width(3.dp))
+                androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp)).background(scheme.onSurfaceVariant))
+            }
+        }
+        androidx.compose.foundation.layout.Box(
+            Modifier.size(if (telegram) 24.dp else 28.dp)
+                .clip(if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                .background(scheme.primary),
+        )
     }
 }

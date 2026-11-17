@@ -76,7 +76,7 @@ fun ChatPickerSheet(onPick: (Long) -> Unit, onDismiss: () -> Unit, title: String
     val graph = LocalGraph.current
     val snapshot by graph.store.snapshot.collectAsState()
     val rows = snapshot.lists[LIST_MAIN].orEmpty()
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(
             title,
             style = MaterialTheme.typography.titleLargeEmphasized,

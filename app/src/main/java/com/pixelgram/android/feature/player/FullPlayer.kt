@@ -834,7 +834,7 @@ private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SaveToSheet(canMusic: Boolean, inProfile: Boolean, onDismiss: () -> Unit, onMusic: () -> Unit, onSaved: () -> Unit, onProfile: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(stringResource(R.string.player_save_to), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         val rows = listOf(
             Triple(Icons.Rounded.Download, R.string.player_save_music_folder, onMusic.takeIf { canMusic }),
@@ -869,7 +869,7 @@ private fun TrackDetails(audio: TdApi.Audio, path: String?, name: String, sample
         stringResource(R.string.player_file_name) to name,
         path?.let { stringResource(R.string.player_file_path) to it },
     )
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(stringResource(R.string.player_details), style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         rows.forEach { (label, value) ->
             Column(Modifier.padding(horizontal = 24.dp, vertical = 6.dp)) {

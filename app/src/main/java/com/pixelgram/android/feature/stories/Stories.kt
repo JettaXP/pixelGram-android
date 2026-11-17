@@ -475,7 +475,7 @@ private fun StoryComposerSheet(graph: AppGraph, onDismiss: () -> Unit) {
             }
         }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.stories_new), style = MaterialTheme.typography.titleLargeEmphasized)
             val file = picked

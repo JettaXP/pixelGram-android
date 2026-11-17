@@ -69,6 +69,7 @@ import kotlin.math.roundToInt
 fun VoiceButton(
     recorder: MediaRecorderUi,
     video: Boolean,
+    size: androidx.compose.ui.unit.Dp = 56.dp,
     hasPermission: () -> Boolean,
     onRequestPermission: () -> Unit,
     onTap: () -> Unit,
@@ -81,7 +82,7 @@ fun VoiceButton(
     var lift by remember { mutableStateOf(0f) }
     val scale by animateFloatAsState(if (recorder.active && !recorder.locked) 1.35f else 1f, label = "mic-scale")
     val pulse by animateFloatAsState(1f + recorder.level * 0.7f, tween(90), label = "mic-level")
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
         AnimatedVisibility(
             recorder.active && !recorder.locked,
             enter = fadeIn() + slideInVertically { it },
@@ -97,7 +98,7 @@ fun VoiceButton(
         }
         if (recorder.active && !recorder.locked) {
             Box(
-                Modifier.size(56.dp).graphicsLayer {
+                Modifier.size(size).graphicsLayer {
                     scaleX = scale * pulse
                     scaleY = scale * pulse
                     translationX = recorder.drag
@@ -107,13 +108,13 @@ fun VoiceButton(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(56.dp)
+                .size(size)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                     translationX = recorder.drag
                 }
-                .clip(if (recorder.active) CircleShape else RoundedCornerShape(28.dp))
+                .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary)
                 .pointerInput(recorder.locked) {
                     if (recorder.locked) {

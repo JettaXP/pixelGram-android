@@ -1026,7 +1026,7 @@ private fun EditProfileSheet(graph: AppGraph, full: TdApi.UserFullInfo?, onDismi
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.profile_edit), style = MaterialTheme.typography.titleLargeEmphasized)
             androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.profile_first_name)) }, singleLine = true, shape = shape, modifier = Modifier.fillMaxWidth())

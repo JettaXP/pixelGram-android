@@ -63,6 +63,35 @@ sealed interface PaintItem {
     data class Stroke(val points: List<Pair<Float, Float>>, val color: Int, val width: Float, val tool: PaintTool) : PaintItem
     data class Shape(val kind: ShapeKind, val left: Float, val top: Float, val right: Float, val bottom: Float, val color: Int, val width: Float) : PaintItem
     data class Label(val text: String, val x: Float, val y: Float, val color: Int, val size: Float) : PaintItem
+    data class Sticker(val path: String, val x: Float, val y: Float, val size: Float) : PaintItem
+}
+
+object StickerBitmaps {
+    private val cache = object : android.util.LruCache<String, Bitmap>(12) {}
+
+    fun get(path: String): Bitmap? {
+        cache.get(path)?.let { return it }
+        val bitmap = runCatching {
+            if (path.endsWith(".tgs", ignoreCase = true)) {
+                val bytes = File(path).readBytes()
+                val gzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+                val json = if (gzip) java.util.zip.GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() } else String(bytes)
+                val composition = com.airbnb.lottie.LottieCompositionFactory.fromJsonStringSync(json, null).value ?: return null
+                val out = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+                com.airbnb.lottie.LottieDrawable().apply {
+                    this.composition = composition
+                    setBounds(0, 0, 512, 512)
+                    progress = 0f
+                    draw(Canvas(out))
+                }
+                out
+            } else {
+                BitmapFactory.decodeFile(path)
+            }
+        }.getOrNull() ?: return null
+        cache.put(path, bitmap)
+        return bitmap
+    }
 }
 
 data class PhotoEdit(
@@ -320,6 +349,18 @@ object PhotoRenderer {
             when (item) {
                 is PaintItem.Stroke -> drawStroke(canvas, item, width, height, unit)
                 is PaintItem.Shape -> drawShape(canvas, item, width, height, unit)
+                is PaintItem.Sticker -> {
+                    val bitmap = StickerBitmaps.get(item.path)
+                    if (bitmap != null) {
+                        val side = min(width, height) * item.size
+                        val ratio = bitmap.width.toFloat() / bitmap.height
+                        val w = if (ratio >= 1f) side else side * ratio
+                        val h = if (ratio >= 1f) side / ratio else side
+                        val cx = item.x * width
+                        val cy = item.y * height
+                        canvas.drawBitmap(bitmap, null, RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+                    }
+                }
                 is PaintItem.Label -> {
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = item.color

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material3.Button
@@ -131,6 +132,12 @@ fun ScheduleSheet(reminder: Boolean, onlineName: String?, initial: Int? = null, 
     var hour by remember { mutableStateOf(start.hour) }
     var minute by remember { mutableStateOf(start.minute) }
     var menu by remember { mutableStateOf(false) }
+    var repeat by remember { mutableStateOf(0) }
+    var repeatMenu by remember { mutableStateOf(false) }
+    val graph = LocalGraph.current
+    val premium = graph.store.snapshot.value.let { it.users[it.meId]?.premium } == true
+    val context = LocalContext.current
+    val premiumOnly = stringResource(R.string.schedule_repeat_premium)
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val chosen = today.plusDays(day.toLong()).atTime(hour, minute)
     val epoch = chosen.atZone(zone).toEpochSecond().toInt()
@@ -174,10 +181,28 @@ fun ScheduleSheet(reminder: Boolean, onlineName: String?, initial: Int? = null, 
                     WheelPicker((0..59).map { "%02d".format(it) }, minute, Modifier.weight(1f)) { minute = it }
                 }
             }
+            Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
+                Surface(
+                    onClick = { if (premium) repeatMenu = true else android.widget.Toast.makeText(context, premiumOnly, android.widget.Toast.LENGTH_SHORT).show() },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        Text(stringResource(R.string.schedule_repeat) + ": ", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(RepeatOptions.first { it.first == repeat }.second), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        if (!premium) Icon(Icons.Rounded.Lock, null, Modifier.padding(start = 6.dp).size(16.dp))
+                    }
+                }
+                DropdownMenu(expanded = repeatMenu, onDismissRequest = { repeatMenu = false }, shape = RoundedCornerShape(16.dp)) {
+                    RepeatOptions.forEach { (seconds, label) ->
+                        DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { repeat = seconds; repeatMenu = false })
+                    }
+                }
+            }
             Button(
                 onClick = {
                     val now = (System.currentTimeMillis() / 1000).toInt()
-                    onPick(TdApi.MessageSchedulingStateSendAtDate(maxOf(epoch, now + 30), 0))
+                    onPick(TdApi.MessageSchedulingStateSendAtDate(maxOf(epoch, now + 30), repeat))
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(56.dp),
             ) { Text(label, style = MaterialTheme.typography.titleMedium) }
@@ -389,3 +414,14 @@ fun ScheduledMessagesScreen(controller: ChatController, onDismiss: () -> Unit) {
 }
 
 private val WheelItem = 48.dp
+
+private val RepeatOptions = listOf(
+    0 to R.string.repeat_never,
+    86_400 to R.string.repeat_daily,
+    604_800 to R.string.repeat_weekly,
+    1_209_600 to R.string.repeat_biweekly,
+    2_592_000 to R.string.repeat_monthly,
+    7_776_000 to R.string.repeat_quarterly,
+    15_552_000 to R.string.repeat_half_year,
+    31_536_000 to R.string.repeat_yearly,
+)
