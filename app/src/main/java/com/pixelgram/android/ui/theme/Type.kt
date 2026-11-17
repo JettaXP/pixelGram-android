@@ -14,9 +14,9 @@ val GoogleSans = FontFamily(
     Font(R.font.google_sans_bold, FontWeight.Bold),
 )
 
-private fun TextStyle.sans() = copy(fontFamily = GoogleSans)
-
-internal fun pixelTypography(base: Typography = Typography()): Typography = base.copy(
+internal fun pixelTypography(family: FontFamily = GoogleSans, base: Typography = Typography()): Typography {
+    fun TextStyle.sans() = copy(fontFamily = family)
+    return base.copy(
     displayLarge = base.displayLarge.sans(),
     displayMedium = base.displayMedium.sans(),
     displaySmall = base.displaySmall.sans(),
@@ -48,3 +48,4 @@ internal fun pixelTypography(base: Typography = Typography()): Typography = base
     labelMediumEmphasized = base.labelMediumEmphasized.sans(),
     labelSmallEmphasized = base.labelSmallEmphasized.sans(),
 )
+}

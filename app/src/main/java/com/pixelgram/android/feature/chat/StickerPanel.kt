@@ -55,7 +55,7 @@ import com.pixelgram.android.ui.components.Icon
 import org.drinkless.tdlib.TdApi
 import java.io.File
 
-private enum class PanelTab { Emoji, Gifs, Stickers }
+enum class PanelTab { Emoji, Gifs, Stickers }
 
 private const val RecentId = -1L
 private const val FavoritesId = -2L
@@ -71,6 +71,10 @@ fun EmojiStickerPanel(
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(PanelTab.Emoji) }
+    LaunchedEffect(PanelRequest.tab) {
+        PanelRequest.tab?.let { tab = it }
+        PanelRequest.tab = null
+    }
     Box(modifier) {
         androidx.compose.animation.AnimatedContent(
             tab,
@@ -342,3 +346,7 @@ fun gifInput(gif: TdApi.Animation): TdApi.InputMessageContent =
         height = gif.height
         addedStickerFileIds = IntArray(0)
     }, TdApi.FormattedText("", emptyArray()), false, false)
+
+object PanelRequest {
+    var tab by mutableStateOf<PanelTab?>(null)
+}

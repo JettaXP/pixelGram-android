@@ -999,4 +999,25 @@
     <string name="pin_notify">Уведомить всех участников</string>
     <string name="pixel_archive_pull">Скрытый архив</string>
     <string name="pixel_archive_pull_sub">Потяните список чатов вниз, чтобы показать архив, вверх — чтобы скрыть</string>
+    <string name="slot_stickers">Стикеры</string>
+    <string name="slot_gifs">GIF</string>
+    <string name="slot_file">Файл</string>
+    <string name="slot_location">Геопозиция</string>
+    <string name="composer_left_sub">Что открывает левая кнопка</string>
+    <string name="composer_right_sub">Что открывает правая кнопка</string>
+    <string name="composer_extra_sub">Показывается, пока поле пустое</string>
+    <string name="font_title">Шрифт</string>
+    <string name="font_google_sans">Google Sans</string>
+    <string name="font_google_sans_flex">Google Sans Flex</string>
+    <string name="font_system">Системный</string>
+    <string name="font_custom">Из файла</string>
+    <string name="font_custom_sub">Выберите шрифт .ttf или .otf</string>
+    <string name="font_import_failed">Этот файл шрифта не подходит</string>
+    <string name="emoji_style_title">Эмодзи</string>
+    <string name="emoji_style_system">Системные</string>
+    <string name="emoji_style_noto">Noto</string>
+    <string name="emoji_style_noto3d">Noto 3D</string>
+    <string name="emoji_style_apple">iOS</string>
+    <string name="emoji_style_download">Нажмите, чтобы скачать</string>
+    <string name="emoji_style_failed">Не удалось скачать набор или устройство не может его отобразить</string>
 </resources>

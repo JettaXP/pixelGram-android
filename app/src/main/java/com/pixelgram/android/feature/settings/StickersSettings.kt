@@ -92,12 +92,17 @@ fun StickersSettingsScreen(graph: AppGraph, navigator: Navigator) {
     val stickers by produceState(emptyList<TdApi.StickerSetInfo>(), reload) {
         value = runCatching { graph.td.send(TdApi.GetInstalledStickerSets(TdApi.StickerTypeRegular())).sets.toList() }.getOrDefault(emptyList())
     }
-    val emoji by produceState(0, reload) {
-        value = runCatching { graph.td.send(TdApi.GetInstalledStickerSets(TdApi.StickerTypeCustomEmoji())).sets.size }.getOrDefault(0)
+    val emojiSets by produceState(emptyList<TdApi.StickerSetInfo>(), reload) {
+        value = runCatching { graph.td.send(TdApi.GetInstalledStickerSets(TdApi.StickerTypeCustomEmoji())).sets.toList() }.getOrDefault(emptyList())
     }
-    val archived by produceState(0) {
-        value = runCatching { graph.td.send(TdApi.GetArchivedStickerSets(TdApi.StickerTypeRegular(), 0, 1)).totalCount }.getOrDefault(0)
+    val emoji = emojiSets.size
+    val archivedSets by produceState(emptyList<TdApi.StickerSetInfo>(), reload) {
+        value = runCatching { graph.td.send(TdApi.GetArchivedStickerSets(TdApi.StickerTypeRegular(), 0, 100)).sets.toList() }.getOrDefault(emptyList()) +
+            runCatching { graph.td.send(TdApi.GetArchivedStickerSets(TdApi.StickerTypeCustomEmoji(), 0, 100)).sets.toList() }.getOrDefault(emptyList())
     }
+    val archived = archivedSets.size
+    var showArchived by remember { mutableStateOf(false) }
+    var showEmoji by remember { mutableStateOf(false) }
     val collapse = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(collapse.nestedScrollConnection),
@@ -111,8 +116,8 @@ fun StickersSettingsScreen(graph: AppGraph, navigator: Navigator) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             SettingsGroup {
-                SettingsItem(stringResource(R.string.stickers_archived), SegmentPosition.Top, null, Icons.Rounded.Archive) { Text(archived.toString(), color = MaterialTheme.colorScheme.primary) }
-                SettingsItem(stringResource(R.string.stickers_emoji), SegmentPosition.Middle, null, Icons.Rounded.EmojiEmotions) { Text(emoji.toString(), color = MaterialTheme.colorScheme.primary) }
+                SettingsItem(stringResource(R.string.stickers_archived), SegmentPosition.Top, null, Icons.Rounded.Archive, onClick = { showArchived = !showArchived }) { Text(archived.toString(), color = MaterialTheme.colorScheme.primary) }
+                SettingsItem(stringResource(R.string.stickers_emoji), SegmentPosition.Middle, null, Icons.Rounded.EmojiEmotions, onClick = { showEmoji = !showEmoji }) { Text(emoji.toString(), color = MaterialTheme.colorScheme.primary) }
                 SettingsItem(stringResource(R.string.stickers_quick_reaction), SegmentPosition.Bottom, null, Icons.Rounded.Favorite, onClick = { navigator.open(QuickReactionKey) }) {
                     ReactionGlyph(appearance.doubleTapEmoji, 26.dp)
                 }
@@ -120,10 +125,17 @@ fun StickersSettingsScreen(graph: AppGraph, navigator: Navigator) {
             SettingsGroup(stringResource(R.string.stickers_settings)) {
                 SettingsSwitch(stringResource(R.string.stickers_large_emoji), appearance.largeEmoji, { v -> graph.appearance.update { it.copy(largeEmoji = v) } }, SegmentPosition.Single, stringResource(R.string.stickers_large_emoji_sub))
             }
+            androidx.compose.animation.AnimatedVisibility(showEmoji && emojiSets.isNotEmpty()) {
+                SetList(stringResource(R.string.stickers_emoji), emojiSets, snapshot.files, graph)
+            }
+            androidx.compose.animation.AnimatedVisibility(showArchived && archivedSets.isNotEmpty()) {
+                SetList(stringResource(R.string.stickers_archived), archivedSets, snapshot.files, graph)
+            }
             if (stickers.isNotEmpty()) {
                 SettingsGroup(stringResource(R.string.stickers_my_sets)) {
                     stickers.forEachIndexed { index, set ->
                         SegmentedListItem(
+                            onClick = { com.pixelgram.android.feature.chat.EmojiPreview.pack = set.id },
                             shapes = ListItemDefaults.segmentedShapes(index, stickers.size),
                             colors = segmentedColors(),
                             leadingContent = {
@@ -210,6 +222,31 @@ fun QuickReactionScreen(graph: AppGraph, navigator: Navigator) {
                     ) { Text(name) }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SetList(title: String, sets: List<TdApi.StickerSetInfo>, files: Map<Int, String>, graph: AppGraph) {
+    SettingsGroup(title) {
+        sets.forEachIndexed { index, set ->
+            SegmentedListItem(
+                onClick = { com.pixelgram.android.feature.chat.EmojiPreview.pack = set.id },
+                shapes = ListItemDefaults.segmentedShapes(index, sets.size),
+                colors = segmentedColors(),
+                leadingContent = {
+                    Box(Modifier.size(44.dp)) {
+                        val cover = set.covers?.firstOrNull()
+                        val custom = (cover?.fullType as? TdApi.StickerFullTypeCustomEmoji)?.customEmojiId
+                        when {
+                            custom != null -> CustomEmojiView(custom, cover.emoji, Modifier.fillMaxSize())
+                            cover != null -> StickerView(cover, files, { id -> graph.store.requestFileAsync(id) }, Modifier.fillMaxSize(), video = false)
+                        }
+                    }
+                },
+                supportingContent = { Text(pluralStringResource(R.plurals.stickers_count, set.size, set.size)) },
+            ) { Text(set.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

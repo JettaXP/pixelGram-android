@@ -34,7 +34,7 @@ fun PixelTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
         }
     }
     androidx.compose.runtime.SideEffect { com.pixelgram.android.notify.NotificationAccent.save(context, scheme.primary.toArgb()) }
-    val typography = remember { pixelTypography() }
+    val typography = remember(settings.appFont, settings.emojiStyle, settings.fontStamp) { pixelTypography(AppFonts.family(context, settings.appFont, settings.emojiStyle)) }
     MaterialExpressiveTheme(
         colorScheme = scheme,
         typography = typography,

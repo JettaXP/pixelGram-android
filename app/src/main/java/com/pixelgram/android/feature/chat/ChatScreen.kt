@@ -45,6 +45,11 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.material.icons.rounded.FormatClear
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.GifBox
+import androidx.compose.material.icons.rounded.Interests
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Place
@@ -656,6 +661,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             onMultiSelect = { toggleSelected(message) },
             pinned = ui.pins.any { it.id == message.id },
             onPin = { pinning = message },
+            onQuickReact = { controller.react(message, appearance.doubleTapEmoji) },
         )
     }
     selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
@@ -932,13 +938,7 @@ internal fun MessageBubble(
                             latestTap(pointAt(up.position.x, up.position.y))
                             return@awaitEachGesture
                         }
-                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
-                        if (second != null) {
-                            waitForUpOrCancellation()?.consume()
-                            latestDoubleTap()
-                        } else {
-                            latestTap(pointAt(up.position.x, up.position.y))
-                        }
+                        latestTap(pointAt(up.position.x, up.position.y))
                     }
                 }
                 .padding(top = if (joinsAbove) 2.dp else 6.dp),
@@ -1552,6 +1552,23 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
         }
     }
     var camera by remember { mutableStateOf(false) }
+    val filePicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        controller.launch {
+            val paths = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                uris.mapIndexedNotNull { index, uri ->
+                    runCatching {
+                        val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "file-$index"
+                        val dir = java.io.File(context.cacheDir, "send-${System.currentTimeMillis()}-$index").apply { mkdirs() }
+                        val target = java.io.File(dir, name)
+                        context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                        target.absolutePath
+                    }.getOrNull()
+                }
+            }
+            controller.sendDocuments(paths)
+        }
+    }
     val sendDraftHolder = remember { mutableStateOf<((TdApi.MessageSendOptions?) -> Unit)?>(null) }
     var pendingLive by remember { mutableStateOf(0) }
     var sendOptions by remember { mutableStateOf(false) }
@@ -1747,6 +1764,24 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                         onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
                         modifier = Modifier.padding(vertical = slotPad),
                     ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
+                    ComposerSlots.Stickers, ComposerSlots.Gifs -> IconButton(
+                        onClick = {
+                            PanelRequest.tab = if (kind == ComposerSlots.Gifs) PanelTab.Gifs else PanelTab.Stickers
+                            if (!emoji) toggleEmoji()
+                        },
+                        modifier = Modifier.padding(vertical = slotPad),
+                    ) { Icon(ComposerSlots.icon(kind), stringResource(ComposerSlots.label(kind))) }
+                    ComposerSlots.File -> IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }, modifier = Modifier.padding(vertical = slotPad)) {
+                        Icon(ComposerSlots.icon(kind), stringResource(ComposerSlots.label(kind)))
+                    }
+                    ComposerSlots.Location -> IconButton(
+                        onClick = {
+                            pendingLive = 0
+                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) controller.sendLocation(context, 0)
+                            else locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION))
+                        },
+                        modifier = Modifier.padding(vertical = slotPad),
+                    ) { Icon(ComposerSlots.icon(kind), stringResource(ComposerSlots.label(kind))) }
                     ComposerSlots.Camera -> IconButton(onClick = { camera = true }, modifier = Modifier.padding(vertical = slotPad)) {
                         Icon(androidx.compose.material.icons.Icons.Rounded.PhotoCamera, stringResource(R.string.attach_camera))
                     }
@@ -2249,7 +2284,9 @@ private fun MessageMenu(
     onMultiSelect: () -> Unit,
     pinned: Boolean,
     onPin: () -> Unit,
+    onQuickReact: () -> Unit = {},
 ) {
+    val openedAt = remember { System.currentTimeMillis() }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -2283,7 +2320,9 @@ private fun MessageMenu(
         val scrim by androidx.compose.animation.core.animateFloatAsState(if (shown.targetState) 0.4f else 0f, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "scrim")
         androidx.compose.ui.layout.Layout(
             content = {
-                Box(Modifier.background(Color.Black.copy(alpha = scrim)).clickable(indication = null, interactionSource = null) { close {} })
+                Box(Modifier.background(Color.Black.copy(alpha = scrim)).clickable(indication = null, interactionSource = null) {
+                    if (System.currentTimeMillis() - openedAt < QuickReactMs) close(onQuickReact) else close {}
+                })
                 androidx.compose.animation.AnimatedVisibility(
                     shown,
                     enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.6f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (message.outgoing) 1f else 0f, 1f)),
@@ -2430,6 +2469,7 @@ private fun SelectTextDialog(message: UiMessage, onDismiss: () -> Unit) {
 
 private val MenuWidth = 196.dp
 private val MenuGap = 8.dp
+private const val QuickReactMs = 300L
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -3539,11 +3579,15 @@ internal fun ReactionGlyph(key: String, size: androidx.compose.ui.unit.Dp) {
 object ComposerSlots {
     const val None = "none"
     const val Emoji = "emoji"
+    const val Stickers = "stickers"
+    const val Gifs = "gifs"
     const val Attach = "attach"
     const val Gallery = "gallery"
+    const val File = "file"
+    const val Location = "location"
     const val Camera = "camera"
     const val Send = "send"
-    val All = listOf(Emoji, Attach, Gallery, Camera, Send, None)
+    val All = listOf(None, Emoji, Stickers, Gifs, Attach, Gallery, File, Location, Camera, Send)
 
     class Set(val left: String, val right: String, val extra: String)
 
@@ -3556,10 +3600,27 @@ object ComposerSlots {
         )
     }
 
+    fun icon(kind: String): androidx.compose.ui.graphics.vector.ImageVector = when (kind) {
+        Emoji -> androidx.compose.material.icons.Icons.Rounded.EmojiEmotions
+        Stickers -> androidx.compose.material.icons.Icons.Rounded.Interests
+        Gifs -> androidx.compose.material.icons.Icons.Rounded.GifBox
+        Attach -> androidx.compose.material.icons.Icons.Rounded.AttachFile
+        Gallery -> androidx.compose.material.icons.Icons.Rounded.PhotoLibrary
+        File -> androidx.compose.material.icons.Icons.AutoMirrored.Rounded.InsertDriveFile
+        Location -> androidx.compose.material.icons.Icons.Rounded.LocationOn
+        Camera -> androidx.compose.material.icons.Icons.Rounded.PhotoCamera
+        Send -> androidx.compose.material.icons.Icons.AutoMirrored.Rounded.Send
+        else -> androidx.compose.material.icons.Icons.Rounded.Block
+    }
+
     fun label(kind: String): Int = when (kind) {
         Emoji -> R.string.slot_emoji
+        Stickers -> R.string.slot_stickers
+        Gifs -> R.string.slot_gifs
         Attach -> R.string.slot_attach
         Gallery -> R.string.slot_gallery
+        File -> R.string.slot_file
+        Location -> R.string.slot_location
         Camera -> R.string.slot_camera
         Send -> R.string.slot_send
         else -> R.string.slot_none
@@ -3602,3 +3663,4 @@ private fun PinDialog(graph: com.pixelgram.android.AppGraph, chatId: Long, onDis
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
+

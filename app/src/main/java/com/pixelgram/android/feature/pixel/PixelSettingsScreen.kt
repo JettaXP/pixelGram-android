@@ -4,6 +4,9 @@ import com.pixelgram.android.ui.components.settingLink
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.rounded.EmojiEmotions
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -65,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -269,6 +273,8 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    FontSettings(settings, update)
+    EmojiStyleSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_theme)) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -950,49 +956,129 @@ private fun SliderValue(label: String, value: Int, default: Int?, onChange: (Int
 @Composable
 private fun ComposerSettings(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
     val slots = com.pixelgram.android.feature.chat.ComposerSlots.of(settings)
+    val telegram = settings.composerStyle == "telegram"
     SettingsGroup(stringResource(R.string.composer_title)) {
-        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp, 24.dp, 6.dp, 6.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
-                listOf("messages" to R.string.composer_style_messages, "telegram" to R.string.composer_style_telegram).forEach { (key, label) ->
-                    val selected = settings.composerStyle == key
-                    val border by androidx.compose.animation.animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, label = "style-border")
-                    androidx.compose.foundation.layout.Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                            .border(if (selected) 2.dp else 1.dp, border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                            .clickable { update { it.copy(composerStyle = key, composerLeft = "", composerRight = "", composerExtra = "") } }
-                            .padding(10.dp),
-                    ) {
-                        ComposerMock(key == "telegram")
-                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                            androidx.compose.material3.RadioButton(selected = selected, onClick = null)
-                            androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
-                            Text(stringResource(label), style = MaterialTheme.typography.titleSmall)
+        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween),
+                ) {
+                    val options = listOf("messages" to R.string.composer_style_messages, "telegram" to R.string.composer_style_telegram)
+                    options.forEachIndexed { index, (key, label) ->
+                        val selected = settings.composerStyle == key
+                        androidx.compose.material3.ToggleButton(
+                            checked = selected,
+                            onCheckedChange = { update { it.copy(composerStyle = key, composerLeft = "", composerRight = "", composerExtra = "") } },
+                            shapes = if (index == 0) androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes() else androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                            colors = androidx.compose.material3.ToggleButtonDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                checkedContentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            modifier = Modifier.weight(1f).height(androidx.compose.material3.ButtonDefaults.MediumContainerHeight),
+                        ) {
+                            if (selected) {
+                                Icon(androidx.compose.material.icons.Icons.Rounded.Check, null, Modifier.size(18.dp))
+                                androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
+                            }
+                            Text(stringResource(label), style = MaterialTheme.typography.labelLarge, maxLines = 1)
                         }
                     }
                 }
+                ComposerPreview(telegram, slots)
+                androidx.compose.foundation.layout.Box(Modifier.padding(start = 16.dp, top = 8.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)))
+                SlotRow(stringResource(R.string.composer_left), stringResource(R.string.composer_left_sub), slots.left, MaterialTheme.colorScheme.tertiary) { v -> update { it.copy(composerLeft = v) } }
+                SlotRow(stringResource(R.string.composer_right), stringResource(R.string.composer_right_sub), slots.right, MaterialTheme.colorScheme.secondary) { v -> update { it.copy(composerRight = v) } }
+                SlotRow(stringResource(R.string.composer_extra), stringResource(R.string.composer_extra_sub), slots.extra, MaterialTheme.colorScheme.primary) { v -> update { it.copy(composerExtra = v) } }
             }
         }
-        SlotItem(stringResource(R.string.composer_left), slots.left, SegmentPosition.Middle) { v -> update { it.copy(composerLeft = v) } }
-        SlotItem(stringResource(R.string.composer_right), slots.right, SegmentPosition.Middle) { v -> update { it.copy(composerRight = v) } }
-        SlotItem(stringResource(R.string.composer_extra), slots.extra, SegmentPosition.Bottom) { v -> update { it.copy(composerExtra = v) } }
     }
 }
 
 @Composable
-private fun SlotItem(title: String, value: String, position: SegmentPosition, onPick: (String) -> Unit) {
+private fun ComposerPreview(telegram: Boolean, slots: com.pixelgram.android.feature.chat.ComposerSlots.Set) {
+    val scheme = MaterialTheme.colorScheme
+    val none = com.pixelgram.android.feature.chat.ComposerSlots.None
+    androidx.compose.material3.Surface(
+        color = scheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    ) {
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(12.dp).animateContentSize(),
+        ) {
+            androidx.compose.material3.Surface(
+                shape = if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                color = if (telegram) scheme.surfaceContainerHigh else scheme.surfaceContainerHighest,
+                modifier = Modifier.weight(1f).height(if (telegram) 48.dp else 56.dp),
+            ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (slots.left != none) PreviewSlot(slots.left)
+                    Text(stringResource(R.string.chat_message_hint), color = scheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.weight(1f).padding(start = if (slots.left == none) 16.dp else 0.dp))
+                    if (slots.right != none) PreviewSlot(slots.right)
+                    if (slots.extra != none) PreviewSlot(slots.extra)
+                }
+            }
+            androidx.compose.foundation.layout.Box(
+                Modifier.size(if (telegram) 48.dp else 56.dp)
+                    .clip(if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                    .background(scheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (telegram) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), null, Modifier.size(24.dp), tint = scheme.onPrimary)
+                else Icon(androidx.compose.material.icons.Icons.Rounded.Mic, null, tint = scheme.onPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewSlot(kind: String) {
+    androidx.compose.foundation.layout.Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+        Icon(com.pixelgram.android.feature.chat.ComposerSlots.icon(kind), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SlotRow(title: String, subtitle: String, value: String, tint: androidx.compose.ui.graphics.Color, onPick: (String) -> Unit) {
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    SettingsItem(title, position, null, onClick = { open = true }) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        androidx.compose.foundation.layout.Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(com.pixelgram.android.feature.chat.ComposerSlots.icon(value), null, tint = tint)
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.width(16.dp))
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Box {
-            Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(value)), color = MaterialTheme.colorScheme.primary)
-            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(value)), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Icon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.primary)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                modifier = Modifier.heightIn(max = 360.dp),
+            ) {
                 com.pixelgram.android.feature.chat.ComposerSlots.All.forEach { kind ->
-                    androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(kind))) }, onClick = {
-                        open = false
-                        onPick(kind)
-                    })
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(kind))) },
+                        leadingIcon = { Icon(com.pixelgram.android.feature.chat.ComposerSlots.icon(kind), null) },
+                        trailingIcon = if (kind == value) ({ Icon(androidx.compose.material.icons.Icons.Rounded.Check, null, Modifier.size(20.dp)) }) else null,
+                        onClick = {
+                            open = false
+                            onPick(kind)
+                        },
+                    )
                 }
             }
         }
@@ -1000,36 +1086,86 @@ private fun SlotItem(title: String, value: String, position: SegmentPosition, on
 }
 
 @Composable
-private fun ComposerMock(telegram: Boolean) {
-    val scheme = MaterialTheme.colorScheme
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(scheme.surfaceContainerLowest).padding(8.dp),
-    ) {
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .weight(1f)
-                .height(if (telegram) 24.dp else 28.dp)
-                .clip(if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                .background(if (telegram) scheme.surfaceContainerHigh else scheme.surfaceContainerHighest)
-                .padding(horizontal = 6.dp),
-        ) {
-            androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant))
-            androidx.compose.foundation.layout.Spacer(Modifier.width(5.dp))
-            androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(4.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant.copy(alpha = 0.4f)))
-            androidx.compose.foundation.layout.Spacer(Modifier.width(5.dp))
-            androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(scheme.onSurfaceVariant))
-            if (!telegram) {
-                androidx.compose.foundation.layout.Spacer(Modifier.width(3.dp))
-                androidx.compose.foundation.layout.Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp)).background(scheme.onSurfaceVariant))
+private fun FontSettings(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val failed = stringResource(R.string.font_import_failed)
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (com.pixelgram.android.ui.theme.AppFonts.importFont(context, uri)) update { it.copy(appFont = com.pixelgram.android.ui.theme.AppFonts.CustomKey, fontStamp = it.fontStamp + 1) }
+        else android.widget.Toast.makeText(context, failed, android.widget.Toast.LENGTH_SHORT).show()
+    }
+    val options = listOf(
+        com.pixelgram.android.ui.theme.AppFonts.GoogleSansKey to R.string.font_google_sans,
+        com.pixelgram.android.ui.theme.AppFonts.FlexKey to R.string.font_google_sans_flex,
+        com.pixelgram.android.ui.theme.AppFonts.SystemKey to R.string.font_system,
+        com.pixelgram.android.ui.theme.AppFonts.CustomKey to R.string.font_custom,
+    )
+    SettingsGroup(stringResource(R.string.font_title)) {
+        options.forEachIndexed { index, (key, label) ->
+            val family = androidx.compose.runtime.remember(key, settings.fontStamp) {
+                com.pixelgram.android.ui.theme.AppFonts.family(context, key, com.pixelgram.android.ui.theme.AppFonts.EmojiSystem)
+            }
+            val selected = settings.appFont == key
+            SettingsItem(
+                stringResource(label),
+                segmentPosition(index, options.size),
+                if (key == com.pixelgram.android.ui.theme.AppFonts.CustomKey) stringResource(R.string.font_custom_sub) else null,
+                onClick = {
+                    if (key == com.pixelgram.android.ui.theme.AppFonts.CustomKey) picker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream"))
+                    else update { it.copy(appFont = key) }
+                },
+                headlineContent = { Text(stringResource(label), fontFamily = family, style = MaterialTheme.typography.bodyLarge) },
+            ) {
+                androidx.compose.material3.RadioButton(selected = selected, onClick = null)
             }
         }
-        androidx.compose.foundation.layout.Box(
-            Modifier.size(if (telegram) 24.dp else 28.dp)
-                .clip(if (telegram) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
-                .background(scheme.primary),
-        )
+    }
+}
+
+@Composable
+private fun EmojiStyleSettings(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val progress by com.pixelgram.android.ui.theme.AppFonts.progress.collectAsState()
+    val failed = stringResource(R.string.emoji_style_failed)
+    var stamp by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val options = listOf(
+        com.pixelgram.android.ui.theme.AppFonts.EmojiSystem to R.string.emoji_style_system,
+        com.pixelgram.android.ui.theme.AppFonts.EmojiNoto to R.string.emoji_style_noto,
+        com.pixelgram.android.ui.theme.AppFonts.EmojiNoto3D to R.string.emoji_style_noto3d,
+        com.pixelgram.android.ui.theme.AppFonts.EmojiApple to R.string.emoji_style_apple,
+    )
+    SettingsGroup(stringResource(R.string.emoji_style_title)) {
+        options.forEachIndexed { index, (key, label) ->
+            val ready = androidx.compose.runtime.remember(key, stamp) { com.pixelgram.android.ui.theme.AppFonts.emojiReady(context, key) }
+            val family = androidx.compose.runtime.remember(key, stamp, ready) {
+                if (ready) com.pixelgram.android.ui.theme.AppFonts.family(context, com.pixelgram.android.ui.theme.AppFonts.SystemKey, key) else null
+            }
+            val loading = progress?.first == key
+            SettingsItem(
+                stringResource(label),
+                segmentPosition(index, options.size),
+                null,
+                onClick = {
+                    if (ready) update { it.copy(emojiStyle = key, fontStamp = it.fontStamp + 1) }
+                    else if (progress == null) scope.launch {
+                        val ok = com.pixelgram.android.ui.theme.AppFonts.download(context, key)
+                        stamp++
+                        if (ok) update { it.copy(emojiStyle = key, fontStamp = it.fontStamp + 1) }
+                        else android.widget.Toast.makeText(context, failed, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                headlineContent = {
+                    androidx.compose.foundation.layout.Column {
+                        Text(stringResource(label), style = MaterialTheme.typography.bodyLarge)
+                        if (family != null) Text("\uD83D\uDE00\uD83D\uDE02\uD83E\uDD70\uD83D\uDC4D\uD83D\uDD25\u2764\uFE0F", fontFamily = family, style = MaterialTheme.typography.titleLarge)
+                        else if (loading) androidx.compose.material3.LinearWavyProgressIndicator(progress = { progress?.second ?: 0f }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                        else Text(stringResource(R.string.emoji_style_download), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+            ) {
+                androidx.compose.material3.RadioButton(selected = settings.emojiStyle == key, onClick = null)
+            }
+        }
     }
 }

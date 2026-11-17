@@ -64,6 +64,9 @@ data class AppearanceSettings(
     val messageFontSize: Int = 16,
     val doubleTapEmoji: String = "❤",
     val composerStyle: String = "messages",
+    val appFont: String = "google_sans",
+    val emojiStyle: String = "system",
+    val fontStamp: Int = 0,
     val composerLeft: String = "",
     val composerRight: String = "",
     val composerExtra: String = "",
@@ -121,6 +124,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_messageFontSize = intPreferencesKey("message_font_size")
         val K_doubleTapEmoji = stringPreferencesKey("double_tap_emoji")
         val K_composerStyle = stringPreferencesKey("composer_style")
+        val K_appFont = stringPreferencesKey("app_font")
+        val K_emojiStyle = stringPreferencesKey("emoji_style")
+        val K_fontStamp = intPreferencesKey("font_stamp")
         val K_composerLeft = stringPreferencesKey("composer_left")
         val K_composerRight = stringPreferencesKey("composer_right")
         val K_composerExtra = stringPreferencesKey("composer_extra")
@@ -139,8 +145,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val C_blinkCycle = intPreferencesKey("blink_cycle")
         val C_blinkSmoothness = intPreferencesKey("blink_smoothness")
         val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_largeEmoji, K_inlineMath, K_archivePull, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
-        val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize)
-        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji, K_composerStyle, K_composerLeft, K_composerRight, K_composerExtra)
+        val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize, K_fontStamp)
+        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji, K_composerStyle, K_appFont, K_emojiStyle, K_composerLeft, K_composerRight, K_composerExtra)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -201,6 +207,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         messageFontSize = p[Keys.K_messageFontSize] ?: 16,
         doubleTapEmoji = p[Keys.K_doubleTapEmoji] ?: "❤",
         composerStyle = p[Keys.K_composerStyle] ?: "messages",
+        appFont = p[Keys.K_appFont] ?: "google_sans",
+        emojiStyle = p[Keys.K_emojiStyle] ?: "system",
+        fontStamp = p[Keys.K_fontStamp] ?: 0,
         composerLeft = p[Keys.K_composerLeft] ?: "",
         composerRight = p[Keys.K_composerRight] ?: "",
         composerExtra = p[Keys.K_composerExtra] ?: "",
@@ -258,6 +267,9 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.K_messageFontSize] = next.messageFontSize
                 p[Keys.K_doubleTapEmoji] = next.doubleTapEmoji
                 p[Keys.K_composerStyle] = next.composerStyle
+                p[Keys.K_appFont] = next.appFont
+                p[Keys.K_emojiStyle] = next.emojiStyle
+                p[Keys.K_fontStamp] = next.fontStamp
                 p[Keys.K_composerLeft] = next.composerLeft
                 p[Keys.K_composerRight] = next.composerRight
                 p[Keys.K_composerExtra] = next.composerExtra

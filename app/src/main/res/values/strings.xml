@@ -970,4 +970,25 @@
     <string name="pin_notify">Notify all members</string>
     <string name="pixel_archive_pull">Hidden archive</string>
     <string name="pixel_archive_pull_sub">Pull the chat list down to reveal the archive, scroll up to hide it</string>
+    <string name="slot_stickers">Stickers</string>
+    <string name="slot_gifs">GIFs</string>
+    <string name="slot_file">File</string>
+    <string name="slot_location">Location</string>
+    <string name="composer_left_sub">Choose what the left side opens</string>
+    <string name="composer_right_sub">Choose what the right side opens</string>
+    <string name="composer_extra_sub">Shown while the field is empty</string>
+    <string name="font_title">Font</string>
+    <string name="font_google_sans">Google Sans</string>
+    <string name="font_google_sans_flex">Google Sans Flex</string>
+    <string name="font_system">System</string>
+    <string name="font_custom">From file</string>
+    <string name="font_custom_sub">Pick a .ttf or .otf font</string>
+    <string name="font_import_failed">This font file can't be used</string>
+    <string name="emoji_style_title">Emoji</string>
+    <string name="emoji_style_system">System</string>
+    <string name="emoji_style_noto">Noto</string>
+    <string name="emoji_style_noto3d">Noto 3D</string>
+    <string name="emoji_style_apple">iOS</string>
+    <string name="emoji_style_download">Tap to download</string>
+    <string name="emoji_style_failed">Couldn't download this emoji set or this device can't draw it</string>
 </resources>
