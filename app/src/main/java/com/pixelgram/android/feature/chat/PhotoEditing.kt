@@ -62,8 +62,8 @@ enum class ShapeKind { Circle, Rectangle, Star, Bubble, Arrow }
 sealed interface PaintItem {
     data class Stroke(val points: List<Pair<Float, Float>>, val color: Int, val width: Float, val tool: PaintTool) : PaintItem
     data class Shape(val kind: ShapeKind, val left: Float, val top: Float, val right: Float, val bottom: Float, val color: Int, val width: Float) : PaintItem
-    data class Label(val text: String, val x: Float, val y: Float, val color: Int, val size: Float, val align: Int = 1, val style: Int = 0, val font: Int = 0) : PaintItem
-    data class Sticker(val path: String, val x: Float, val y: Float, val size: Float) : PaintItem
+    data class Label(val text: String, val x: Float, val y: Float, val color: Int, val size: Float, val align: Int = 1, val style: Int = 0, val font: Int = 0, val rotation: Float = 0f) : PaintItem
+    data class Sticker(val path: String, val x: Float, val y: Float, val size: Float, val rotation: Float = 0f) : PaintItem
 }
 
 object StickerBitmaps {
@@ -393,12 +393,40 @@ object PhotoRenderer {
                         val h = if (ratio >= 1f) side / ratio else side
                         val cx = item.x * width
                         val cy = item.y * height
+                        canvas.save()
+                        canvas.rotate(item.rotation, cx, cy)
                         canvas.drawBitmap(bitmap, null, RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+                        canvas.restore()
                     }
                 }
-                is PaintItem.Label -> drawLabel(canvas, item, width, height, unit)
+                is PaintItem.Label -> {
+                    canvas.save()
+                    canvas.rotate(item.rotation, item.x * width, item.y * height)
+                    drawLabel(canvas, item, width, height, unit)
+                    canvas.restore()
+                }
             }
         }
+    }
+
+    fun itemSize(item: PaintItem, width: Float, height: Float): Pair<Float, Float>? = when (item) {
+        is PaintItem.Sticker -> {
+            val side = min(width, height) * item.size
+            val bitmap = StickerBitmaps.get(item.path)
+            val ratio = bitmap?.let { it.width.toFloat() / it.height } ?: 1f
+            if (ratio >= 1f) side to side / ratio else side * ratio to side
+        }
+        is PaintItem.Label -> {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = item.size * min(width, height) / 400f
+                typeface = labelTypeface(item.font)
+            }
+            val metrics = paint.fontMetrics
+            val lines = item.text.split('\n')
+            val w = lines.maxOf { paint.measureText(it) } + paint.textSize * 0.6f
+            w to (metrics.descent - metrics.ascent) * 1.12f * lines.size + paint.textSize * 0.3f
+        }
+        else -> null
     }
 
     fun drawLabel(canvas: Canvas, item: PaintItem.Label, width: Float, height: Float, unit: Float) {

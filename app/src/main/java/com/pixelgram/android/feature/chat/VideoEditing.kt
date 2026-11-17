@@ -42,6 +42,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -70,7 +75,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
 
-data class VideoEdit(val startMs: Long = 0L, val endMs: Long = -1L, val muted: Boolean = false, val quality: Int = QualityOriginal, val round: Boolean = false) {
+data class VideoEdit(val startMs: Long = 0L, val endMs: Long = -1L, val muted: Boolean = false, val quality: Int = QualityOriginal, val round: Boolean = false, val cropX: Float = 0.5f, val cropY: Float = 0.5f, val cropSize: Float = 1f) {
     val untouched get() = startMs == 0L && endMs < 0 && !muted && quality == QualityOriginal && !round
 
     companion object {
@@ -104,6 +109,17 @@ suspend fun exportVideo(context: Context, path: String, edit: VideoEdit): String
     val item = MediaItem.Builder().setUri(android.net.Uri.fromFile(File(path))).setClippingConfiguration(clipping).build()
     val effects = mutableListOf<androidx.media3.common.Effect>()
     if (edit.round) {
+        val info = videoInfo(path)
+        if (info.width > 0 && info.height > 0) {
+            val side = minOf(info.width, info.height) * edit.cropSize
+            val left = (edit.cropX * info.width - side / 2f).coerceIn(0f, info.width - side)
+            val top = (edit.cropY * info.height - side / 2f).coerceIn(0f, info.height - side)
+            val l = left / info.width * 2f - 1f
+            val r = (left + side) / info.width * 2f - 1f
+            val t = 1f - top / info.height * 2f
+            val b = 1f - (top + side) / info.height * 2f
+            effects += androidx.media3.effect.Crop(l, r, b, t)
+        }
         val side = VideoEdit.Heights[edit.quality].takeIf { it > 0 }?.coerceAtMost(640) ?: 480
         effects += Presentation.createForWidthAndHeight(side, side, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
     } else {
@@ -182,9 +198,9 @@ fun VideoEditScreen(path: String, initial: VideoEdit, onClose: () -> Unit, onDon
                 Spacer(Modifier.size(48.dp))
             }
             Box(Modifier.weight(1f).fillMaxWidth().clickable(interactionSource = null, indication = null) { playing = !playing }, contentAlignment = Alignment.Center) {
-                val shape = if (edit.round) CircleShape else RoundedCornerShape(0.dp)
-                Box(Modifier.then(if (edit.round) Modifier.fillMaxWidth(0.85f).aspectRatio(1f) else Modifier.fillMaxWidth().aspectRatio(if (info.height > 0) info.width.toFloat() / info.height else 1f)).clip(shape)) {
+                Box(Modifier.fillMaxWidth().aspectRatio(if (info.height > 0) info.width.toFloat() / info.height else 1f)) {
                     androidx.media3.ui.compose.PlayerSurface(player, modifier = Modifier.fillMaxSize(), surfaceType = androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW)
+                    if (edit.round) RoundCropOverlay(edit) { x, y, size -> edit = edit.copy(cropX = x, cropY = y, cropSize = size) }
                 }
                 if (!playing) Box(Modifier.size(64.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(36.dp))
@@ -238,3 +254,68 @@ fun VideoEditScreen(path: String, initial: VideoEdit, onClose: () -> Unit, onDon
 }
 
 private fun Modifier.height48(): Modifier = this.then(Modifier.height(48.dp))
+
+@Composable
+private fun RoundCropOverlay(edit: VideoEdit, onChange: (Float, Float, Float) -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(edit)
+    val handleSlop = with(androidx.compose.ui.platform.LocalDensity.current) { 32.dp.toPx() }
+    androidx.compose.foundation.Canvas(
+        Modifier.fillMaxSize().pointerInput(Unit) {
+            fun geometry(e: VideoEdit): Triple<Float, Float, Float> {
+                val side = minOf(size.width, size.height) * e.cropSize
+                val cx = (e.cropX * size.width).coerceIn(side / 2f, size.width - side / 2f)
+                val cy = (e.cropY * size.height).coerceIn(side / 2f, size.height - side / 2f)
+                return Triple(cx, cy, side)
+            }
+            fun emit(cx: Float, cy: Float, side: Float) {
+                val s = side.coerceIn(minOf(size.width, size.height) * 0.3f, minOf(size.width, size.height).toFloat())
+                val x = cx.coerceIn(s / 2f, size.width - s / 2f)
+                val y = cy.coerceIn(s / 2f, size.height - s / 2f)
+                onChange(x / size.width, y / size.height, s / minOf(size.width, size.height))
+            }
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                val (cx0, cy0, side0) = geometry(latest.value)
+                val r = side0 / 2f
+                val handle = androidx.compose.ui.geometry.Offset(cx0 + r * 0.7071f, cy0 + r * 0.7071f)
+                val resizing = (down.position - handle).getDistance() < handleSlop
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.none { it.pressed }) break
+                    val (cx, cy, side) = geometry(latest.value)
+                    if (resizing) {
+                        val p = event.changes.first().position
+                        val d = (p - androidx.compose.ui.geometry.Offset(cx, cy)).getDistance()
+                        emit(cx, cy, d / 0.7071f)
+                    } else {
+                        val pan = event.calculatePan()
+                        val zoom = event.calculateZoom()
+                        emit(cx + pan.x, cy + pan.y, side * zoom)
+                    }
+                    event.changes.forEach { it.consume() }
+                }
+            }
+        },
+    ) {
+        val side = minOf(size.width, size.height) * edit.cropSize
+        val cx = (edit.cropX * size.width).coerceIn(side / 2f, size.width - side / 2f)
+        val cy = (edit.cropY * size.height).coerceIn(side / 2f, size.height - side / 2f)
+        val square = androidx.compose.ui.geometry.Rect(cx - side / 2f, cy - side / 2f, cx + side / 2f, cy + side / 2f)
+        val outside = androidx.compose.ui.graphics.Path().apply {
+            fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+            addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+            addRect(square)
+        }
+        drawPath(outside, Color.Black.copy(alpha = 0.65f))
+        val corners = androidx.compose.ui.graphics.Path().apply {
+            fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+            addRect(square)
+            addOval(square)
+        }
+        drawPath(corners, Color.Black.copy(alpha = 0.35f))
+        drawCircle(Color.White, side / 2f, androidx.compose.ui.geometry.Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+        val h = androidx.compose.ui.geometry.Offset(cx + side / 2f * 0.7071f, cy + side / 2f * 0.7071f)
+        drawCircle(Color.White, 9.dp.toPx(), h)
+    }
+}

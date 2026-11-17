@@ -1,6 +1,10 @@
 package com.pixelgram.android.feature.chat
 
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.focusRequester
@@ -338,29 +342,82 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                         awaitEachGesture {
                             val down = awaitFirstDown()
                             val start = down.position.x / size.width to down.position.y / size.height
-                            val hit = items.indexOfLast { item ->
-                                when (item) {
-                                    is PaintItem.Sticker -> PhotoRenderer.distance(item.x to item.y, start) < item.size * 0.6f
-                                    is PaintItem.Label -> PhotoRenderer.distance(item.x to item.y, start) < 0.08f
-                                    else -> false
+                            val px = size.width.toFloat()
+                            val py = size.height.toFloat()
+                            fun local(item: PaintItem, at: Offset): Offset {
+                                val (cx, cy, rot) = when (item) {
+                                    is PaintItem.Sticker -> Triple(item.x * px, item.y * py, item.rotation)
+                                    is PaintItem.Label -> Triple(item.x * px, item.y * py, item.rotation)
+                                    else -> Triple(0f, 0f, 0f)
                                 }
+                                val a = Math.toRadians(-rot.toDouble())
+                                val dx = at.x - cx
+                                val dy = at.y - cy
+                                return Offset((dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat(), (dx * kotlin.math.sin(a) + dy * kotlin.math.cos(a)).toFloat())
+                            }
+                            val slop = 28.dp.toPx()
+                            val current = items.getOrNull(selected)
+                            val currentSize = current?.let { PhotoRenderer.itemSize(it, px, py) }
+                            if (current != null && currentSize != null) {
+                                val l = local(current, down.position)
+                                val hw = currentSize.first / 2f + FramePad.toPx()
+                                val hh = currentSize.second / 2f + FramePad.toPx()
+                                if ((l - Offset(-hw, -hh)).getDistance() < slop) {
+                                    items.removeAt(selected)
+                                    selected = -1
+                                    while (awaitPointerEvent().changes.any { it.pressed }) Unit
+                                    return@awaitEachGesture
+                                }
+                                if ((l - Offset(hw, hh)).getDistance() < slop) {
+                                    val index = selected
+                                    val center = when (current) {
+                                        is PaintItem.Sticker -> Offset(current.x * px, current.y * py)
+                                        is PaintItem.Label -> Offset(current.x * px, current.y * py)
+                                        else -> Offset.Zero
+                                    }
+                                    val startVector = down.position - center
+                                    val startAngle = Math.toDegrees(kotlin.math.atan2(startVector.y.toDouble(), startVector.x.toDouble())).toFloat()
+                                    val startDistance = startVector.getDistance().coerceAtLeast(1f)
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                        change.consume()
+                                        if (!change.pressed) break
+                                        val v = change.position - center
+                                        val angle = Math.toDegrees(kotlin.math.atan2(v.y.toDouble(), v.x.toDouble())).toFloat() - startAngle
+                                        val scale = v.getDistance() / startDistance
+                                        items[index] = when (current) {
+                                            is PaintItem.Sticker -> current.copy(size = (current.size * scale).coerceIn(0.05f, 1.5f), rotation = current.rotation + angle)
+                                            is PaintItem.Label -> current.copy(size = (current.size * scale).coerceIn(8f, 400f), rotation = current.rotation + angle)
+                                            else -> current
+                                        }
+                                    }
+                                    return@awaitEachGesture
+                                }
+                            }
+                            val hit = items.indexOfLast { item ->
+                                val bounds = PhotoRenderer.itemSize(item, px, py) ?: return@indexOfLast false
+                                val l = local(item, down.position)
+                                kotlin.math.abs(l.x) < bounds.first / 2f + FramePad.toPx() && kotlin.math.abs(l.y) < bounds.second / 2f + FramePad.toPx()
                             }
                             if (hit >= 0) {
                                 val wasSelected = selected == hit
                                 selected = hit
                                 var moved = false
+                                var travel = Offset.Zero
                                 while (true) {
                                     val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                    change.consume()
-                                    if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
-                                    if (!change.pressed) break
+                                    if (event.changes.none { it.pressed }) break
+                                    val pan = event.calculatePan()
+                                    val zoom = event.calculateZoom()
+                                    val turn = event.calculateRotation()
+                                    event.changes.forEach { it.consume() }
+                                    travel += pan
+                                    if (travel.getDistance() > viewConfiguration.touchSlop || event.changes.count { it.pressed } > 1) moved = true
                                     if (!moved) continue
-                                    val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                                    val ny = (change.position.y / size.height).coerceIn(0f, 1f)
                                     items[hit] = when (val item = items[hit]) {
-                                        is PaintItem.Sticker -> item.copy(x = nx, y = ny)
-                                        is PaintItem.Label -> item.copy(x = nx, y = ny)
+                                        is PaintItem.Sticker -> item.copy(x = (item.x + pan.x / px).coerceIn(0f, 1f), y = (item.y + pan.y / py).coerceIn(0f, 1f), size = (item.size * zoom).coerceIn(0.05f, 1.5f), rotation = item.rotation + turn)
+                                        is PaintItem.Label -> item.copy(x = (item.x + pan.x / px).coerceIn(0f, 1f), y = (item.y + pan.y / py).coerceIn(0f, 1f), size = (item.size * zoom).coerceIn(8f, 400f), rotation = item.rotation + turn)
                                         else -> item
                                     }
                                 }
@@ -395,6 +452,33 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                 ) {
                     drawIntoCanvas { canvas ->
                         PhotoRenderer.drawPaint(canvas.nativeCanvas, items.toList() + listOfNotNull(live), this.size.width, this.size.height, base)
+                    }
+                    val chosen = items.getOrNull(selected)
+                    val bounds = chosen?.let { PhotoRenderer.itemSize(it, this.size.width, this.size.height) }
+                    if (chosen != null && bounds != null) {
+                        val (cx, cy, rot) = when (chosen) {
+                            is PaintItem.Sticker -> Triple(chosen.x * this.size.width, chosen.y * this.size.height, chosen.rotation)
+                            is PaintItem.Label -> Triple(chosen.x * this.size.width, chosen.y * this.size.height, chosen.rotation)
+                            else -> Triple(0f, 0f, 0f)
+                        }
+                        val hw = bounds.first / 2f + FramePad.toPx()
+                        val hh = bounds.second / 2f + FramePad.toPx()
+                        rotate(rot, Offset(cx, cy)) {
+                            drawRect(
+                                Color.White,
+                                Offset(cx - hw, cy - hh),
+                                androidx.compose.ui.geometry.Size(hw * 2, hh * 2),
+                                style = Stroke(1.5.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))),
+                            )
+                            val del = Offset(cx - hw, cy - hh)
+                            drawCircle(Color.White, 12.dp.toPx(), del)
+                            val k = 4.dp.toPx()
+                            drawLine(Color.Black, del + Offset(-k, -k), del + Offset(k, k), 2.dp.toPx())
+                            drawLine(Color.Black, del + Offset(-k, k), del + Offset(k, -k), 2.dp.toPx())
+                            val handle = Offset(cx + hw, cy + hh)
+                            drawCircle(Color.White, 12.dp.toPx(), handle)
+                            drawCircle(MaterialColorHandle, 6.dp.toPx(), handle)
+                        }
                     }
                 }
             }
@@ -590,6 +674,9 @@ private fun TextEditorOverlay(initial: PaintItem.Label, onCancel: () -> Unit, on
         }
     }
 }
+
+private val FramePad = 10.dp
+private val MaterialColorHandle = Color(0xFF2196F3)
 
 private val FontNames = listOf("Roboto", "Serif", "Mono", "Condensed", "Cursive", "Black")
 
