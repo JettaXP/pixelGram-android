@@ -137,6 +137,42 @@ object AppFonts {
         pixels.any { (it ushr 24) != 0 && (it and 0xFFFFFF) != 0 }
     }.getOrDefault(false)
 
+    private var emojiTypeface: Pair<String, Typeface?>? = null
+
+    fun emojiTypeface(context: Context, style: String): Typeface? {
+        if (style == EmojiSystem) return null
+        emojiTypeface?.takeIf { it.first == style }?.let { return it.second }
+        val typeface = emojiFile(context, style).takeIf { it.isFile }?.let { file ->
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Typeface.CustomFallbackBuilder(android.graphics.fonts.FontFamily.Builder(android.graphics.fonts.Font.Builder(file).build()).build()).setSystemFallback("sans-serif").build()
+                else Typeface.createFromFile(file)
+            }.getOrNull()
+        }
+        emojiTypeface = style to typeface
+        return typeface
+    }
+
+    fun applyToPicker(root: android.view.View, typeface: Typeface?) {
+        if (typeface == null) return
+        runCatching { androidx.emoji2.emojipicker.EmojiPickerView::class.java.getDeclaredField("Companion").get(null)?.let { companion -> companion.javaClass.getMethod("setEmojiCompatLoaded\$emoji2_emojipicker", Boolean::class.javaPrimitiveType).invoke(companion, false) } }
+        val cls = runCatching { Class.forName("androidx.emoji2.emojipicker.EmojiView") }.getOrNull() ?: return
+        val field = runCatching { cls.getDeclaredField("textPaint").apply { isAccessible = true } }.getOrNull() ?: return
+        val getter = runCatching { cls.getMethod("getEmoji") }.getOrNull() ?: return
+        val setter = runCatching { cls.getMethod("setEmoji", CharSequence::class.java) }.getOrNull() ?: return
+        fun walk(view: android.view.View) {
+            if (cls.isInstance(view)) {
+                val paint = field.get(view) as? android.text.TextPaint ?: return
+                if (paint.typeface !== typeface) {
+                    paint.typeface = typeface
+                    (getter.invoke(view) as? CharSequence)?.let { setter.invoke(view, it.toString()) }
+                }
+            } else if (view is android.view.ViewGroup) {
+                for (i in 0 until view.childCount) walk(view.getChildAt(i))
+            }
+        }
+        walk(root)
+    }
+
     fun importFont(context: Context, uri: android.net.Uri): Boolean = runCatching {
         val target = customFile(context).apply { parentFile?.mkdirs() }
         context.contentResolver.openInputStream(uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }

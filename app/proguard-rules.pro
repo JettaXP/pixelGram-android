@@ -1,3 +1,6 @@
 -keep class org.drinkless.tdlib.** { *; }
 -keep class com.pixelgram.android.music.CastOptionsProvider { *; }
 -keepattributes SourceFile,LineNumberTable
+-keepclassmembers class androidx.emoji2.emojipicker.EmojiView { android.text.TextPaint textPaint; public *** getEmoji(); public *** setEmoji(...); }
+-keepclassmembers class androidx.emoji2.emojipicker.EmojiPickerView { public static ** Companion; }
+-keepclassmembers class androidx.emoji2.emojipicker.EmojiPickerView$Companion { *; }

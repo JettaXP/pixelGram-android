@@ -169,12 +169,22 @@ internal fun EmojiTab(onEmoji: (String) -> Unit, onCustomEmoji: (Long, String) -
         SetHeader(sets, selected, listOf(StandardId to Icons.Rounded.EmojiEmotions)) { selected = it }
         if (selected == StandardId) {
             val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+            val emojiStyle = com.pixelgram.android.ui.theme.LocalAppearance.current.emojiStyle
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val emojiFace = remember(emojiStyle) { com.pixelgram.android.ui.theme.AppFonts.emojiTypeface(ctx, emojiStyle) }
             androidx.compose.ui.viewinterop.AndroidView(
                 factory = { context ->
                     val themed = android.view.ContextThemeWrapper(context, if (dark) com.google.android.material.R.style.Theme_Material3_Dark_NoActionBar else com.google.android.material.R.style.Theme_Material3_Light_NoActionBar)
                     androidx.emoji2.emojipicker.EmojiPickerView(themed).apply {
                         emojiGridColumns = 8
                         setOnEmojiPickedListener { item -> onEmoji(item.emoji) }
+                        if (emojiFace != null) {
+                            com.pixelgram.android.ui.theme.AppFonts.applyToPicker(this, emojiFace)
+                            viewTreeObserver.addOnPreDrawListener {
+                                com.pixelgram.android.ui.theme.AppFonts.applyToPicker(this, emojiFace)
+                                true
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
