@@ -413,11 +413,43 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeEdited
     }.getOrDefault(false)
 
+    fun launch(block: suspend () -> Unit) {
+        scope.launch { block() }
+    }
+
+    private fun videoContent(path: String, caption: String): TdApi.InputMessageContent {
+        val retriever = android.media.MediaMetadataRetriever()
+        var width = 0
+        var height = 0
+        var duration = 0
+        runCatching {
+            retriever.setDataSource(path)
+            val rotation = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            val w = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val h = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            if (rotation == 90 || rotation == 270) { width = h; height = w } else { width = w; height = h }
+            duration = ((retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000L).toInt()
+        }
+        runCatching { retriever.release() }
+        return TdApi.InputMessageVideo().apply {
+            video = TdApi.InputVideo().apply {
+                video = TdApi.InputFileLocal(path)
+                addedStickerFileIds = IntArray(0)
+                this.duration = duration
+                this.width = width
+                this.height = height
+                supportsStreaming = true
+            }
+            this.caption = TdApi.FormattedText(caption, emptyArray())
+        }
+    }
+
     fun sendPhotos(paths: List<String>, caption: String) {
         if (paths.isEmpty()) return
         val reply = ui.value.replyTo
         ui.value = ui.value.copy(replyTo = null)
         val contents = paths.mapIndexed { index, path ->
+            if (isVideoPath(path)) return@mapIndexed videoContent(path, if (index == 0) caption.trim() else "")
             val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             runCatching { android.graphics.BitmapFactory.decodeFile(path, bounds) }
             TdApi.InputMessagePhoto().apply {
@@ -490,6 +522,17 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                 })
             }
         }
+    }
+
+    fun sendVoice(recording: VoiceRecording) {
+        sendContent(TdApi.InputMessageVoiceNote().apply {
+            voiceNote = TdApi.InputVoiceNote().apply {
+                voiceNote = TdApi.InputFileLocal(recording.path)
+                duration = recording.duration
+                waveform = recording.waveform
+            }
+            caption = TdApi.FormattedText("", emptyArray())
+        })
     }
 
     fun sendDocuments(paths: List<String>) {
@@ -594,3 +637,5 @@ private const val RevealPages = 30
 object ChatUiMapper {
     fun TdApi.Message.ui(): UiMessage = toUi(Long.MAX_VALUE).copy(chatId = chatId)
 }
+
+internal fun isVideoPath(path: String): Boolean = path.substringAfterLast('.', "").lowercase() in setOf("mp4", "mov", "webm", "mkv", "3gp", "m4v")

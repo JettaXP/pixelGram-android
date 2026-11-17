@@ -903,4 +903,7 @@
     <string name="pixel_inline_math">Калькулятор в поле ввода</string>
     <string name="pixel_inline_math_sub">Напишите пример с = на конце, например 5+5=, ответ появится серым. Пробел вставит его.</string>
     <string name="viewer_failed">Не удалось открыть файл</string>
+    <string name="voice_record">Записать голосовое</string>
+    <string name="voice_slide_cancel">Влево — отмена</string>
+    <string name="voice_hold_hint">Удерживайте для записи голосового</string>
 </resources>
