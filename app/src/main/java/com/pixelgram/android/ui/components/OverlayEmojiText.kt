@@ -23,13 +23,13 @@ import org.drinkless.tdlib.TdApi
 
 class OverlaySlot(val start: Int, val end: Int, val content: @Composable (androidx.compose.ui.unit.Dp) -> Unit)
 
-fun customEmojiSlots(entities: List<TdApi.TextEntity>, text: String, shift: Int = 0): List<OverlaySlot> = entities.mapNotNull { e ->
+fun customEmojiSlots(entities: List<TdApi.TextEntity>, text: String, shift: Int = 0, clickable: Boolean = true): List<OverlaySlot> = entities.mapNotNull { e ->
     val type = e.type as? TdApi.TextEntityTypeCustomEmoji ?: return@mapNotNull null
     val start = (e.offset + shift).coerceIn(0, text.length)
     val end = (e.offset + e.length + shift).coerceIn(start, text.length)
     if (end <= start) return@mapNotNull null
     val fallback = text.substring(start, end)
-    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, androidx.compose.ui.Modifier.clickable(interactionSource = null, indication = null) { com.pixelgram.android.feature.chat.EmojiPreview.openPack(type.customEmojiId) }, size = side) }
+    OverlaySlot(start, end) { side -> CustomEmojiView(type.customEmojiId, fallback, if (clickable) androidx.compose.ui.Modifier.clickable(interactionSource = null, indication = null) { com.pixelgram.android.feature.chat.EmojiPreview.openPack(type.customEmojiId) } else androidx.compose.ui.Modifier, size = side) }
 }
 
 @Composable

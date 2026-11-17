@@ -79,20 +79,18 @@ fun MessageBotExtras(
     chatId: Long,
     channel: Boolean,
     indent: androidx.compose.ui.unit.Dp = 0.dp,
-    width: Int = 0,
+    embedded: Boolean = false,
     onOpenUrl: (String) -> Unit,
     onComments: () -> Unit,
 ) {
     val markup = message.markup as? TdApi.ReplyMarkupInlineKeyboard
     if (markup == null && !(channel && message.comments >= 0)) return
     Column(
-        Modifier.fillMaxWidth().padding(top = 3.dp, start = 8.dp + indent, end = 8.dp),
+        if (embedded) Modifier.fillMaxWidth().padding(top = 3.dp) else Modifier.fillMaxWidth().padding(top = 3.dp, start = 8.dp + indent, end = 8.dp).widthIn(max = 320.dp + indent),
         horizontalAlignment = if (message.outgoing) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val keyboardWidth = if (width > 0) with(density) { width.toDp() }.coerceAtLeast(200.dp) else 320.dp
-        if (markup != null) Box(Modifier.width(keyboardWidth)) { InlineKeyboard(markup, message, chatId, onOpenUrl) }
+        if (markup != null) InlineKeyboard(markup, message, chatId, onOpenUrl)
         if (channel && message.comments >= 0) CommentsBar(message, onComments)
     }
 }

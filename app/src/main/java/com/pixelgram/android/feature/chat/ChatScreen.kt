@@ -487,7 +487,6 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     val joinsAbove = older != null && !older.service && older.senderId == message.senderId && message.date - older.date < 300
                     val joinsBelow = newer != null && !newer.service && newer.senderId == message.senderId && newer.date - message.date < 300
                     Column(Modifier.animateItem()) {
-                        var bubbleWidth by remember(message.id) { mutableStateOf(0) }
                         if (older == null || !sameDay(older.date, message.date)) DayChip(message.date) { datePicker = message.date }
                         if (message.service) {
                             ServiceMessage(message, senderName(snapshot, message.senderId, chat)) { id -> snapshot.users[id]?.name ?: "" }
@@ -503,7 +502,23 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 if (guest && message.guestCallerId > 0 && snapshot.users[message.guestCallerId] == null) LaunchedEffect(message.guestCallerId) { runCatching { graph.td.send(TdApi.GetUser(message.guestCallerId)) } }
                                 val guestCaller = if (guest) snapshot.users[message.guestCallerId]?.name ?: graph.store.chat(message.guestCallerId)?.title.orEmpty() else ""
                                 MessageBubble(
-                                    onBubbleWidth = { bubbleWidth = it },
+                                    extras = if (message.markup is TdApi.ReplyMarkupInlineKeyboard || (ui.channel && message.comments >= 0)) {
+                                        {
+                                            MessageBotExtras(
+                                                message = message,
+                                                chatId = chatId,
+                                                channel = ui.channel,
+                                                embedded = true,
+                                                onOpenUrl = { url -> linkOpener.url(url) },
+                                                onComments = {
+                                                    controller.openComments(message) { chat, root ->
+                                                        navigator.open(ChatKey(chat))
+                                                        com.pixelgram.android.nav.PendingNav.jump = chat to root
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    } else null,
                                     message = message,
                                     senderName = (if (guest) sender?.name?.let { stringResource(R.string.guest_bot_for, it, guestCaller) } else sender?.name)?.takeIf { !joinsAbove || guest },
                                     senderAvatar = if (group && !message.outgoing) {
@@ -572,21 +587,6 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     },
                                 )
                             }
-                            val extrasGroup = privateUserId == 0L && !ui.channel && !saved && !message.outgoing
-                            MessageBotExtras(
-                                message = message,
-                                chatId = chatId,
-                                channel = ui.channel,
-                                indent = if (extrasGroup) 40.dp else 0.dp,
-                                width = bubbleWidth,
-                                onOpenUrl = { url -> linkOpener.url(url) },
-                                onComments = {
-                                    controller.openComments(message) { chat, root ->
-                                        navigator.open(ChatKey(chat))
-                                        com.pixelgram.android.nav.PendingNav.jump = chat to root
-                                    }
-                                },
-                            )
                         }
                     }
                 }
@@ -715,6 +715,28 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 }
 
 private const val PressDelayMs = 90L
+
+@Composable
+private fun BubbleWithExtras(extras: (@Composable () -> Unit)?, end: Boolean, bubble: @Composable () -> Unit) {
+    if (extras == null) {
+        bubble()
+        return
+    }
+    androidx.compose.ui.layout.Layout(content = {
+        Box { bubble() }
+        Box { extras() }
+    }) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val first = measurables[0].measure(loose)
+        val minKeyboard = 200.dp.roundToPx().coerceAtMost(constraints.maxWidth)
+        val width = maxOf(first.width, minKeyboard)
+        val second = measurables[1].measure(androidx.compose.ui.unit.Constraints.fixedWidth(width))
+        layout(width, first.height + second.height) {
+            first.place(if (end) width - first.width else 0, 0)
+            second.place(0, first.height)
+        }
+    }
+}
 
 private fun senderName(snapshot: StoreSnapshot, senderId: Long, chat: TdApi.Chat?): String =
     snapshot.users[senderId]?.name ?: chat?.title.orEmpty()
@@ -851,6 +873,7 @@ private val ReplyLimit = 110.dp
 @Composable
 internal fun MessageBubble(
     onBubbleWidth: (Int) -> Unit = {},
+    extras: (@Composable () -> Unit)? = null,
     message: UiMessage,
     senderName: String? = null,
     senderAvatar: (@Composable () -> Unit)? = null,
@@ -992,6 +1015,7 @@ internal fun MessageBubble(
                 Box(Modifier.size(34.dp)) { senderAvatar() }
                 Spacer(Modifier.width(6.dp))
             }
+            BubbleWithExtras(extras, message.outgoing) {
             Surface(
                 shape = shape,
                 color = container,
@@ -1139,6 +1163,7 @@ internal fun MessageBubble(
                         }
                     }
                 }
+            }
             }
         }
         if (selecting) Box(Modifier.matchParentSize().clickable(interactionSource = null, indication = null) { latestTap(rowBounds) })
@@ -1935,7 +1960,8 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                     val hintLayout = fieldLayout
                                     if (inlineBot != null && inlineBot.query.isEmpty() && !placeholder.isNullOrBlank() && hintLayout != null && text.isNotEmpty()) {
                                         val x = hintLayout.getHorizontalPosition(text.length.coerceAtMost(hintLayout.layoutInput.text.length), true)
-                                        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.offset { androidx.compose.ui.unit.IntOffset(x.toInt(), 0) })
+                                        val startPad = with(androidx.compose.ui.platform.LocalDensity.current) { x.toDp() }
+                                        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.matchParentSize().padding(start = startPad))
                                     }
                                     inner()
                                     val layout = fieldLayout

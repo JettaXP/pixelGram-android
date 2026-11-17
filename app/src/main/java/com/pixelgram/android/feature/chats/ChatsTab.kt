@@ -29,6 +29,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -357,10 +358,11 @@ fun ChatsTab(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0, archived: List<ChatRow> = emptyList(), onOpenArchive: () -> Unit = {}) {
-    var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
-    var actionsAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    actionsFor?.let { row -> ChatActions(graph, row, actionsAnchor) { actionsFor = null } }
+    val selection = remember(listKey) { androidx.compose.runtime.mutableStateListOf<Long>() }
+    val selecting = selection.isNotEmpty()
+    androidx.activity.compose.BackHandler(selecting) { selection.clear() }
+    LaunchedEffect(rows) { selection.retainAll(rows.map { it.id }.toSet()) }
     val hasArchive = archived.isNotEmpty()
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = if (hasArchive) 1 else 0)
     LaunchedEffect(scrollTop) { if (scrollTop > 0) listState.animateScrollToItem(if (hasArchive) 1 else 0) }
@@ -405,7 +407,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             if (loading) LoadingIndicator(Modifier.size(56.dp))
             else Text(stringResource(R.string.chats_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    } else {
+    } else Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
@@ -424,29 +426,134 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                     row = row,
                     index = if (inPinned) index else index - pinnedCount,
                     count = if (inPinned) pinnedCount else rows.size - pinnedCount,
-                    onClick = { navigator.open(if (row.forum) com.pixelgram.android.nav.ForumKey(row.id) else ChatKey(row.id)) },
+                    selected = row.id in selection,
+                    onClick = {
+                        if (selecting) {
+                            if (row.id in selection) selection.remove(row.id) else selection.add(row.id)
+                        } else navigator.open(if (row.forum) com.pixelgram.android.nav.ForumKey(row.id) else ChatKey(row.id))
+                    },
                     onNeedPhoto = { graph.store.requestFileAsync(row.photoFileId) },
                     onLongClick = {
                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        actionsAnchor = itemBounds
-                        actionsFor = row
+                        if (row.id in selection) selection.remove(row.id) else selection.add(row.id)
                     },
                     modifier = Modifier.animateItem().onGloballyPositioned { itemBounds = it.boundsInWindow() },
                 )
             }
         }
+        ChatSelectionBars(graph, rows.filter { it.id in selection }, onClear = { selection.clear() })
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
+private fun androidx.compose.foundation.layout.BoxScope.ChatSelectionBars(graph: AppGraph, chosen: List<ChatRow>, onClear: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var last by remember { mutableStateOf(chosen) }
+    if (chosen.isNotEmpty()) last = chosen
+    val rows = last
+    var confirmDelete by remember { mutableStateOf(false) }
+    fun run(functions: List<TdApi.Function<*>>) {
+        scope.launch { functions.forEach { f -> runCatching { @Suppress("UNCHECKED_CAST") graph.td.send(f as TdApi.Function<TdApi.Object>) } } }
+        onClear()
+    }
+    fun listOf(row: ChatRow): TdApi.ChatList = when {
+        row.list == LIST_ARCHIVE -> TdApi.ChatListArchive()
+        row.list.startsWith("folder:") -> TdApi.ChatListFolder(row.list.removePrefix("folder:").toInt())
+        else -> TdApi.ChatListMain()
+    }
+    val allPinned = rows.isNotEmpty() && rows.all { it.pinned }
+    val allMuted = rows.isNotEmpty() && rows.all { it.muted }
+    val archived = rows.firstOrNull()?.list == LIST_ARCHIVE
+    val visible = chosen.isNotEmpty()
+    androidx.compose.animation.AnimatedVisibility(
+        visible,
+        enter = androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it } + androidx.compose.animation.fadeOut(),
+        modifier = Modifier.align(Alignment.TopCenter).padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, shadowElevation = 6.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                androidx.compose.material3.IconButton(onClick = onClear, shapes = androidx.compose.material3.IconButtonDefaults.shapes()) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
+                androidx.compose.animation.AnimatedContent(rows.size, label = "selected-count", modifier = Modifier.weight(1f)) { n ->
+                    Text(androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, n, n), style = MaterialTheme.typography.titleMedium)
+                }
+                androidx.compose.material3.IconButton(onClick = { run(rows.map { TdApi.ToggleChatIsPinned(listOf(it), it.id, !allPinned) }) }, shapes = androidx.compose.material3.IconButtonDefaults.shapes()) {
+                    Icon(Icons.Rounded.PushPin, stringResource(if (allPinned) R.string.chat_unpin else R.string.chat_pin))
+                }
+                androidx.compose.material3.IconButton(onClick = {
+                    run(rows.filter { it.kind != ChatKind.Saved }.map { row ->
+                        TdApi.SetChatNotificationSettings(row.id, TdApi.ChatNotificationSettings().apply {
+                            useDefaultMuteFor = false
+                            muteFor = if (allMuted) 0 else Int.MAX_VALUE
+                            useDefaultSound = true
+                            useDefaultShowPreview = true
+                            useDefaultMuteStories = true
+                            useDefaultShowStoryPoster = true
+                            useDefaultDisablePinnedMessageNotifications = true
+                            useDefaultDisableMentionNotifications = true
+                        })
+                    })
+                }, shapes = androidx.compose.material3.IconButtonDefaults.shapes()) {
+                    Icon(if (allMuted) Icons.AutoMirrored.Rounded.VolumeUp else Icons.Rounded.VolumeOff, stringResource(if (allMuted) R.string.chat_unmute else R.string.chat_mute))
+                }
+                androidx.compose.material3.IconButton(onClick = { confirmDelete = true }, shapes = androidx.compose.material3.IconButtonDefaults.shapes()) {
+                    Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible,
+        enter = androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { it } + androidx.compose.animation.fadeOut(),
+        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
+    ) {
+        androidx.compose.material3.HorizontalFloatingToolbar(expanded = true) {
+            androidx.compose.material3.TextButton(onClick = {
+                run(rows.filter { it.lastMessageId != 0L }.map { TdApi.ViewMessages(it.id, longArrayOf(it.lastMessageId), null, true) } + rows.map { TdApi.ToggleChatIsMarkedAsUnread(it.id, false) })
+            }) {
+                Icon(Icons.Rounded.DoneAll, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.chat_mark_read))
+            }
+            androidx.compose.material3.TextButton(onClick = {
+                run(rows.filter { it.kind != ChatKind.Saved }.map { TdApi.AddChatToList(it.id, if (archived) TdApi.ChatListMain() else TdApi.ChatListArchive()) })
+            }) {
+                Icon(Icons.Rounded.Archive, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (archived) R.string.chat_unarchive else R.string.chat_archive))
+            }
+        }
+    }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            icon = { Icon(Icons.Rounded.Delete, null) },
+            title = { Text(stringResource(R.string.chat_delete_title)) },
+            text = { Text(rows.joinToString { it.title }, maxLines = 4, overflow = TextOverflow.Ellipsis) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDelete = false
+                    run(rows.map { if (it.kind == ChatKind.Group || it.kind == ChatKind.Channel) TdApi.LeaveChat(it.id) else TdApi.DeleteChatHistory(it.id, true, false) })
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNeedPhoto: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null, selected: Boolean = false) {
+    val container by androidx.compose.animation.animateColorAsState(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer, label = "chat-selected")
+    val check by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "chat-check")
     SegmentedListItem(
         onClick = onClick,
         onLongClick = onLongClick,
         shapes = ListItemDefaults.segmentedShapes(index, count),
         modifier = modifier,
-        colors = com.pixelgram.android.ui.components.segmentedColors(),
+        colors = com.pixelgram.android.ui.components.segmentedColors(container),
         leadingContent = {
             Box {
                 Avatar(
@@ -462,7 +569,15 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                     },
                     onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
                 )
-                if (row.online && row.kind != ChatKind.Saved && row.userId != 777000L) {
+                if (check > 0f) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).size(22.dp).graphicsLayer { scaleX = check; scaleY = check; alpha = check }
+                            .background(container, androidx.compose.foundation.shape.CircleShape)
+                            .padding(2.dp)
+                            .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary) }
+                } else if (row.online && row.kind != ChatKind.Saved && row.userId != 777000L) {
                     Box(
                         Modifier.align(Alignment.BottomEnd).size(16.dp)
                             .background(MaterialTheme.colorScheme.surfaceContainer, androidx.compose.foundation.shape.CircleShape)
@@ -510,18 +625,56 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
     }
 }
 
+private class AlbumThumb(val thumb: ByteArray?, val fileId: Int, val playable: Boolean)
+
+private class AlbumInfo(val thumbs: List<AlbumThumb>, val count: Int, val videos: Int)
+
+private val albumCache = java.util.concurrent.ConcurrentHashMap<Long, AlbumInfo>()
+
 @Composable
 private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val preview = row.preview
+    val graph = com.pixelgram.android.LocalGraph.current
+    val album by androidx.compose.runtime.produceState(preview?.albumId?.takeIf { it != 0L }?.let { albumCache[it] }, preview?.albumId, preview?.messageId) {
+        val albumId = preview?.albumId ?: 0L
+        if (albumId == 0L) return@produceState
+        val history = runCatching { graph.td.send(TdApi.GetChatHistory(preview!!.chatId, preview.messageId, 0, 12, false)).messages.toList() }.getOrDefault(emptyList())
+        val parts = history.filter { it.mediaAlbumId == albumId }.reversed()
+        if (parts.size < 2) return@produceState
+        val thumbs = parts.map { m ->
+            when (val c = m.content) {
+                is TdApi.MessagePhoto -> AlbumThumb(c.photo.minithumbnail?.data, (c.photo.sizes.firstOrNull { it.type == "m" } ?: c.photo.sizes.firstOrNull())?.photo?.id ?: 0, false)
+                is TdApi.MessageVideo -> AlbumThumb(c.video.minithumbnail?.data, c.video.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id ?: 0, true)
+                else -> AlbumThumb(null, 0, false)
+            }
+        }
+        val info = AlbumInfo(thumbs, parts.size, parts.count { it.content is TdApi.MessageVideo })
+        albumCache[albumId] = info
+        value = info
+    }
     val kindLabel = preview?.kind?.let { previewLabel(it) }
-    val hasThumb = preview?.thumb != null || (preview?.thumbFileId ?: 0) != 0
+    val albumLabel = album?.let { a ->
+        when {
+            a.videos == 0 -> androidx.compose.ui.res.pluralStringResource(R.plurals.preview_photos, a.count, a.count)
+            a.videos == a.count -> androidx.compose.ui.res.pluralStringResource(R.plurals.preview_videos, a.count, a.count)
+            else -> androidx.compose.ui.res.pluralStringResource(R.plurals.preview_media, a.count, a.count)
+        }
+    }
+    val thumbs: List<AlbumThumb> = album?.thumbs?.take(3) ?: if (preview != null && (preview.thumb != null || preview.thumbFileId != 0)) listOf(AlbumThumb(preview.thumb, preview.thumbFileId, preview.playable)) else emptyList()
+    val hasThumb = thumbs.isNotEmpty()
+    val forward = preview?.forwarded == true
     val prefix = buildString {
-        if (row.outgoing) append(stringResource(R.string.preview_you)).append(": ")
+        if (row.outgoing && row.kind != ChatKind.Saved) append(stringResource(R.string.preview_you)).append(": ")
         else if (preview?.sender != null) append(preview.sender).append(": ")
-        if (hasThumb) append("\u2B1B ")
-        if (kindLabel != null && !(hasThumb && preview.text.isNotBlank())) {
-            append(kindLabel)
-            if (preview.text.isNotBlank()) append(", ")
+        if (forward) append("\u21AA ")
+        if (hasThumb) {
+            repeat(thumbs.size) { append("\u2B1B") }
+            append(" ")
+        }
+        val label = albumLabel ?: kindLabel
+        if (label != null && !(hasThumb && preview?.text.orEmpty().isNotBlank())) {
+            append(label)
+            if (preview?.text.orEmpty().isNotBlank()) append(", ")
         }
     }
     val raw = preview?.text.orEmpty()
@@ -537,22 +690,33 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         }
     }
     val style = MaterialTheme.typography.bodyMedium
-    val thumbSlot = if (hasThumb && preview != null) {
-        val at = body.indexOf('\u2B1B')
-        if (at >= 0) listOf(com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
-            val graph = com.pixelgram.android.LocalGraph.current
-            val snapshot by graph.store.snapshot.collectAsState()
-            val path = preview.thumbFileId.takeIf { it != 0 }?.let { snapshot.files[it] }
-            if (path == null && preview.thumbFileId != 0) androidx.compose.runtime.LaunchedEffect(preview.thumbFileId) { graph.store.requestFileAsync(preview.thumbFileId) }
-            Box(Modifier.size(side).padding(1.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-                coil.compose.AsyncImage(model = path?.let { java.io.File(it) } ?: preview.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                if (preview.playable) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.7f))
+    val round = preview?.round == true
+    val slots = ArrayList<com.pixelgram.android.ui.components.OverlaySlot>()
+    if (forward) {
+        val at = body.indexOf('\u21AA')
+        if (at >= 0) slots += com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
+            Icon(Icons.AutoMirrored.Rounded.Redo, null, Modifier.size(side), tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+    if (hasThumb) {
+        val first = body.indexOf('\u2B1B')
+        thumbs.forEachIndexed { i, t ->
+            val at = first + i
+            slots += com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
+                val snapshot by graph.store.snapshot.collectAsState()
+                val path = t.fileId.takeIf { it != 0 }?.let { snapshot.files[it] }
+                if (path == null && t.fileId != 0) androidx.compose.runtime.LaunchedEffect(t.fileId) { graph.store.requestFileAsync(t.fileId) }
+                val shape = if (round) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                Box(Modifier.size(side).padding(1.dp).clip(shape), contentAlignment = Alignment.Center) {
+                    coil.compose.AsyncImage(model = path?.let { java.io.File(it) } ?: t.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    if (t.playable) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.fillMaxSize(0.7f))
+                }
             }
-        }) else emptyList()
-    } else emptyList()
+        }
+    }
     com.pixelgram.android.ui.components.OverlayEmojiText(
         annotated,
-        com.pixelgram.android.ui.components.customEmojiSlots(shifted, body) + thumbSlot,
+        com.pixelgram.android.ui.components.customEmojiSlots(shifted, body, clickable = false) + slots,
         style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         softWrap = false,

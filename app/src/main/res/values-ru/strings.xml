@@ -442,6 +442,24 @@
         <item quantity="many">Отправить %1$d медиафайлов</item>
         <item quantity="other">Отправить %1$d медиафайла</item>
     </plurals>
+    <plurals name="preview_photos">
+        <item quantity="one">%1$d фото</item>
+        <item quantity="few">%1$d фото</item>
+        <item quantity="many">%1$d фото</item>
+        <item quantity="other">%1$d фото</item>
+    </plurals>
+    <plurals name="preview_videos">
+        <item quantity="one">%1$d видео</item>
+        <item quantity="few">%1$d видео</item>
+        <item quantity="many">%1$d видео</item>
+        <item quantity="other">%1$d видео</item>
+    </plurals>
+    <plurals name="preview_media">
+        <item quantity="one">%1$d медиафайл</item>
+        <item quantity="few">%1$d медиафайла</item>
+        <item quantity="many">%1$d медиафайлов</item>
+        <item quantity="other">%1$d медиафайла</item>
+    </plurals>
     <plurals name="send_photos_title">
         <item quantity="one">Отправить %1$d фото</item>
         <item quantity="few">Отправить %1$d фото</item>
