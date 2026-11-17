@@ -185,6 +185,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.draw.clip
@@ -2130,7 +2131,7 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val single = items.singleOrNull()
-    val round = single != null && isVideoPath(single) && videoEdits[single]?.round == true
+    val round = items.size == 1 && single != null && isVideoPath(single) && videoEdits[single]?.round == true
     val send = {
         if (!exporting) {
             exporting = true
@@ -2147,7 +2148,7 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
                     return@launch
                 }
                 val out = list.map { path ->
-                    if (isVideoPath(path)) runCatching { exportVideo(context, path, videoEdited[path] ?: VideoEdit()) }.getOrDefault(path)
+                    if (isVideoPath(path)) runCatching { exportVideo(context, path, (videoEdited[path] ?: VideoEdit()).copy(round = false)) }.getOrDefault(path)
                     else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { PhotoRenderer.export(context, path, edited[path] ?: PhotoEdit(), hd) }.getOrDefault(path) }
                 }
                 exporting = false
@@ -2172,11 +2173,12 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
         )
     }
     editingVideo?.let { path ->
-        VideoEditScreen(path, videoEdits[path] ?: VideoEdit(), onClose = { editingVideo = null }) {
+        VideoEditScreen(path, videoEdits[path] ?: VideoEdit(), allowRound = items.size == 1, onClose = { editingVideo = null }) {
             videoEdits[path] = it
             editingVideo = null
         }
     }
+    if (editing != null || editingVideo != null) return
     val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -2247,16 +2249,6 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (single != null && isVideoPath(single)) {
-                    androidx.compose.material3.FilterChip(
-                        selected = round,
-                        onClick = { videoEdits[single] = (videoEdits[single] ?: VideoEdit()).let { it.copy(round = !it.round) } },
-                        label = { Text(stringResource(R.string.send_as_round), style = MaterialTheme.typography.titleSmall) },
-                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Rounded.Videocam, null, Modifier.size(22.dp)) },
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.height(52.dp),
-                    )
-                }
                 if (videos < items.size) androidx.compose.material3.FilterChip(
                     selected = hd,
                     onClick = { hd = !hd },
@@ -3168,8 +3160,11 @@ private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onCam
                         translationY = (1f - appear.value) * 24.dp.toPx()
                     },
                 ) {
+                    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val pressed by interaction.collectIsPressedAsState()
+                    val corner by androidx.compose.animation.core.animateDpAsState(if (pressed) 14.dp else 28.dp, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 800f), label = "tile-corner")
                     Box(
-                        Modifier.size(width = 76.dp, height = 56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLowest).clickable(onClick = action),
+                        Modifier.size(width = 76.dp, height = 56.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.surfaceContainerLowest).clickable(interaction, androidx.compose.material3.ripple(), onClick = action),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(icon, null, tint = if (index == 3) androidx.compose.ui.graphics.Color(0xFF2EBD59) else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(26.dp))

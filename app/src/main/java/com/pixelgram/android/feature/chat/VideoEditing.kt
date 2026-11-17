@@ -154,7 +154,7 @@ private fun clock(ms: Long): String {
 }
 
 @Composable
-fun VideoEditScreen(path: String, initial: VideoEdit, onClose: () -> Unit, onDone: (VideoEdit) -> Unit) {
+fun VideoEditScreen(path: String, initial: VideoEdit, allowRound: Boolean = true, onClose: () -> Unit, onDone: (VideoEdit) -> Unit) {
     val context = LocalContext.current
     val info = remember(path) { videoInfo(path) }
     val duration = info.durationMs.coerceAtLeast(1L)
@@ -233,7 +233,7 @@ fun VideoEditScreen(path: String, initial: VideoEdit, onClose: () -> Unit, onDon
                         leadingIcon = { Icon(if (edit.muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, null, Modifier.size(20.dp)) },
                         modifier = Modifier.height48(),
                     )
-                    FilterChip(
+                    if (allowRound) FilterChip(
                         selected = edit.round,
                         onClick = { edit = edit.copy(round = !edit.round) },
                         label = { Text(stringResource(R.string.send_as_round)) },
@@ -314,6 +314,7 @@ private fun RoundCropOverlay(edit: VideoEdit, onChange: (Float, Float, Float) ->
             addOval(square)
         }
         drawPath(corners, Color.Black.copy(alpha = 0.35f))
+        drawRect(Color.White.copy(alpha = 0.7f), square.topLeft, square.size, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
         drawCircle(Color.White, side / 2f, androidx.compose.ui.geometry.Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         val h = androidx.compose.ui.geometry.Offset(cx + side / 2f * 0.7071f, cy + side / 2f * 0.7071f)
         drawCircle(Color.White, 9.dp.toPx(), h)

@@ -1,6 +1,20 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.pixelgram.android.feature.chat
 
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.EmojiEmotions
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.NorthEast
+import androidx.compose.material.icons.rounded.Highlight
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.AutoFixNormal
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
@@ -99,6 +113,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -116,7 +132,7 @@ import kotlin.math.roundToInt
 @Composable
 private fun rememberRendered(path: String, edit: PhotoEdit): Bitmap? {
     val bitmap by produceState<Bitmap?>(null, path, edit) {
-        delay(30)
+        delay(8)
         value = withContext(Dispatchers.Default) { runCatching { PhotoRenderer.render(path, edit, PhotoRenderer.PreviewSide) }.getOrNull() } ?: value
     }
     return bitmap
@@ -222,12 +238,41 @@ private fun TextButtonIcon(icon: androidx.compose.ui.graphics.vector.ImageVector
 private fun BottomActions(cancel: String, done: String, onCancel: () -> Unit, onDone: () -> Unit, middle: @Composable () -> Unit = {}) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().background(Color.Black).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().background(Color.Black).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        TextButton(onClick = onCancel) { Text(cancel.uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly) { middle() }
-        TextButton(onClick = onDone) { Text(done.uppercase(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+        androidx.compose.material3.FilledTonalIconButton(
+            onClick = onCancel,
+            shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.White.copy(alpha = 0.12f), contentColor = Color.White),
+            modifier = Modifier.size(52.dp),
+        ) { Icon(Icons.Rounded.Close, cancel) }
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) { middle() }
+        androidx.compose.material3.FilledIconButton(
+            onClick = onDone,
+            shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+            modifier = Modifier.size(52.dp),
+        ) { Icon(Icons.Rounded.Check, done) }
     }
+}
+
+@Composable
+private fun TonalIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    androidx.compose.material3.FilledTonalIconButton(
+        onClick = onClick,
+        shapes = androidx.compose.material3.IconButtonDefaults.shapes(),
+        colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color.White.copy(alpha = 0.12f), contentColor = Color.White),
+        modifier = Modifier.size(48.dp),
+    ) { Icon(icon, null) }
+}
+
+@Composable
+private fun EditorPanel(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.08f)).animateContentSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        content = content,
+    )
 }
 
 @Composable
@@ -238,21 +283,41 @@ private fun CropPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
     Column(Modifier.fillMaxSize()) {
         FittedImage(base, Modifier.weight(1f).fillMaxWidth().padding(24.dp)) { size ->
             val latest by rememberUpdatedState(crop)
-            Canvas(
-                Modifier.fillMaxSize().pointerInput(size) {
+            val extra = with(androidx.compose.ui.platform.LocalDensity.current) { 28.dp.roundToPx() }
+            Box(
+                Modifier
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(constraints.maxWidth + extra * 2, constraints.maxHeight + extra * 2))
+                        layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(-extra, -extra) }
+                    }
+                    .pointerInput(size) {
                     var mode = 0
                     detectDragGestures(
                         onDragStart = { at ->
                             val r = latest
-                            val x = at.x / size.width
-                            val y = at.y / size.height
-                            val near = 0.08f
+                            val px = at.x - extra
+                            val py = at.y - extra
+                            val near = extra.toFloat()
+                            val l = r.left * size.width
+                            val t = r.top * size.height
+                            val rr = r.right * size.width
+                            val b = r.bottom * size.height
+                            val nearL = kotlin.math.abs(px - l) < near
+                            val nearR = kotlin.math.abs(px - rr) < near
+                            val nearT = kotlin.math.abs(py - t) < near
+                            val nearB = kotlin.math.abs(py - b) < near
+                            val inX = px > l - near && px < rr + near
+                            val inY = py > t - near && py < b + near
                             mode = when {
-                                kotlin.math.abs(x - r.left) < near && kotlin.math.abs(y - r.top) < near -> 1
-                                kotlin.math.abs(x - r.right) < near && kotlin.math.abs(y - r.top) < near -> 2
-                                kotlin.math.abs(x - r.left) < near && kotlin.math.abs(y - r.bottom) < near -> 3
-                                kotlin.math.abs(x - r.right) < near && kotlin.math.abs(y - r.bottom) < near -> 4
-                                r.contains(x, y) -> 5
+                                nearL && nearT -> 1
+                                nearR && nearT -> 2
+                                nearL && nearB -> 3
+                                nearR && nearB -> 4
+                                nearL && inY -> 6
+                                nearR && inY -> 7
+                                nearT && inX -> 8
+                                nearB && inX -> 9
+                                px > l && px < rr && py > t && py < b -> 5
                                 else -> 0
                             }
                         },
@@ -267,6 +332,10 @@ private fun CropPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                             2 -> { r.right = (r.right + dx).coerceIn(r.left + min, 1f); r.top = (r.top + dy).coerceIn(0f, r.bottom - min) }
                             3 -> { r.left = (r.left + dx).coerceIn(0f, r.right - min); r.bottom = (r.bottom + dy).coerceIn(r.top + min, 1f) }
                             4 -> { r.right = (r.right + dx).coerceIn(r.left + min, 1f); r.bottom = (r.bottom + dy).coerceIn(r.top + min, 1f) }
+                            6 -> r.left = (r.left + dx).coerceIn(0f, r.right - min)
+                            7 -> r.right = (r.right + dx).coerceIn(r.left + min, 1f)
+                            8 -> r.top = (r.top + dy).coerceIn(0f, r.bottom - min)
+                            9 -> r.bottom = (r.bottom + dy).coerceIn(r.top + min, 1f)
                             5 -> {
                                 val w = r.width()
                                 val h = r.height()
@@ -278,7 +347,8 @@ private fun CropPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                         crop = r
                     }
                 },
-            ) {
+            )
+            Canvas(Modifier.fillMaxSize()) {
                 val r = crop
                 val rect = androidx.compose.ui.geometry.Rect(r.left * size.width, r.top * size.height, r.right * size.width, r.bottom * size.height)
                 val dim = Color.Black.copy(alpha = 0.55f)
@@ -299,13 +369,15 @@ private fun CropPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                 }
             }
         }
-        Text("%.1f°".format(edit.straighten), color = Color.White, modifier = Modifier.align(Alignment.CenterHorizontally))
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
-            TextButtonIcon(Icons.Rounded.Flip) { edit = edit.copy(flip = !edit.flip) }
-            Slider(edit.straighten, { edit = edit.copy(straighten = it) }, valueRange = -45f..45f, modifier = Modifier.weight(1f))
-            TextButtonIcon(Icons.Rounded.RotateLeft) {
-                edit = edit.copy(rotation = (edit.rotation + 270) % 360)
-                crop = RectF(0f, 0f, 1f, 1f)
+        EditorPanel {
+            Text("%.1f°".format(edit.straighten), color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TonalIcon(Icons.Rounded.Flip) { edit = edit.copy(flip = !edit.flip) }
+                Slider(edit.straighten, { edit = edit.copy(straighten = it) }, valueRange = -45f..45f, modifier = Modifier.weight(1f))
+                TonalIcon(Icons.Rounded.RotateLeft) {
+                    edit = edit.copy(rotation = (edit.rotation + 270) % 360)
+                    crop = RectF(0f, 0f, 1f, 1f)
+                }
             }
         }
         BottomActions(stringResource(R.string.action_cancel), stringResource(R.string.editor_crop), onCancel, { onDone(edit.copy(crop = crop)) })
@@ -482,45 +554,82 @@ private fun DrawPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, onD
                     }
                 }
             }
-            SizeWedge(
+            Slider(
                 value = width,
-                range = 2f..40f,
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp).width(44.dp).fillMaxHeight(0.62f),
-            ) { value ->
-                width = value
-                val item = items.getOrNull(selected)
-                if (item is PaintItem.Sticker) items[selected] = item.copy(size = (value / 40f).coerceIn(0.08f, 1f))
-                if (item is PaintItem.Label) items[selected] = item.copy(size = value * 4f)
-            }
+                onValueChange = { value ->
+                    width = value
+                    val item = items.getOrNull(selected)
+                    if (item is PaintItem.Sticker) items[selected] = item.copy(size = (value / 40f).coerceIn(0.08f, 1f))
+                    if (item is PaintItem.Label) items[selected] = item.copy(size = value * 4f)
+                },
+                valueRange = 2f..40f,
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp).fillMaxHeight(0.55f).width(48.dp).vertical(),
+            )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-            Box {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(color).border(2.dp, Color.White, CircleShape).clickable { palette = true })
-                DropdownMenu(expanded = palette, onDismissRequest = { palette = false }) {
-                    Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Palette.forEach { c -> Box(Modifier.size(28.dp).clip(CircleShape).background(c).border(1.dp, Color.Gray, CircleShape).clickable { color = c; palette = false }) }
+        EditorPanel(Modifier.padding(bottom = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(color).border(3.dp, Color.White, CircleShape).clickable { palette = !palette })
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                ) {
+                    PaintTool.entries.forEach { t ->
+                        androidx.compose.material3.FilledIconToggleButton(
+                            checked = shape == null && tool == t,
+                            onCheckedChange = { tool = t; shape = null },
+                            shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
+                            colors = androidx.compose.material3.IconButtonDefaults.filledIconToggleButtonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                            modifier = Modifier.size(48.dp),
+                        ) { Icon(toolIcon(t), null) }
+                    }
+                }
+                Box {
+                    androidx.compose.material3.FilledIconToggleButton(
+                        checked = shape != null,
+                        onCheckedChange = { shapesMenu = true },
+                        shapes = androidx.compose.material3.IconButtonDefaults.toggleableShapes(),
+                        colors = androidx.compose.material3.IconButtonDefaults.filledIconToggleButtonColors(containerColor = Color.White.copy(alpha = 0.12f), contentColor = Color.White),
+                        modifier = Modifier.size(48.dp),
+                    ) { Icon(Icons.Rounded.Category, null) }
+                    DropdownMenu(expanded = shapesMenu, onDismissRequest = { shapesMenu = false }, shape = RoundedCornerShape(16.dp)) {
+                        ShapeKind.entries.forEach { kind ->
+                            DropdownMenuItem(text = { Text(stringResource(shapeLabel(kind))) }, onClick = { shape = kind; shapesMenu = false })
+                        }
                     }
                 }
             }
-            PaintTool.entries.forEach { t ->
-                val active = shape == null && tool == t
-                Box(
-                    Modifier.size(46.dp).clip(CircleShape).background(if (active) Color.White.copy(alpha = 0.25f) else Color.Transparent).clickable { tool = t; shape = null },
-                    contentAlignment = Alignment.Center,
-                ) { Text(toolGlyph(t), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp) }
-            }
-            Box {
-                TextButtonIcon(Icons.Rounded.Add, tint = if (shape != null) MaterialTheme.colorScheme.primary else Color.White) { shapesMenu = true }
-                DropdownMenu(expanded = shapesMenu, onDismissRequest = { shapesMenu = false }, shape = RoundedCornerShape(16.dp)) {
-                    ShapeKind.entries.forEach { kind ->
-                        DropdownMenuItem(text = { Text(stringResource(shapeLabel(kind))) }, onClick = { shape = kind; shapesMenu = false })
+            androidx.compose.animation.AnimatedVisibility(palette) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    Palette.forEach { c ->
+                        val active = c == color
+                        val ring by androidx.compose.animation.core.animateDpAsState(if (active) 3.dp else 1.dp, label = "swatch")
+                        Box(Modifier.size(36.dp).clip(CircleShape).background(c).border(ring, if (active) Color.White else Color.White.copy(alpha = 0.3f), CircleShape).clickable { color = c })
                     }
                 }
             }
         }
         BottomActions(stringResource(R.string.action_cancel), stringResource(R.string.action_done), onCancel, { onDone(initial.copy(paint = items.toList())) }) {
-            TextButton(onClick = { stickering = true }) { Text(stringResource(R.string.editor_sticker).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { texting = true }) { Text(stringResource(R.string.editor_text).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { stickering = true },
+                shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(containerColor = Color.White.copy(alpha = 0.12f), contentColor = Color.White),
+            ) {
+                Icon(Icons.Rounded.EmojiEmotions, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.editor_sticker))
+            }
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { texting = true },
+                shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(containerColor = Color.White.copy(alpha = 0.12f), contentColor = Color.White),
+            ) {
+                Icon(Icons.Rounded.TextFields, null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.editor_text))
+            }
         }
     }
     if (stickering) StickerPickerSheet(onDismiss = { stickering = false }) { path ->
@@ -682,6 +791,23 @@ private val FontNames = listOf("Roboto", "Serif", "Mono", "Condensed", "Cursive"
 
 private fun Modifier.graphicsLayerRotate(): Modifier = this.then(androidx.compose.ui.Modifier.graphicsLayer { rotationZ = -90f })
 
+private fun Modifier.vertical(): Modifier = this
+    .layout { measurable, constraints ->
+        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints(minWidth = constraints.minHeight, maxWidth = constraints.maxHeight, minHeight = constraints.minWidth, maxHeight = constraints.maxWidth))
+        layout(placeable.height, placeable.width) { placeable.place(-(placeable.width - placeable.height) / 2, (placeable.width - placeable.height) / 2) }
+    }
+    .graphicsLayer { rotationZ = -90f }
+
+private fun toolIcon(tool: PaintTool): androidx.compose.ui.graphics.vector.ImageVector = when (tool) {
+    PaintTool.Pen -> Icons.Rounded.Edit
+    PaintTool.Arrow -> Icons.Rounded.NorthEast
+    PaintTool.Marker -> Icons.Rounded.Highlight
+    PaintTool.Neon -> Icons.Rounded.AutoAwesome
+    PaintTool.Blur -> Icons.Rounded.BlurOn
+    PaintTool.Mosaic -> Icons.Rounded.GridOn
+    PaintTool.Eraser -> Icons.Rounded.AutoFixNormal
+}
+
 private fun toolGlyph(tool: PaintTool): String = when (tool) {
     PaintTool.Pen -> "✎"
     PaintTool.Arrow -> "➚"
@@ -749,20 +875,33 @@ private fun AdjustPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, o
                         }
                     },
                 ) {
-                    for (i in 1..3) drawLine(Color.White.copy(alpha = 0.35f), Offset(this.size.width * i / 4, 0f), Offset(this.size.width * i / 4, this.size.height))
+                    val grid = Color.White.copy(alpha = 0.22f)
+                    for (i in 1..3) {
+                        drawLine(grid, Offset(this.size.width * i / 4, 0f), Offset(this.size.width * i / 4, this.size.height), 1.dp.toPx())
+                        drawLine(grid, Offset(0f, this.size.height * i / 4), Offset(this.size.width, this.size.height * i / 4), 1.dp.toPx())
+                    }
+                    drawLine(grid, Offset(0f, this.size.height), Offset(this.size.width, 0f), 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx())))
+                    val lut = PhotoRenderer.curveLut(points)
                     val path = Path()
+                    for (i in 0..255) {
+                        val p = Offset(this.size.width * i / 255f, this.size.height * (1f - lut[i]))
+                        if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+                    }
+                    drawPath(path, Color.Black.copy(alpha = 0.35f), style = Stroke(5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    drawPath(path, lineColor, style = Stroke(2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
                     points.forEachIndexed { i, v ->
                         val p = Offset(this.size.width * i / 4, this.size.height * (1f - v))
-                        if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
-                        drawCircle(lineColor, 6.dp.toPx(), p)
+                        drawCircle(Color.Black.copy(alpha = 0.35f), 9.dp.toPx(), p)
+                        drawCircle(lineColor, 7.dp.toPx(), p)
+                        drawCircle(Color.Black, 3.dp.toPx(), p)
                     }
-                    drawPath(path, lineColor, style = Stroke(2.dp.toPx()))
                 }
             }
         }
-        Box(Modifier.fillMaxWidth().height(260.dp)) {
+        EditorPanel(Modifier.padding(bottom = 8.dp)) {
+            AnimatedContent(tab, transitionSpec = { (fadeIn() + androidx.compose.animation.slideInVertically { it / 6 }) togetherWith fadeOut() }, label = "adjust-tab") { tab ->
             when (tab) {
-                AdjustTab.Adjust -> Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                AdjustTab.Adjust -> Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
                     val a = edit.adjust
                     AdjustSlider(stringResource(R.string.adjust_enhance), a.enhance, 0f..1f) { edit = edit.copy(adjust = a.copy(enhance = it)) }
                     AdjustSlider(stringResource(R.string.adjust_exposure), a.exposure, -1f..1f) { edit = edit.copy(adjust = a.copy(exposure = it)) }
@@ -778,33 +917,79 @@ private fun AdjustPage(path: String, initial: PhotoEdit, onCancel: () -> Unit, o
                     TintRow(stringResource(R.string.adjust_shadows), a.shadowsTint) { edit = edit.copy(adjust = a.copy(shadowsTint = it)) }
                     TintRow(stringResource(R.string.adjust_highlights), a.highlightsTint) { edit = edit.copy(adjust = a.copy(highlightsTint = it)) }
                 }
-                AdjustTab.Blur -> Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                        listOf(BlurMode.Off to R.string.blur_off, BlurMode.Radial to R.string.blur_radial, BlurMode.Linear to R.string.blur_linear).forEach { (mode, label) ->
-                            TextButton(onClick = { edit = edit.copy(blur = edit.blur.copy(mode = mode)) }) {
-                                Text(stringResource(label), color = if (edit.blur.mode == mode) MaterialTheme.colorScheme.primary else Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                AdjustTab.Blur -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        val modes = listOf(BlurMode.Off, BlurMode.Radial, BlurMode.Linear)
+                        ConnectedChoice(
+                            listOf(R.string.blur_off to null, R.string.blur_radial to null, R.string.blur_linear to null),
+                            modes.indexOf(edit.blur.mode),
+                        ) { edit = edit.copy(blur = edit.blur.copy(mode = modes[it])) }
                     }
                     if (edit.blur.mode != BlurMode.Off) {
                         AdjustSlider(stringResource(R.string.blur_size), edit.blur.size, 0.05f..0.6f) { edit = edit.copy(blur = edit.blur.copy(size = it)) }
                         if (edit.blur.mode == BlurMode.Linear) AdjustSlider(stringResource(R.string.blur_angle), edit.blur.angle, -90f..90f) { edit = edit.copy(blur = edit.blur.copy(angle = it)) }
                     }
                 }
-                AdjustTab.Curves -> Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    listOf(R.string.curves_all to Color.White, R.string.curves_red to Color(0xFFE53935), R.string.curves_green to Color(0xFF43A047), R.string.curves_blue to Color(0xFF1E88E5)).forEachIndexed { i, (label, c) ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { channel = i }.padding(8.dp)) {
-                            Box(Modifier.size(28.dp).border(if (channel == i) 6.dp else 2.dp, c, CircleShape))
-                            Text(stringResource(label), color = c, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                AdjustTab.Curves -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    ConnectedChoice(
+                        listOf(R.string.curves_all to Color.White, R.string.curves_red to Color(0xFFE53935), R.string.curves_green to Color(0xFF43A047), R.string.curves_blue to Color(0xFF1E88E5)),
+                        channel,
+                    ) { channel = it }
                 }
+            }
             }
         }
         BottomActions(stringResource(R.string.action_cancel), stringResource(R.string.action_done), onCancel, { onDone(edit) }) {
-            TextButtonIcon(Icons.Rounded.Tune, tint = if (tab == AdjustTab.Adjust) MaterialTheme.colorScheme.primary else Color.White) { tab = AdjustTab.Adjust }
-            TextButtonIcon(Icons.Rounded.BlurOn, tint = if (tab == AdjustTab.Blur) MaterialTheme.colorScheme.primary else Color.White) { tab = AdjustTab.Blur }
-            TextButtonIcon(Icons.Rounded.ShowChart, tint = if (tab == AdjustTab.Curves) MaterialTheme.colorScheme.primary else Color.White) { tab = AdjustTab.Curves }
+            val tabs = listOf(AdjustTab.Adjust to Icons.Rounded.Tune, AdjustTab.Blur to Icons.Rounded.BlurOn, AdjustTab.Curves to Icons.Rounded.ShowChart)
+            Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                tabs.forEachIndexed { i, (t, icon) ->
+                    androidx.compose.material3.ToggleButton(
+                        checked = tab == t,
+                        onCheckedChange = { tab = t },
+                        shapes = when (i) {
+                            0 -> androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            tabs.lastIndex -> androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> androidx.compose.material3.ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        },
+                        colors = darkToggleColors(),
+                        modifier = Modifier.height(44.dp),
+                    ) { Icon(icon, null, Modifier.size(22.dp)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun darkToggleColors() = androidx.compose.material3.ToggleButtonDefaults.colors(
+    containerColor = Color.White.copy(alpha = 0.12f),
+    contentColor = Color.White,
+    checkedContainerColor = MaterialTheme.colorScheme.primary,
+    checkedContentColor = MaterialTheme.colorScheme.onPrimary,
+)
+
+@Composable
+private fun ConnectedChoice(options: List<Pair<Int, Color?>>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween)) {
+        options.forEachIndexed { i, (label, dot) ->
+            androidx.compose.material3.ToggleButton(
+                checked = selected == i,
+                onCheckedChange = { onSelect(i) },
+                shapes = when (i) {
+                    0 -> androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    options.lastIndex -> androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> androidx.compose.material3.ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                colors = darkToggleColors(),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                modifier = Modifier.height(48.dp),
+            ) {
+                if (dot != null) {
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(dot).border(1.dp, Color.Black.copy(alpha = 0.3f), CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(stringResource(label), style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            }
         }
     }
 }

@@ -164,7 +164,7 @@ object PhotoRenderer {
 
     private fun abs(value: Double) = kotlin.math.abs(value)
 
-    private fun curveLut(points: List<Float>): FloatArray {
+    fun curveLut(points: List<Float>): FloatArray {
         val lut = FloatArray(256)
         val xs = floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f)
         for (i in 0 until 256) {
@@ -574,8 +574,16 @@ object PhotoRenderer {
         }
     }
 
+    private val decoded = android.util.LruCache<String, Bitmap>(3)
+
+    private fun cachedDecode(path: String, maxSide: Int): Bitmap? {
+        val key = "$path#$maxSide"
+        val cached = decoded.get(key)?.takeIf { !it.isRecycled } ?: decode(path, maxSide)?.also { decoded.put(key, it) } ?: return null
+        return cached.copy(Bitmap.Config.ARGB_8888, true)
+    }
+
     fun render(path: String, edit: PhotoEdit, maxSide: Int): Bitmap? {
-        val source = decode(path, maxSide) ?: return null
+        val source = (if (maxSide <= PreviewSide) cachedDecode(path, maxSide) else decode(path, maxSide)) ?: return null
         val shaped = geometry(source, edit)
         if (shaped !== source) source.recycle()
         val bitmap = if (shaped.isMutable) shaped else shaped.copy(Bitmap.Config.ARGB_8888, true).also { shaped.recycle() }
