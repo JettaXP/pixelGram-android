@@ -496,12 +496,16 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 val reply = message.replyToId.takeIf { it != 0L }?.let { id ->
                                     ui.messages.firstOrNull { it.id == id || it.parts.any { p -> p.id == id } } ?: ui.replies[id]
                                 }
-                                val group = privateUserId == 0L && !ui.channel && !saved
+                                val guest = message.guestCallerId != 0L
+                                val group = (privateUserId == 0L && !ui.channel && !saved) || guest
                                 val sender = if (group && !message.outgoing) snapshot.users[message.senderId] else null
+                                if (group && !message.outgoing && sender == null && message.senderId > 0) LaunchedEffect(message.senderId) { runCatching { graph.td.send(TdApi.GetUser(message.senderId)) } }
+                                if (guest && message.guestCallerId > 0 && snapshot.users[message.guestCallerId] == null) LaunchedEffect(message.guestCallerId) { runCatching { graph.td.send(TdApi.GetUser(message.guestCallerId)) } }
+                                val guestCaller = if (guest) snapshot.users[message.guestCallerId]?.name ?: graph.store.chat(message.guestCallerId)?.title.orEmpty() else ""
                                 MessageBubble(
                                     onBubbleWidth = { bubbleWidth = it },
                                     message = message,
-                                    senderName = sender?.name?.takeIf { !joinsAbove },
+                                    senderName = (if (guest) sender?.name?.let { stringResource(R.string.guest_bot_for, it, guestCaller) } else sender?.name)?.takeIf { !joinsAbove || guest },
                                     senderAvatar = if (group && !message.outgoing) {
                                         {
                                             if (!joinsBelow) {

@@ -25,6 +25,7 @@ data class UiMessage(
     val content: TdApi.MessageContent,
     val replyToId: Long,
     val replyQuote: String = "",
+    val guestCallerId: Long = 0L,
     val pending: Boolean,
     val failed: Boolean,
     val edited: Boolean,
@@ -695,6 +696,11 @@ internal fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         content = content,
         replyToId = (replyTo as? TdApi.MessageReplyToMessage)?.messageId ?: 0,
         replyQuote = (replyTo as? TdApi.MessageReplyToMessage)?.quote?.text?.text.orEmpty(),
+        guestCallerId = when (val caller = guestBotCallerId) {
+            is TdApi.MessageSenderUser -> caller.userId
+            is TdApi.MessageSenderChat -> caller.chatId
+            else -> 0L
+        },
         pending = sendingState is TdApi.MessageSendingStatePending,
         failed = sendingState is TdApi.MessageSendingStateFailed,
         edited = editDate > 0,

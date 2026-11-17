@@ -958,6 +958,7 @@
     <string name="composer_extra">Extra button</string>
     <string name="send_as_round">Video message</string>
     <string name="video_edit_title">Edit video</string>
+    <string name="guest_bot_for">%1$s for %2$s</string>
     <string name="video_smaller">Smaller size</string>
     <string name="video_higher">Higher quality</string>
     <string name="video_muted">Muted</string>
