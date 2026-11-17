@@ -238,6 +238,13 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
             for (message in list) messages[message.id] = message
             pages++
         }
+        if (id !in messages) {
+            val around = runCatching {
+                if (topicId != 0) graph.td.send(TdApi.GetForumTopicHistory(chatId, topicId, id, -20, 60)) else graph.td.send(TdApi.GetChatHistory(chatId, id, -20, 60, false))
+            }.getOrNull()?.messages.orEmpty()
+            for (message in around) messages[message.id] = message
+            if (id !in messages) runCatching { graph.td.send(TdApi.GetMessage(chatId, id)) }.getOrNull()?.let { messages[it.id] = it }
+        }
         publish()
         id in messages
     }

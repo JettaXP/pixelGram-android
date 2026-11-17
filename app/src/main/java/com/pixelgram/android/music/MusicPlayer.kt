@@ -170,6 +170,21 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
             if (playWhenReady) startTicker() else ticker?.cancel()
         }
 
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            if (cast.active) return
+            val position = exo.currentPosition
+            main.launch {
+                delay(300)
+                recover(position)
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (cast.active) return
+            if (!isPlaying && exo.playWhenReady && exo.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE) stateFlow.update { it.copy(playing = false) }
+            if (isPlaying) stateFlow.update { it.copy(playing = true) }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (cast.active) return
             if (playbackState == Player.STATE_ENDED) {
@@ -442,11 +457,35 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
                     castStatus()
                     stateFlow.update { it.copy(duration = cast.duration.takeIf { d -> d > 0 } ?: it.duration) }
                 } else {
-                    stateFlow.update { it.copy(position = exo.currentPosition, duration = exo.duration.takeIf { d -> d > 0 } ?: it.duration) }
+                    val now = exo.currentPosition
+                    val stuck = exo.playWhenReady && exo.playbackState != Player.STATE_ENDED && now == lastTick && fadeJob?.isActive != true
+                    stalledTicks = if (stuck) stalledTicks + 1 else 0
+                    lastTick = now
+                    if (stalledTicks >= StallTicks) {
+                        stalledTicks = 0
+                        recover(now)
+                    }
+                    stateFlow.update { it.copy(position = now, duration = exo.duration.takeIf { d -> d > 0 } ?: it.duration) }
                 }
                 delay(250)
             }
         }
+    }
+
+    private var lastTick = -1L
+    private var stalledTicks = 0
+
+    private fun recover(position: Long) {
+        val path = currentPath ?: return
+        val audio = stateFlow.value.audio ?: return
+        if (exo.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE) return
+        if (exo.playbackState == Player.STATE_IDLE || exo.playerError != null || exo.mediaItemCount == 0) {
+            exo.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(path))).setMediaMetadata(MediaMetadata.Builder().setTitle(audio.title.ifBlank { audio.fileName }).setArtist(audio.performer).build()).build())
+            exo.prepare()
+        }
+        exo.seekTo(position)
+        exo.volume = 1f
+        exo.play()
     }
 
     private fun connect() {
@@ -462,6 +501,7 @@ private const val FadeMs = 150
 private const val ArtworkWaitMs = 3_000L
 private const val FadeTickMs = 16
 private const val CastSettleMs = 2_000L
+private const val StallTicks = 8
 
 fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(
     audio.remote?.uniqueId?.takeIf { it.isNotBlank() }?.let { "u:$it" },

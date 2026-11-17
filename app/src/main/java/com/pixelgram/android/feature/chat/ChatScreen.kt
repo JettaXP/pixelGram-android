@@ -294,7 +294,10 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         if (newest == null) return@LaunchedEffect
         val first = seenNewest == null
         seenNewest = newest
-        if (!first && listState.firstVisibleItemIndex <= 2) listState.animateScrollToItem(0)
+        val own = ui.messages.firstOrNull()?.outgoing == true
+        if (!first && (own || listState.firstVisibleItemIndex <= 2)) {
+            if (own && listState.firstVisibleItemIndex > 20) listState.scrollToItem(0) else listState.animateScrollToItem(0)
+        }
     }
 
     val linkOpener = com.pixelgram.android.nav.rememberLinkOpener(graph, navigator)
@@ -984,8 +987,16 @@ internal fun MessageBubble(
                             return@awaitEachGesture
                         }
                         up.consume()
-                        if (latestSelecting) {
+                        if (latestSelecting || !inside) {
                             latestTap(pointAt(up.position.x, up.position.y))
+                            return@awaitEachGesture
+                        }
+                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                        if (second != null) {
+                            second.consume()
+                            waitForUpOrCancellation()?.consume()
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            latestDoubleTap()
                             return@awaitEachGesture
                         }
                         latestTap(pointAt(up.position.x, up.position.y))
@@ -2034,34 +2045,46 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 }
                 val ready = text.isNotBlank() || forward != null
                 val corner by androidx.compose.animation.core.animateDpAsState(if (ready) 18.dp else 28.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "send")
-                if (!ready && editing == null) VoiceButton(
-                    recorder = voice,
-                    video = videoMode,
-                    size = if (telegramStyle) 48.dp else 56.dp,
-                    telegram = telegramStyle,
-                    hasPermission = {
-                        val mic = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                        val cam = !videoMode || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                        mic && cam
+                val spatialSend = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+                val effectsSend = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                androidx.compose.animation.AnimatedContent(
+                    !ready && editing == null,
+                    transitionSpec = {
+                        (androidx.compose.animation.scaleIn(spatialSend, initialScale = 0.5f) + fadeIn(effectsSend) togetherWith
+                            androidx.compose.animation.scaleOut(spatialSend, targetScale = 0.5f) + fadeOut(effectsSend)).using(androidx.compose.animation.SizeTransform(clip = false))
                     },
-                    onRequestPermission = { micPermission.launch(if (videoMode) arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.CAMERA) else arrayOf(android.Manifest.permission.RECORD_AUDIO)) },
-                    onTap = {
-                        videoMode = !videoMode
-                        sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
-                    },
-                ) else Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(if (telegramStyle) 48.dp else 56.dp).clip(if (telegramStyle) CircleShape else RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
-                        enabled = ready,
-                        onLongClick = if (editing == null) ({
-                            sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            keyboard?.hide()
-                            sendOptions = true
-                        }) else null,
-                    ) { sendDraft(null) },
-                ) {
-                    if (telegramStyle && editing == null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
-                    else Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
+                    label = "send-voice",
+                ) { showVoice ->
+                    if (showVoice) VoiceButton(
+                        recorder = voice,
+                        video = videoMode,
+                        size = if (telegramStyle) 48.dp else 56.dp,
+                        telegram = telegramStyle,
+                        hasPermission = {
+                            val mic = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            val cam = !videoMode || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            mic && cam
+                        },
+                        onRequestPermission = { micPermission.launch(if (videoMode) arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.CAMERA) else arrayOf(android.Manifest.permission.RECORD_AUDIO)) },
+                        onTap = {
+                            videoMode = !videoMode
+                            sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
+                        },
+                    ) else Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(if (telegramStyle) 48.dp else 56.dp).clip(if (telegramStyle) CircleShape else RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
+                            enabled = ready,
+                            onLongClick = if (editing == null) ({
+                                sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                keyboard?.hide()
+                                sendOptions = true
+                            }) else null,
+                        ) { sendDraft(null) },
+                    ) {
+                        if (telegramStyle && editing == null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                        else Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
             }
             if (sendOptions) SendOptionsPopup(
