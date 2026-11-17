@@ -210,6 +210,7 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
     SettingsGroup {
         SettingsItem(stringResource(R.string.stickers_title), SegmentPosition.Single, stringResource(R.string.stickers_sub), androidx.compose.material.icons.Icons.Rounded.EmojiEmotions, onClick = { open(com.pixelgram.android.nav.StickersKey) })
     }
+    ComposerSettings(settings, update)
     CursorSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_messages)) {
         SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
@@ -939,5 +940,45 @@ private fun SliderValue(label: String, value: Int, default: Int?, onChange: (Int
             }
         }
         Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ComposerSettings(settings: AppearanceSettings, update: ((AppearanceSettings) -> AppearanceSettings) -> Unit) {
+    val slots = com.pixelgram.android.feature.chat.ComposerSlots.of(settings)
+    SettingsGroup(stringResource(R.string.composer_title)) {
+        androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp, 24.dp, 6.dp, 6.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                listOf("messages" to R.string.composer_style_messages, "telegram" to R.string.composer_style_telegram).forEach { (key, label) ->
+                    androidx.compose.material3.ToggleButton(
+                        checked = settings.composerStyle == key,
+                        onCheckedChange = { update { it.copy(composerStyle = key, composerLeft = "", composerRight = "", composerExtra = "") } },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(label)) }
+                }
+            }
+        }
+        SlotItem(stringResource(R.string.composer_left), slots.left, SegmentPosition.Middle) { v -> update { it.copy(composerLeft = v) } }
+        SlotItem(stringResource(R.string.composer_right), slots.right, SegmentPosition.Middle) { v -> update { it.copy(composerRight = v) } }
+        SlotItem(stringResource(R.string.composer_extra), slots.extra, SegmentPosition.Bottom) { v -> update { it.copy(composerExtra = v) } }
+    }
+}
+
+@Composable
+private fun SlotItem(title: String, value: String, position: SegmentPosition, onPick: (String) -> Unit) {
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    SettingsItem(title, position, null, onClick = { open = true }) {
+        Box {
+            Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(value)), color = MaterialTheme.colorScheme.primary)
+            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) {
+                com.pixelgram.android.feature.chat.ComposerSlots.All.forEach { kind ->
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(stringResource(com.pixelgram.android.feature.chat.ComposerSlots.label(kind))) }, onClick = {
+                        open = false
+                        onPick(kind)
+                    })
+                }
+            }
+        }
     }
 }

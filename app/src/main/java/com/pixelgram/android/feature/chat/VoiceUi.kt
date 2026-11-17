@@ -35,6 +35,10 @@ import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -63,17 +67,17 @@ import kotlin.math.roundToInt
 
 @Composable
 fun VoiceButton(
-    recorder: VoiceRecorder,
+    recorder: MediaRecorderUi,
+    video: Boolean,
     hasPermission: () -> Boolean,
     onRequestPermission: () -> Unit,
-    onHint: () -> Unit,
-    onSend: (VoiceRecording) -> Unit,
+    onTap: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val cancelAt = with(density) { CancelDistance.toPx() }
     val lockAt = with(density) { LockDistance.toPx() }
-    val latestSend by rememberUpdatedState(onSend)
+    val latestTap by rememberUpdatedState(onTap)
     var lift by remember { mutableStateOf(0f) }
     val scale by animateFloatAsState(if (recorder.active && !recorder.locked) 1.35f else 1f, label = "mic-scale")
     val pulse by animateFloatAsState(1f + recorder.level * 0.7f, tween(90), label = "mic-level")
@@ -115,7 +119,7 @@ fun VoiceButton(
                     if (recorder.locked) {
                         awaitEachGesture {
                             awaitFirstDown()
-                            recorder.stop()?.let(latestSend)
+                            recorder.finish()
                         }
                         return@pointerInput
                     }
@@ -126,6 +130,11 @@ fun VoiceButton(
                             return@awaitEachGesture
                         }
                         val pressedAt = System.currentTimeMillis()
+                        val released = withTimeoutOrNull(TapMs) { waitForUpOrCancellation() }
+                        if (released != null) {
+                            latestTap()
+                            return@awaitEachGesture
+                        }
                         if (!recorder.start()) return@awaitEachGesture
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         var cancelled = false
@@ -156,24 +165,38 @@ fun VoiceButton(
                         recorder.drag = 0f
                         if (System.currentTimeMillis() - pressedAt < TapMs) {
                             recorder.cancel()
-                            onHint()
+                            latestTap()
                             return@awaitEachGesture
                         }
-                        recorder.stop()?.let(latestSend)
+                        recorder.finish()
                     }
                 },
         ) {
+            androidx.compose.animation.AnimatedContent(
+                when {
+                    recorder.locked -> 2
+                    video -> 1
+                    else -> 0
+                },
+                transitionSpec = { (androidx.compose.animation.scaleIn(initialScale = 0.4f) + fadeIn()) togetherWith (androidx.compose.animation.scaleOut(targetScale = 0.4f) + fadeOut()) },
+                label = "record-icon",
+            ) { state ->
             Icon(
-                if (recorder.locked) Icons.AutoMirrored.Rounded.Send else Icons.Rounded.Mic,
+                when (state) {
+                    2 -> Icons.AutoMirrored.Rounded.Send
+                    1 -> Icons.Rounded.Videocam
+                    else -> Icons.Rounded.Mic
+                },
                 stringResource(R.string.voice_record),
                 tint = MaterialTheme.colorScheme.onPrimary,
             )
+            }
         }
     }
 }
 
 @Composable
-fun RecordingBar(recorder: VoiceRecorder) {
+fun RecordingBar(recorder: MediaRecorderUi) {
     val blink = rememberInfiniteTransition(label = "rec").animateFloat(1f, 0.2f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "rec-dot")
     val seconds = recorder.elapsed / 1000
     val centis = (recorder.elapsed % 1000) / 10

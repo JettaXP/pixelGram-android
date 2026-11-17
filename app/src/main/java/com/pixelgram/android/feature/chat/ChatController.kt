@@ -559,6 +559,16 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun sendVideoNote(note: VideoNote) {
+        sendContent(TdApi.InputMessageVideoNote().apply {
+            videoNote = TdApi.InputVideoNote().apply {
+                videoNote = TdApi.InputFileLocal(note.path)
+                duration = note.duration
+                length = 384
+            }
+        })
+    }
+
     fun sendVoice(recording: VoiceRecording) {
         sendContent(TdApi.InputMessageVoiceNote().apply {
             voiceNote = TdApi.InputVoiceNote().apply {

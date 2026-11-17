@@ -19,15 +19,26 @@ import java.io.File
 
 class VoiceRecording(val path: String, val duration: Int, val waveform: ByteArray)
 
-class VoiceRecorder(private val context: Context) {
-    var active by mutableStateOf(false)
+interface MediaRecorderUi {
+    val active: Boolean
+    var locked: Boolean
+    var drag: Float
+    val level: Float
+    val elapsed: Long
+    fun start(): Boolean
+    fun finish()
+    fun cancel()
+}
+
+class VoiceRecorder(private val context: Context, private val onDone: (VoiceRecording) -> Unit = {}) : MediaRecorderUi {
+    override var active by mutableStateOf(false)
         private set
-    var locked by mutableStateOf(false)
-    var level by mutableFloatStateOf(0f)
+    override var locked by mutableStateOf(false)
+    override var level by mutableFloatStateOf(0f)
         private set
-    var elapsed by mutableLongStateOf(0L)
+    override var elapsed by mutableLongStateOf(0L)
         private set
-    var drag by mutableFloatStateOf(0f)
+    override var drag by mutableFloatStateOf(0f)
 
     private var recorder: MediaRecorder? = null
     private var file: File? = null
@@ -36,7 +47,11 @@ class VoiceRecorder(private val context: Context) {
     private val samples = ArrayList<Short>()
     private val scope = CoroutineScope(Dispatchers.Main)
 
-    fun start(): Boolean {
+    override fun finish() {
+        stop()?.let(onDone)
+    }
+
+    override fun start(): Boolean {
         if (active) return true
         val ogg = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         val target = File(context.cacheDir, "voice-${System.currentTimeMillis()}.${if (ogg) "ogg" else "m4a"}")
@@ -89,7 +104,7 @@ class VoiceRecorder(private val context: Context) {
         return VoiceRecording(target.absolutePath, duration, waveform(samples.toShortArray()))
     }
 
-    fun cancel() {
+    override fun cancel() {
         val target = file
         release()
         target?.delete()

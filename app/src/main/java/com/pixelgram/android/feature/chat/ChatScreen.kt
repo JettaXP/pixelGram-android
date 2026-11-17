@@ -260,30 +260,23 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         jumpTo(message)
     }
     var datePicker by remember { mutableStateOf<Int?>(null) }
-    datePicker?.let { start ->
-        val pickerState = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = start * 1000L,
-            selectableDates = object : androidx.compose.material3.SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= System.currentTimeMillis()
-            },
-        )
-        androidx.compose.material3.DatePickerDialog(
-            onDismissRequest = { datePicker = null },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    val millis = pickerState.selectedDateMillis
-                    datePicker = null
-                    if (millis != null) jumpScope.launch {
-                        val zone = ZoneId.systemDefault()
-                        val day = Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                        val target = day.atStartOfDay(zone).toEpochSecond().toInt() + 86_399
-                        val found = runCatching { graph.td.send(TdApi.GetChatMessageByDate(chatId, target)) }.getOrNull()
-                        if (found != null) jumpTo(found.id)
-                    }
-                }) { Text(stringResource(R.string.date_go)) }
-            },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { datePicker = null }) { Text(stringResource(R.string.action_cancel)) } },
-        ) { androidx.compose.material3.DatePicker(pickerState) }
+    datePicker?.let {
+        MediaCalendar(chatId, onDismiss = { datePicker = null }) { day ->
+            datePicker = null
+            jumpScope.launch {
+                val zone = ZoneId.systemDefault()
+                val start = day.atStartOfDay(zone).toEpochSecond().toInt()
+                val found = runCatching { graph.td.send(TdApi.GetChatMessageByDate(chatId, start + 86_399)) }.getOrNull() ?: return@launch
+                jumpTo(found.id)
+                kotlinx.coroutines.delay(400)
+                val list = controller.state.value.messages
+                val index = list.indexOfLast { it.date >= start && it.date < start + 86_400 }
+                if (index >= 0) {
+                    val shift = if (appearance.typingBubble) 1 else 0
+                    listState.animateScrollToItem(index + shift, -listState.layoutInfo.viewportSize.height / 2)
+                }
+            }
+        }
     }
     val nearTop by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= ui.messages.size - 10 } }
     LaunchedEffect(nearTop, ui.loading) { if (nearTop && !ui.loading && ui.messages.isNotEmpty()) controller.loadMore() }
@@ -606,7 +599,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             ) {
                 var shown by remember { mutableStateOf(0) }
                 topDate?.let { shown = it }
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, shadowElevation = 3.dp) {
+                Surface(onClick = { datePicker = shown }, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, shadowElevation = 3.dp) {
                     Text(dayHeader(shown), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
                 }
             }
@@ -1548,6 +1541,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
         }
     }
     var camera by remember { mutableStateOf(false) }
+    val sendDraftHolder = remember { mutableStateOf<((TdApi.MessageSendOptions?) -> Unit)?>(null) }
     var pendingLive by remember { mutableStateOf(0) }
     var sendOptions by remember { mutableStateOf(false) }
     var scheduling by remember { mutableStateOf<((TdApi.MessageSchedulingState) -> Unit)?>(null) }
@@ -1566,10 +1560,14 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     val locationPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.any { it }) controller.sendLocation(context, pendingLive)
     }
-    val voice = remember { VoiceRecorder(context) }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voice.cancel() } }
-    val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
-    val holdHint = stringResource(R.string.voice_hold_hint)
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val voiceRecorder = remember { VoiceRecorder(context) { controller.sendVoice(it) } }
+    val roundRecorder = remember { VideoNoteRecorder(context, lifecycleOwner) { controller.sendVideoNote(it) } }
+    var videoMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val voice: MediaRecorderUi = if (videoMode) roundRecorder else voiceRecorder
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { voiceRecorder.cancel(); roundRecorder.release() } }
+    val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {}
+    if (roundRecorder.controller != null) androidx.compose.ui.window.Popup(properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false)) { VideoNoteOverlay(roundRecorder) }
     if (attach) AttachSheet(
         controller,
         onGallery = {
@@ -1705,6 +1703,42 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     onDismiss = { forwardPick = false },
                 )
             }
+            val composerPrefs = com.pixelgram.android.ui.theme.LocalAppearance.current
+            val slots = remember(composerPrefs.composerStyle, composerPrefs.composerLeft, composerPrefs.composerRight, composerPrefs.composerExtra) { ComposerSlots.of(composerPrefs) }
+            val telegramStyle = composerPrefs.composerStyle == "telegram"
+            val toggleEmoji: () -> Unit = {
+                if (emoji) {
+                    emoji = false
+                    focus.requestFocus()
+                    keyboard?.show()
+                } else {
+                    keyboard?.hide()
+                    emoji = true
+                }
+            }
+            val slot: @Composable (String) -> Unit = { kind ->
+                when (kind) {
+                    ComposerSlots.Emoji -> IconButton(onClick = toggleEmoji, modifier = Modifier.padding(vertical = 4.dp)) {
+                        if (emoji) Icon(Icons.Rounded.Keyboard, stringResource(R.string.chat_emoji))
+                        else if (telegramStyle) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.chat_emoji), Modifier.size(24.dp))
+                        else Icon(Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
+                    }
+                    ComposerSlots.Attach -> IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
+                    }
+                    ComposerSlots.Gallery -> IconButton(
+                        onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
+                    ComposerSlots.Camera -> IconButton(onClick = { camera = true }, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Icon(androidx.compose.material.icons.Icons.Rounded.PhotoCamera, stringResource(R.string.attach_camera))
+                    }
+                    ComposerSlots.Send -> IconButton(onClick = { if (draft.text.isNotBlank() || forward != null) sendDraftHolder.value?.invoke(null) }, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    else -> Unit
+                }
+            }
             val sendDraft: (TdApi.MessageSendOptions?) -> Unit = { options ->
                 val formatted = draft.formatted()
                 if (editing != null) controller.submitEdit(formatted) else if (formatted.text.isNotBlank()) controller.send(formatted, markdown, options)
@@ -1714,10 +1748,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 }
                 draft = RichDraft()
             }
+            sendDraftHolder.value = sendDraft
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
                     shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    color = if (telegramStyle) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerHighest,
                     modifier = Modifier.weight(1f).heightIn(min = 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()),
                 ) {
                     Box {
@@ -1744,9 +1779,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                 Text(button.text, maxLines = 1, style = MaterialTheme.typography.labelLarge)
                             }
                         }
-                        IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = 4.dp)) {
-                            Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
-                        }
+                        slot(slots.left)
                         val accent = MaterialTheme.colorScheme.primary
                         val onSurface = MaterialTheme.colorScheme.onSurface
                         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalTextToolbar provides toolbar) {
@@ -1881,26 +1914,9 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                                 Icon(androidx.compose.material.icons.Icons.Rounded.CalendarMonth, stringResource(R.string.scheduled_title))
                             }
                         }
-                        IconButton(
-                            onClick = {
-                                if (emoji) {
-                                    emoji = false
-                                    focus.requestFocus()
-                                    keyboard?.show()
-                                } else {
-                                    keyboard?.hide()
-                                    emoji = true
-                                }
-                            },
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        ) {
-                            Icon(if (emoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
-                        }
+                        slot(slots.right)
                         androidx.compose.animation.AnimatedVisibility(text.isEmpty(), enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
-                            IconButton(
-                                onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
-                                modifier = Modifier.padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
-                            ) { Icon(Icons.Rounded.Image, stringResource(R.string.chat_attach_photo)) }
+                            slot(slots.extra)
                         }
                     }
                     }
@@ -1909,10 +1925,17 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 val corner by androidx.compose.animation.core.animateDpAsState(if (ready) 18.dp else 28.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "send")
                 if (!ready && editing == null) VoiceButton(
                     recorder = voice,
-                    hasPermission = { androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED },
-                    onRequestPermission = { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) },
-                    onHint = { android.widget.Toast.makeText(context, holdHint, android.widget.Toast.LENGTH_SHORT).show() },
-                    onSend = { controller.sendVoice(it) },
+                    video = videoMode,
+                    hasPermission = {
+                        val mic = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        val cam = !videoMode || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        mic && cam
+                    },
+                    onRequestPermission = { micPermission.launch(if (videoMode) arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.CAMERA) else arrayOf(android.Manifest.permission.RECORD_AUDIO)) },
+                    onTap = {
+                        videoMode = !videoMode
+                        sendHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
+                    },
                 ) else Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.primary).combinedClickable(
@@ -2043,7 +2066,44 @@ private fun FormatRow(label: String, style: androidx.compose.ui.text.TextStyle, 
 private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () -> Unit, onSend: (List<String>, String) -> Unit) {
     val items = remember(paths) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(paths) } }
     var text by remember { mutableStateOf(caption) }
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+    val edits = remember(paths) { androidx.compose.runtime.mutableStateMapOf<String, PhotoEdit>() }
+    var hd by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val send = {
+        if (!exporting) {
+            exporting = true
+            val list = items.toList()
+            val edited = edits.toMap()
+            scope.launch {
+                val out = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    list.map { path -> if (isVideoPath(path)) path else runCatching { PhotoRenderer.export(context, path, edited[path] ?: PhotoEdit(), hd) }.getOrDefault(path) }
+                }
+                exporting = false
+                onSend(out, text)
+            }
+        }
+    }
+    editing?.let { path ->
+        MediaEditScreen(
+            path = path,
+            edit = edits[path] ?: PhotoEdit(),
+            hd = hd,
+            caption = text,
+            onCaption = { text = it },
+            onHd = { hd = !hd },
+            onApply = { edits[path] = it },
+            onClose = { editing = null },
+            onSend = {
+                editing = null
+                send()
+            },
+        )
+    }
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 pluralStringResource(R.plurals.send_photos_title, items.size, items.size),
@@ -2053,19 +2113,24 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
             androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(items.size, key = { items[it] }) { index ->
                     val path = items[index]
-                    Box(Modifier.size(if (items.size == 1) 240.dp else 140.dp).animateItem()) {
+                    Box(Modifier.size(if (items.size == 1) 240.dp else 140.dp).animateItem().clip(RoundedCornerShape(18.dp)).clickable(enabled = !isVideoPath(path)) { editing = path }) {
                         val video = isVideoPath(path)
+                        val edit = edits[path]
+                        val rendered by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path, edit) {
+                            value = if (edit == null || edit.untouched) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { PhotoRenderer.render(path, edit, 480) }.getOrNull() }
+                        }
                         val frame by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, path) {
                             if (video) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 runCatching { android.media.MediaMetadataRetriever().run { setDataSource(path); getFrameAtTime(0).also { release() } } }.getOrNull()
                             }
                         }
                         AsyncImage(
-                            model = if (video) frame else File(path),
+                            model = if (video) frame else rendered ?: File(path),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.matchParentSize().clip(RoundedCornerShape(18.dp)),
                         )
+                        if (!video) Icon(Icons.Rounded.Edit, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape).padding(5.dp))
                         if (video) Icon(androidx.compose.material.icons.Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(40.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape).padding(6.dp))
                         if (items.size > 1) {
                             Surface(
@@ -2088,12 +2153,21 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
                     maxLines = 4,
                     modifier = Modifier.weight(1f),
                 )
+                Box(
+                    Modifier.size(width = 48.dp, height = 56.dp).clip(RoundedCornerShape(12.dp)).clickable { hd = !hd },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(if (hd) "HD" else "SD", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (hd) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 FilledIconButton(
-                    onClick = { onSend(items.toList(), text) },
-                    enabled = items.isNotEmpty(),
+                    onClick = { send() },
+                    enabled = items.isNotEmpty() && !exporting,
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.size(56.dp),
-                ) { Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send)) }
+                ) {
+                    if (exporting) androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send))
+                }
             }
         }
     }
@@ -3419,4 +3493,34 @@ internal fun ReactionGlyph(key: String, size: androidx.compose.ui.unit.Dp) {
     val custom = key.removePrefix("ce:").toLongOrNull()?.takeIf { key.startsWith("ce:") }
     if (custom != null) com.pixelgram.android.ui.components.CustomEmojiView(custom, "⭐", size = size)
     else Text(key, fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.85f).toSp() })
+}
+
+object ComposerSlots {
+    const val None = "none"
+    const val Emoji = "emoji"
+    const val Attach = "attach"
+    const val Gallery = "gallery"
+    const val Camera = "camera"
+    const val Send = "send"
+    val All = listOf(Emoji, Attach, Gallery, Camera, Send, None)
+
+    class Set(val left: String, val right: String, val extra: String)
+
+    fun of(prefs: com.pixelgram.android.settings.AppearanceSettings): Set {
+        val telegram = prefs.composerStyle == "telegram"
+        return Set(
+            left = prefs.composerLeft.ifBlank { if (telegram) Emoji else Attach },
+            right = prefs.composerRight.ifBlank { if (telegram) Attach else Emoji },
+            extra = prefs.composerExtra.ifBlank { if (telegram) None else Gallery },
+        )
+    }
+
+    fun label(kind: String): Int = when (kind) {
+        Emoji -> R.string.slot_emoji
+        Attach -> R.string.slot_attach
+        Gallery -> R.string.slot_gallery
+        Camera -> R.string.slot_camera
+        Send -> R.string.slot_send
+        else -> R.string.slot_none
+    }
 }
