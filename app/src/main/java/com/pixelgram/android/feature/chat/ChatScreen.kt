@@ -560,10 +560,12 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                     },
                                 )
                             }
+                            val extrasGroup = privateUserId == 0L && !ui.channel && !saved && !message.outgoing
                             MessageBotExtras(
                                 message = message,
                                 chatId = chatId,
                                 channel = ui.channel,
+                                indent = if (extrasGroup) 40.dp else 0.dp,
                                 onOpenUrl = { url -> linkOpener.url(url) },
                                 onComments = {
                                     controller.openComments(message) { chat, root ->
@@ -1734,10 +1736,12 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
             val slot: @Composable (String) -> Unit = { kind ->
                 when (kind) {
                     ComposerSlots.Emoji -> IconButton(onClick = toggleEmoji, modifier = Modifier.padding(vertical = slotPad)) {
-                        Icon(if (emoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
+                        if (telegramStyle) TgEmojiIcon(emoji, MaterialTheme.colorScheme.onSurfaceVariant, Modifier.size(30.dp))
+                        else Icon(if (emoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, stringResource(R.string.chat_emoji))
                     }
                     ComposerSlots.Attach -> IconButton(onClick = { attach = true }, modifier = Modifier.padding(vertical = slotPad)) {
-                        Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
+                        if (telegramStyle) androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.tg_input_attach), stringResource(R.string.chat_attach), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Icon(Icons.Rounded.AttachFile, stringResource(R.string.chat_attach), Modifier.graphicsLayer { rotationZ = 45f })
                     }
                     ComposerSlots.Gallery -> IconButton(
                         onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
@@ -1940,6 +1944,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                     recorder = voice,
                     video = videoMode,
                     size = if (telegramStyle) 48.dp else 56.dp,
+                    telegram = telegramStyle,
                     hasPermission = {
                         val mic = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
                         val cam = !videoMode || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED

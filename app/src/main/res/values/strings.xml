@@ -968,4 +968,6 @@
     <string name="pin_text_channel">Do you want to pin this message in this channel?</string>
     <string name="pin_also_for">Also pin for %1$s</string>
     <string name="pin_notify">Notify all members</string>
+    <string name="pixel_archive_pull">Hidden archive</string>
+    <string name="pixel_archive_pull_sub">Pull the chat list down to reveal the archive, scroll up to hide it</string>
 </resources>

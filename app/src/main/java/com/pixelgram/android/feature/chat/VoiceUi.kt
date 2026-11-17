@@ -70,6 +70,7 @@ fun VoiceButton(
     recorder: MediaRecorderUi,
     video: Boolean,
     size: androidx.compose.ui.unit.Dp = 56.dp,
+    telegram: Boolean = false,
     hasPermission: () -> Boolean,
     onRequestPermission: () -> Unit,
     onTap: () -> Unit,
@@ -82,38 +83,48 @@ fun VoiceButton(
     var lift by remember { mutableStateOf(0f) }
     val scale by animateFloatAsState(if (recorder.active && !recorder.locked) 1.35f else 1f, label = "mic-scale")
     val pulse by animateFloatAsState(1f + recorder.level * 0.7f, tween(90), label = "mic-level")
+    val recording = recorder.active && !recorder.locked
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
-        AnimatedVisibility(
-            recorder.active && !recorder.locked,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier.offset { IntOffset(0, (-LockOffset.toPx() + lift.coerceIn(-lockAt, 0f) * 0.5f).roundToInt()) },
-        ) {
-            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)) {
-                    Icon(Icons.Rounded.Lock, null, Modifier.size(20.dp))
-                    Icon(Icons.Rounded.KeyboardArrowUp, null, Modifier.size(20.dp))
+        if (recording) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.Center,
+                offset = IntOffset(recorder.drag.roundToInt(), 0),
+                properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false),
+            ) {
+                Box(Modifier.size(size * 3f, size * 5f), contentAlignment = Alignment.Center) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.offset { IntOffset(-recorder.drag.roundToInt(), (-LockOffset.toPx() * 1.4f + lift.coerceIn(-lockAt, 0f) * 0.5f).roundToInt()) },
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)) {
+                            Icon(Icons.Rounded.Lock, null, Modifier.size(20.dp))
+                            Icon(Icons.Rounded.KeyboardArrowUp, null, Modifier.size(20.dp))
+                        }
+                    }
+                    Box(Modifier.size(size).graphicsLayer {
+                        scaleX = scale * pulse
+                        scaleY = scale * pulse
+                    }.clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)))
+                    Box(
+                        Modifier.size(size).graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }.clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (telegram) TgVoiceVideoIcon(video, MaterialTheme.colorScheme.onPrimary, Modifier.size(30.dp))
+                        else Icon(if (video) Icons.Rounded.Videocam else Icons.Rounded.Mic, null, tint = MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
             }
-        }
-        if (recorder.active && !recorder.locked) {
-            Box(
-                Modifier.size(size).graphicsLayer {
-                    scaleX = scale * pulse
-                    scaleY = scale * pulse
-                    translationX = recorder.drag
-                }.clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
-            )
         }
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(size)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = recorder.drag
-                }
+                .graphicsLayer { alpha = if (recording) 0f else 1f }
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary)
                 .pointerInput(recorder.locked) {
@@ -176,13 +187,16 @@ fun VoiceButton(
             androidx.compose.animation.AnimatedContent(
                 when {
                     recorder.locked -> 2
+                    telegram -> 0
                     video -> 1
                     else -> 0
                 },
                 transitionSpec = { (androidx.compose.animation.scaleIn(initialScale = 0.4f) + fadeIn()) togetherWith (androidx.compose.animation.scaleOut(targetScale = 0.4f) + fadeOut()) },
                 label = "record-icon",
             ) { state ->
-            Icon(
+            if (telegram && state != 2) TgVoiceVideoIcon(video, MaterialTheme.colorScheme.onPrimary, Modifier.size(30.dp))
+            else if (telegram) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            else Icon(
                 when (state) {
                     2 -> Icons.AutoMirrored.Rounded.Send
                     1 -> Icons.Rounded.Videocam

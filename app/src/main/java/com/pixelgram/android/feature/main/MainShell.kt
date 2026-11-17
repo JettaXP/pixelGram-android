@@ -120,9 +120,9 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                             tab = MainTab.Chats
                             list = LIST_ARCHIVE
                         }
-                        DrawerItem.Contacts -> tab = MainTab.Contacts
+                        DrawerItem.Contacts -> navigator.open(com.pixelgram.android.nav.ContactsKey)
                         DrawerItem.Pixel -> navigator.open(PixelSettingsKey())
-                        DrawerItem.Settings -> tab = MainTab.Settings
+                        DrawerItem.Settings -> navigator.open(com.pixelgram.android.nav.SettingsKey)
                         DrawerItem.Theme -> graph.appearance.update {
                             it.copy(themeMode = if (darkNow) ThemeMode.Light else ThemeMode.Dark)
                         }
@@ -210,7 +210,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                         },
                     ) {
                     when (current) {
-                        MainTab.Chats -> Box(Modifier.nestedScroll(drawerPull)) { ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN }) }
+                        MainTab.Chats -> Box(Modifier.nestedScroll(drawerPull)) { ChatsTab(graph, navigator, list, onOpenDrawer = openDrawer, onCloseArchive = { list = LIST_MAIN }, onOpenArchive = { list = LIST_ARCHIVE }) }
                         MainTab.Contacts -> ContactsTab(graph, navigator, onOpenDrawer = openDrawer)
                         MainTab.Profile -> {
                             val me by graph.store.snapshot.collectAsState()

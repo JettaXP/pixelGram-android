@@ -114,6 +114,7 @@ fun ChatsTab(
     baseList: String,
     onOpenDrawer: (() -> Unit)?,
     onCloseArchive: () -> Unit,
+    onOpenArchive: () -> Unit = {},
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
     val appearance by graph.appearance.state.collectAsState()
@@ -347,20 +348,38 @@ fun ChatsTab(
                 id != 0 -> folderKey(id)
                 else -> LIST_MAIN
             }
-            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty(), if (page == pager.currentPage) scrollTop else 0)
+            val archived = if (key == LIST_MAIN && appearance.archivePull) snapshot.lists[LIST_ARCHIVE].orEmpty() else emptyList()
+            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty(), if (page == pager.currentPage) scrollTop else 0, archived, onOpenArchive)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0) {
+private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0, archived: List<ChatRow> = emptyList(), onOpenArchive: () -> Unit = {}) {
     var actionsFor by remember { mutableStateOf<ChatRow?>(null) }
     var actionsAnchor by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     actionsFor?.let { row -> ChatActions(graph, row, actionsAnchor) { actionsFor = null } }
-    val listState = rememberLazyListState()
-    LaunchedEffect(scrollTop) { if (scrollTop > 0) listState.animateScrollToItem(0) }
+    val hasArchive = archived.isNotEmpty()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = if (hasArchive) 1 else 0)
+    LaunchedEffect(scrollTop) { if (scrollTop > 0) listState.animateScrollToItem(if (hasArchive) 1 else 0) }
+    LaunchedEffect(listKey) { if (listKey == LIST_MAIN) runCatching { graph.td.send(TdApi.LoadChats(TdApi.ChatListArchive(), 20)) } }
+    var archiveShown by remember { mutableStateOf(false) }
+    LaunchedEffect(hasArchive) {
+        if (hasArchive && !archiveShown && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) listState.scrollToItem(1)
+    }
+    LaunchedEffect(listState.isScrollInProgress, hasArchive) {
+        if (!hasArchive || listState.isScrollInProgress) return@LaunchedEffect
+        if (listState.firstVisibleItemIndex == 0) {
+            val size = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: return@LaunchedEffect
+            val offset = listState.firstVisibleItemScrollOffset
+            if (offset > 0) {
+                if (offset > size / 2) listState.animateScrollToItem(1) else listState.animateScrollToItem(0)
+            }
+        }
+        archiveShown = listState.firstVisibleItemIndex == 0
+    }
     var loading by remember(listKey) { mutableStateOf(true) }
     val tdList: TdApi.ChatList = remember(listKey) {
         when {
@@ -394,6 +413,9 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             modifier = Modifier.fillMaxSize(),
         ) {
             val pinnedCount = rows.takeWhile { it.pinned }.size
+            if (hasArchive) item(key = "archive", contentType = "archive") {
+                ArchiveRow(archived, Modifier.padding(bottom = 6.dp), onOpenArchive)
+            }
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 var itemBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
                 val inPinned = index < pinnedCount
@@ -891,4 +913,28 @@ private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolea
         },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ArchiveRow(archived: List<ChatRow>, modifier: Modifier, onClick: () -> Unit) {
+    val unread = archived.sumOf { it.unread }
+    val names = archived.filter { it.unread > 0 }.ifEmpty { archived }.take(6).joinToString(", ") { it.title }
+    androidx.compose.material3.SegmentedListItem(
+        onClick = onClick,
+        shapes = ListItemDefaults.segmentedShapes(0, 1),
+        colors = com.pixelgram.android.ui.components.segmentedColors(),
+        modifier = modifier.fillMaxWidth(),
+        leadingContent = {
+            Box(Modifier.size(52.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.secondaryContainer), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Archive, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        },
+        supportingContent = { Text(names, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+        trailingContent = {
+            if (unread > 0) Box(Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.outline).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                Text(unread.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.surface)
+            }
+        },
+    ) { Text(stringResource(R.string.drawer_archive), style = MaterialTheme.typography.titleMedium) }
 }

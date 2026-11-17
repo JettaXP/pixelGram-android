@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -43,7 +44,7 @@ import org.drinkless.tdlib.TdApi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?) {
+fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit)?, onBack: (() -> Unit)? = null) {
     val snapshot by graph.store.snapshot.collectAsState()
     var ids by remember { mutableStateOf<List<Long>?>(null) }
     LaunchedEffect(Unit) { ids = runCatching { graph.td.send(TdApi.GetContacts()).userIds.toList() }.getOrDefault(emptyList()) }
@@ -51,7 +52,10 @@ fun ContactsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_contacts), style = MaterialTheme.typography.titleLargeEmphasized) },
-                navigationIcon = { if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) } },
+                navigationIcon = {
+                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
+                    else if (onOpenDrawer != null) IconButton(onClick = onOpenDrawer) { Icon(Icons.Rounded.Menu, stringResource(R.string.action_menu)) }
+                },
             )
         },
     ) { padding ->

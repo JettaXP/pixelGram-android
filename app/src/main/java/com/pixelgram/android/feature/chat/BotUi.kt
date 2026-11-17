@@ -77,13 +77,14 @@ fun MessageBotExtras(
     message: UiMessage,
     chatId: Long,
     channel: Boolean,
+    indent: androidx.compose.ui.unit.Dp = 0.dp,
     onOpenUrl: (String) -> Unit,
     onComments: () -> Unit,
 ) {
     val markup = message.markup as? TdApi.ReplyMarkupInlineKeyboard
     if (markup == null && !(channel && message.comments >= 0)) return
     Column(
-        Modifier.fillMaxWidth().padding(top = 3.dp),
+        Modifier.fillMaxWidth().padding(top = 3.dp, start = 8.dp + indent, end = 8.dp).widthIn(max = 320.dp + indent),
         horizontalAlignment = if (message.outgoing) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {

@@ -997,4 +997,6 @@
     <string name="pin_text_channel">Закрепить сообщение в канале?</string>
     <string name="pin_also_for">Закрепить также для %1$s</string>
     <string name="pin_notify">Уведомить всех участников</string>
+    <string name="pixel_archive_pull">Скрытый архив</string>
+    <string name="pixel_archive_pull_sub">Потяните список чатов вниз, чтобы показать архив, вверх — чтобы скрыть</string>
 </resources>

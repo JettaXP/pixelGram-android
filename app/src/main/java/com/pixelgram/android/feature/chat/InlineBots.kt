@@ -83,13 +83,14 @@ fun ComposerSuggestions(
     onInsert: (String) -> Unit,
     onSendResult: (Long, String) -> Unit,
 ) {
-    if (inline != null) {
-        InlineResults(chatId, inline, onSendResult)
-        return
-    }
     val before = text.substring(0, cursor.coerceIn(0, text.length))
-    val mention = MentionToken.find(before)?.groupValues?.get(1) ?: return
-    MentionList(chatId, mention) { username -> onInsert(username) }
+    val mention = if (inline == null) MentionToken.find(before)?.groupValues?.get(1) else null
+    Box(Modifier.fillMaxWidth().animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec())) {
+        when {
+            inline != null -> InlineResults(chatId, inline, onSendResult)
+            mention != null -> MentionList(chatId, mention) { username -> onInsert(username) }
+        }
+    }
 }
 
 @Composable

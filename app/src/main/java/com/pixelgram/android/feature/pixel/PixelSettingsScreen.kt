@@ -228,7 +228,8 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
     }
     SettingsGroup(stringResource(R.string.pixel_chat_list)) {
         SettingsSwitch(stringResource(R.string.pixel_exact_numbers), settings.exactNumbers, { v -> update { it.copy(exactNumbers = v) } }, SegmentPosition.Top, "999+ → 1234")
-        SettingsSwitch(stringResource(R.string.pixel_hide_all), settings.hideAllChats, { v -> update { it.copy(hideAllChats = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_hide_all_sub))
+        SettingsSwitch(stringResource(R.string.pixel_hide_all), settings.hideAllChats, { v -> update { it.copy(hideAllChats = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_hide_all_sub))
+        SettingsSwitch(stringResource(R.string.pixel_archive_pull), settings.archivePull, { v -> update { it.copy(archivePull = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_archive_pull_sub))
     }
     SettingsGroup(stringResource(R.string.pixel_folder_title)) {
         androidx.compose.material3.Card(
