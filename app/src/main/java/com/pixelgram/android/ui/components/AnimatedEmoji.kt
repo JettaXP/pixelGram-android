@@ -31,6 +31,8 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.td.TdClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.TdApi
 import java.io.File
@@ -97,7 +99,9 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
         else -> current.sticker.id
     }
     LaunchedEffect(fileId) { if (fileId != 0) graph.store.requestFileAsync(fileId) }
-    val known by androidx.compose.runtime.remember(fileId) { androidx.compose.runtime.derivedStateOf { snapshotFlow.value.files[fileId] } }
+    val known by androidx.compose.runtime.remember(fileId) {
+        snapshotFlow.map { it.files[fileId] }.distinctUntilChanged()
+    }.collectAsState(snapshotFlow.value.files[fileId])
     val path = known ?: current?.let { s ->
         val file = if (s.format is TdApi.StickerFormatWebm) s.thumbnail?.file else s.sticker
         file?.local?.path?.takeIf { file.local.isDownloadingCompleted && it.isNotEmpty() }

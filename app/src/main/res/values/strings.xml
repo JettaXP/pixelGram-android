@@ -962,4 +962,10 @@
     <string name="sticker_edit">Edit Sticker</string>
     <string name="sticker_edit_emoji">Emoji for this sticker</string>
     <string name="editor_sticker">Sticker</string>
+    <string name="pin_title">Pin message</string>
+    <string name="pin_text_chat">Do you want to pin this message at the top of the chat?</string>
+    <string name="pin_text_group">Do you want to pin this message for all members in the group?</string>
+    <string name="pin_text_channel">Do you want to pin this message in this channel?</string>
+    <string name="pin_also_for">Also pin for %1$s</string>
+    <string name="pin_notify">Notify all members</string>
 </resources>

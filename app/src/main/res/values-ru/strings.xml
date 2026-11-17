@@ -991,4 +991,10 @@
     <string name="sticker_edit">Изменить стикер</string>
     <string name="sticker_edit_emoji">Эмодзи стикера</string>
     <string name="editor_sticker">Стикер</string>
+    <string name="pin_title">Закрепить сообщение</string>
+    <string name="pin_text_chat">Закрепить сообщение вверху чата?</string>
+    <string name="pin_text_group">Закрепить сообщение для всех участников группы?</string>
+    <string name="pin_text_channel">Закрепить сообщение в канале?</string>
+    <string name="pin_also_for">Закрепить также для %1$s</string>
+    <string name="pin_notify">Уведомить всех участников</string>
 </resources>

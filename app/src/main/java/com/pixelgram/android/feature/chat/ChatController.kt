@@ -412,6 +412,12 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeDeletedForAllUsers
     }.getOrDefault(false)
 
+    suspend fun properties(message: UiMessage): TdApi.MessageProperties? = runCatching { graph.td.send(TdApi.GetMessageProperties(chatId, message.id)) }.getOrNull()
+
+    fun pin(message: UiMessage, notify: Boolean, onlyForSelf: Boolean) {
+        scope.launch { runCatching { graph.td.send(TdApi.PinChatMessage(chatId, message.id, !notify, onlyForSelf)) } }
+    }
+
     suspend fun canEdit(message: UiMessage): Boolean = runCatching {
         graph.td.send(TdApi.GetMessageProperties(chatId, message.id)).canBeEdited
     }.getOrDefault(false)

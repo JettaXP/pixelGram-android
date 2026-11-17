@@ -232,6 +232,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var selecting by remember { mutableStateOf<UiMessage?>(null) }
     var forwarding by remember { mutableStateOf<UiMessage?>(null) }
     var deleting by remember { mutableStateOf<List<UiMessage>?>(null) }
+    var pinning by remember { mutableStateOf<UiMessage?>(null) }
     var forwardingAll by remember { mutableStateOf<List<UiMessage>?>(null) }
     var shooting by remember { mutableStateOf<List<UiMessage>?>(null) }
     val appearance by graph.appearance.state.collectAsState()
@@ -651,10 +652,17 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             onSelect = { selecting = message },
             onShot = { shooting = listOf(message) },
             onMultiSelect = { toggleSelected(message) },
-            pinned = ui.pinned?.id == message.id,
+            pinned = ui.pins.any { it.id == message.id },
+            onPin = { pinning = message },
         )
     }
     selecting?.let { message -> SelectTextDialog(message) { selecting = null } }
+    pinning?.let { message ->
+        PinDialog(graph, chatId, onDismiss = { pinning = null }) { notify, onlyForSelf ->
+            pinning = null
+            controller.pin(message, notify, onlyForSelf)
+        }
+    }
     forwarding?.let { message ->
         ForwardPicker(
             onPick = { target ->
@@ -2235,6 +2243,7 @@ private fun MessageMenu(
     onShot: () -> Unit,
     onMultiSelect: () -> Unit,
     pinned: Boolean,
+    onPin: () -> Unit,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -2248,6 +2257,7 @@ private fun MessageMenu(
     val sticker = (message.content as? TdApi.MessageSticker)?.sticker
     val faved by androidx.compose.runtime.produceState(false, message.id) { if (sticker != null) value = controller.isFavoriteSticker(sticker) }
     val canEdit by androidx.compose.runtime.produceState(false, message.id) { value = controller.canEdit(message) }
+    val menuProps by androidx.compose.runtime.produceState<TdApi.MessageProperties?>(null, message.id) { value = controller.properties(message) }
     val link by androidx.compose.runtime.produceState<String?>(null, message.id) { value = controller.link(message) }
     val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
     var closing by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -2300,24 +2310,26 @@ private fun MessageMenu(
                     enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.7f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (message.outgoing) 1f else 0f, 0f)),
                     exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f),
                 ) {
-                    val rows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
-                        add(Triple(Icons.AutoMirrored.Rounded.Reply, context.getString(R.string.action_reply)) { close { controller.reply(message) } })
-                        if (message.text.isNotBlank()) {
-                            add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
-                        }
+                    val props = menuProps
+                    val primary = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
+                        if (props?.canBeReplied != false) add(Triple(Icons.AutoMirrored.Rounded.Reply, context.getString(R.string.action_reply)) { close { controller.reply(message) } })
+                        if (message.text.isNotBlank()) add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
+                        link?.let { url -> add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(url)) } }) }
+                    }
+                    val secondary = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
                         if (sticker != null) {
                             add(Triple(Icons.Rounded.Star, context.getString(if (faved) R.string.sticker_unfave else R.string.sticker_fave)) { close { controller.faveSticker(sticker, !faved) } })
                             if (sticker.setId != 0L) add(Triple(Icons.Rounded.GridView, context.getString(R.string.sticker_view_set)) { close { EmojiPreview.pack = sticker.setId } })
                         }
-                        add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
-                        if (pinned) add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_unpin)) { close { controller.unpin(message) } })
-                        else add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { controller.pin(message) } })
+                        if (props?.canBeForwarded != false) add(Triple(Icons.AutoMirrored.Rounded.Forward, context.getString(R.string.action_forward)) { close(onForward) })
+                        if (props?.canBePinned == true) {
+                            if (pinned) add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_unpin)) { close { controller.unpin(message) } })
+                            else add(Triple(Icons.Rounded.PushPin, context.getString(R.string.action_pin)) { close { onPin() } })
+                        }
                         if (canEdit) add(Triple(Icons.Rounded.Edit, context.getString(R.string.action_edit)) { close { controller.startEdit(message) } })
-                        link?.let { url -> add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(url)) } }) }
-                        if (message.text.length > 1) add(Triple(Icons.Rounded.TextFields, context.getString(R.string.action_select_text)) { close(onSelect) })
                         add(Triple(Icons.Rounded.CheckCircle, context.getString(R.string.action_select)) { close(onMultiSelect) })
-                        add(Triple(Icons.Rounded.CameraAlt, context.getString(R.string.shot_action)) { close(onShot) })
                     }
+                    val canDelete = props?.let { it.canBeDeletedOnlyForSelf || it.canBeDeletedForAllUsers } ?: false
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
                         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
                             var details by remember { mutableStateOf(false) }
@@ -2327,12 +2339,17 @@ private fun MessageMenu(
                                 } else {
                                     Column(Modifier.padding(bottom = 6.dp)) {
                                         MenuHeader(controller.chatId, message) { details = true }
-                                        rows.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                                        primary.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
                                     }
                                 }
                             }
                         }
-                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                        if (secondary.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+                            Column(Modifier.padding(vertical = 6.dp)) {
+                                secondary.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
+                            }
+                        }
+                        if (canDelete) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
                             Column(Modifier.padding(vertical = 6.dp)) {
                                 MenuEntry(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error) { close(onDelete) }
                             }
@@ -3542,4 +3559,41 @@ object ComposerSlots {
         Send -> R.string.slot_send
         else -> R.string.slot_none
     }
+}
+
+@Composable
+private fun PinDialog(graph: com.pixelgram.android.AppGraph, chatId: Long, onDismiss: () -> Unit, onPin: (Boolean, Boolean) -> Unit) {
+    val chat = remember(chatId) { graph.store.chat(chatId) }
+    val meId = graph.store.snapshot.value.meId
+    val type = chat?.type
+    val saved = chatId == meId
+    val privateName = (type as? TdApi.ChatTypePrivate)?.takeIf { !saved }?.let { chat.title }
+    val channel = (type as? TdApi.ChatTypeSupergroup)?.isChannel == true
+    var checked by remember { mutableStateOf(true) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.PushPin, null) },
+        title = { Text(stringResource(R.string.pin_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(when {
+                    saved || privateName != null -> R.string.pin_text_chat
+                    channel -> R.string.pin_text_channel
+                    else -> R.string.pin_text_group
+                }))
+                if (!saved) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { checked = !checked }) {
+                        androidx.compose.material3.Checkbox(checked, { checked = it })
+                        Text(if (privateName != null) stringResource(R.string.pin_also_for, privateName) else stringResource(R.string.pin_notify))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                if (privateName != null) onPin(false, !checked) else onPin(!saved && checked, false)
+            }) { Text(stringResource(R.string.action_pin)) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
