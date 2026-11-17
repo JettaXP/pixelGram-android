@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.material.icons.rounded.FormatClear
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.MyLocation
@@ -1605,6 +1606,10 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
             paths = paths,
             caption = text,
             onDismiss = { preparing = null },
+            onRound = { path ->
+                preparing = null
+                controller.sendVideoAsNote(path)
+            },
             onSend = { list, caption ->
                 preparing = null
                 draft = RichDraft()
@@ -2063,17 +2068,20 @@ private fun FormatRow(label: String, style: androidx.compose.ui.text.TextStyle, 
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () -> Unit, onSend: (List<String>, String) -> Unit) {
+private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () -> Unit, onRound: (String) -> Unit = {}, onSend: (List<String>, String) -> Unit) {
     val items = remember(paths) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(paths) } }
     var text by remember { mutableStateOf(caption) }
     val edits = remember(paths) { androidx.compose.runtime.mutableStateMapOf<String, PhotoEdit>() }
     var hd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<String?>(null) }
     var exporting by remember { mutableStateOf(false) }
+    var round by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val send = {
-        if (!exporting) {
+        if (round && items.size == 1 && isVideoPath(items.first())) {
+            onRound(items.first())
+        } else if (!exporting) {
             exporting = true
             val list = items.toList()
             val edited = edits.toMap()
@@ -2153,6 +2161,15 @@ private fun SendPhotosSheet(paths: List<String>, caption: String, onDismiss: () 
                     maxLines = 4,
                     modifier = Modifier.weight(1f),
                 )
+                if (items.size == 1 && isVideoPath(items.first())) {
+                    androidx.compose.material3.FilterChip(
+                        selected = round,
+                        onClick = { round = !round },
+                        label = { Text(stringResource(R.string.send_as_round)) },
+                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Rounded.Videocam, null, Modifier.size(18.dp)) },
+                        modifier = Modifier.height(56.dp),
+                    )
+                }
                 Box(
                     Modifier.size(width = 48.dp, height = 56.dp).clip(RoundedCornerShape(12.dp)).clickable { hd = !hd },
                     contentAlignment = Alignment.Center,

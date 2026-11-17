@@ -559,6 +559,27 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
     }
 
+    fun sendVideoAsNote(path: String) {
+        val retriever = android.media.MediaMetadataRetriever()
+        var duration = 0
+        var side = 384
+        runCatching {
+            retriever.setDataSource(path)
+            duration = ((retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000L).toInt()
+            val w = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val h = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            if (w > 0 && h > 0) side = minOf(w, h, 640)
+        }
+        runCatching { retriever.release() }
+        sendContent(TdApi.InputMessageVideoNote().apply {
+            videoNote = TdApi.InputVideoNote().apply {
+                videoNote = TdApi.InputFileLocal(path)
+                this.duration = duration.coerceIn(1, 60)
+                length = side
+            }
+        })
+    }
+
     fun sendVideoNote(note: VideoNote) {
         sendContent(TdApi.InputMessageVideoNote().apply {
             videoNote = TdApi.InputVideoNote().apply {

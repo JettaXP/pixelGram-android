@@ -948,4 +948,5 @@
     <string name="composer_left">Left button</string>
     <string name="composer_right">Right button</string>
     <string name="composer_extra">Extra button</string>
+    <string name="send_as_round">Video message</string>
 </resources>

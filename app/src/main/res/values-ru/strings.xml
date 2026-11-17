@@ -977,4 +977,5 @@
     <string name="composer_left">Левая кнопка</string>
     <string name="composer_right">Правая кнопка</string>
     <string name="composer_extra">Доп. кнопка</string>
+    <string name="send_as_round">Видеосообщение</string>
 </resources>
