@@ -21,6 +21,16 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(com.pixelgram.android.feature.settings.AppLanguage.wrap(newBase))
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.pixelgram.android.feature.security.PasscodeLock.onStart(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.pixelgram.android.feature.security.PasscodeLock.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val graph = (application as PixelApp).graph
         installSplashScreen().setKeepOnScreenCondition {

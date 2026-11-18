@@ -126,15 +126,8 @@ fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator
                 return@Column
             }
             if (current == SettingsSection.Privacy) {
-                SettingsGroup(stringResource(R.string.section_security)) {
-                    SettingsItem(
-                        title = stringResource(R.string.settings_devices),
-                        subtitle = stringResource(R.string.settings_devices_sub),
-                        icon = Icons.Rounded.Devices,
-                        position = SegmentPosition.Single,
-                        onClick = { navigator.open(SessionsKey) },
-                    )
-                }
+                com.pixelgram.android.feature.security.PrivacySection(graph, navigator)
+                return@Column
             }
             when (current) {
                 SettingsSection.Language -> LanguageSection()

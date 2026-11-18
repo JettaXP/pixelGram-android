@@ -90,7 +90,15 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
     }
 
     @Suppress("UNCHECKED_CAST")
-    suspend fun <T : TdApi.Object> send(function: TdApi.Function<T>): T =
+    suspend fun <T : TdApi.Object> send(function: TdApi.Function<T>): T {
+        if (SensitiveRequests.isSensitive(function) && SensitiveRequests.enabled(context) && !SensitiveRequests.confirm(function)) {
+            throw TdException(TdApi.Error(400, "DECLINED_BY_USER"))
+        }
+        return raw(function)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private suspend fun <T : TdApi.Object> raw(function: TdApi.Function<T>): T =
         suspendCancellableCoroutine { continuation ->
             val client = client ?: return@suspendCancellableCoroutine when (val reply = offlineReply?.invoke(function)) {
                 null, is TdApi.Error -> continuation.resumeWithException(TdException(reply as? TdApi.Error ?: TdApi.Error(406, "OFFLINE")))

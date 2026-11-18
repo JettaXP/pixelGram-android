@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -321,6 +322,12 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
+                    }
+                    val lockContext = androidx.compose.ui.platform.LocalContext.current
+                    if (com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext)) {
+                        androidx.compose.material3.IconButton(onClick = { com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockContext) }) {
+                            Icon(androidx.compose.material.icons.Icons.Rounded.Lock, stringResource(R.string.passcode_lock_now))
+                        }
                     }
                     val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
                     androidx.compose.material3.FilledTonalIconButton(onClick = { accountsOpen = !accountsOpen }) {
