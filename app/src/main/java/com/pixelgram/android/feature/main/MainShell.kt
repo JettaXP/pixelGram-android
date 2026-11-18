@@ -323,12 +323,6 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                         Text(me?.name.orEmpty(), style = MaterialTheme.typography.titleMediumEmphasized, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
                     }
-                    val lockContext = androidx.compose.ui.platform.LocalContext.current
-                    if (com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext)) {
-                        androidx.compose.material3.IconButton(onClick = { com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockContext) }) {
-                            Icon(androidx.compose.material.icons.Icons.Rounded.Lock, stringResource(R.string.passcode_lock_now))
-                        }
-                    }
                     val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
                     androidx.compose.material3.FilledTonalIconButton(onClick = { accountsOpen = !accountsOpen }) {
                         Icon(Icons.Outlined.ExpandMore, stringResource(R.string.accounts_toggle), Modifier.graphicsLayer { rotationZ = turn })
@@ -361,6 +355,9 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
         }
         val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
         val entries = appearance.drawerOrder.filter { it in appearance.drawerItems }
+        val lockContext = androidx.compose.ui.platform.LocalContext.current
+        val lockShown = com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext)
+        val total = entries.size + if (lockShown) 1 else 0
         Column(
             Modifier.padding(horizontal = 12.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
             verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
@@ -377,13 +374,21 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                 androidx.compose.runtime.key(item) {
                     androidx.compose.material3.SegmentedListItem(
                         onClick = { onItem(item) },
-                        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, entries.size),
+                        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, total),
                         colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
                         leadingContent = {
                             if (icon != null) Icon(icon, null) else Icon(painterResource(R.drawable.ic_pixelgram), null)
                         },
                     ) { Text(label) }
                 }
+            }
+            if (lockShown) {
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockContext) },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(entries.size, total),
+                    colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    leadingContent = { Icon(androidx.compose.material.icons.Icons.Rounded.Lock, null) },
+                ) { Text(stringResource(R.string.passcode_lock_now)) }
             }
         }
     }
