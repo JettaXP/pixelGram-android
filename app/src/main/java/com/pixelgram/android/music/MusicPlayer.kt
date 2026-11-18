@@ -134,7 +134,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
     private val exo: ExoPlayer by lazy {
         ExoPlayer.Builder(context)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
             .setHandleAudioBecomingNoisy(true)
             .build()
             .also { it.addListener(listener) }
@@ -165,6 +165,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
 
     private val listener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady && !cast.active) requestFocus()
             if (cast.active) return
             stateFlow.update { it.copy(playing = playWhenReady && exo.playbackState != Player.STATE_ENDED) }
             if (playWhenReady) startTicker() else ticker?.cancel()
@@ -376,6 +377,8 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         scrubJob?.cancel()
         loadJob?.cancel()
         if (cast.active) cast.client?.stop()
+        runCatching { audioManager.abandonAudioFocusRequest(focusRequest) }
+        resumeOnGain = false
         currentPath = null
         currentCover = null
         exo.stop()
@@ -472,6 +475,58 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         }
     }
 
+    private val audioManager by lazy { context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager }
+    private var resumeOnGain = false
+    private var ducked = false
+
+    private val focusRequest by lazy {
+        android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .setWillPauseWhenDucked(false)
+            .setOnAudioFocusChangeListener({ change -> main.launch { onFocus(change) } }, android.os.Handler(android.os.Looper.getMainLooper()))
+            .build()
+    }
+
+    private fun requestFocus() {
+        runCatching { audioManager.requestAudioFocus(focusRequest) }
+    }
+
+    private fun inCall(): Boolean = audioManager.mode == android.media.AudioManager.MODE_IN_CALL ||
+        audioManager.mode == android.media.AudioManager.MODE_IN_COMMUNICATION ||
+        audioManager.mode == android.media.AudioManager.MODE_RINGTONE
+
+    private fun onFocus(change: Int) {
+        if (cast.active) return
+        when (change) {
+            android.media.AudioManager.AUDIOFOCUS_LOSS -> {
+                resumeOnGain = false
+                if (exo.playWhenReady) toggle()
+            }
+            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                if (change == android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT && inCall()) {
+                    if (exo.playWhenReady) {
+                        resumeOnGain = true
+                        fadeJob?.cancel()
+                        exo.pause()
+                    }
+                } else if (exo.playWhenReady) {
+                    ducked = true
+                    exo.volume = DuckVolume
+                }
+            }
+            android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+                if (ducked) {
+                    ducked = false
+                    exo.volume = 1f
+                }
+                if (resumeOnGain) {
+                    resumeOnGain = false
+                    exo.play()
+                }
+            }
+        }
+    }
+
     private var lastTick = -1L
     private var stalledTicks = 0
 
@@ -502,6 +557,7 @@ private const val ArtworkWaitMs = 3_000L
 private const val FadeTickMs = 16
 private const val CastSettleMs = 2_000L
 private const val StallTicks = 8
+private const val DuckVolume = 0.25f
 
 fun TdApi.Audio.profileKeys(): List<String> = listOfNotNull(
     audio.remote?.uniqueId?.takeIf { it.isNotBlank() }?.let { "u:$it" },
