@@ -1063,4 +1063,6 @@
     <string name="restricted_until">You are muted until %1$s</string>
     <string name="restricted_forever">You can\'t send messages in this chat</string>
     <string name="restricted_media">Sending this is restricted in this chat</string>
+    <string name="link_confirm_title">Open this link?</string>
+    <string name="link_confirm_open">Open</string>
 </resources>

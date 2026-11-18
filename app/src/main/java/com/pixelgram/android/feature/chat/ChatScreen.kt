@@ -186,6 +186,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -859,28 +860,38 @@ private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
     val progress = (-offset.value / trigger).coerceIn(0f, 1f)
     Box(
         Modifier.pointerInput(Unit) {
-            detectHorizontalDragGestures(
-                onDragEnd = {
-                    if (armed) {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onReply()
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                var total = androidx.compose.ui.geometry.Offset.Zero
+                var active = false
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    val delta = change.positionChange()
+                    if (!active) {
+                        if (change.isConsumed) return@awaitEachGesture
+                        total += delta
+                        if (total.getDistance() < viewConfiguration.touchSlop) continue
+                        if (total.x >= 0f || kotlin.math.abs(total.x) < kotlin.math.abs(total.y)) return@awaitEachGesture
+                        active = true
                     }
-                    armed = false
-                    scope.launch { offset.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 400f)) }
-                },
-                onDragCancel = {
-                    armed = false
-                    scope.launch { offset.animateTo(0f) }
-                },
-            ) { change, amount ->
-                val current = -offset.value
-                val resist = 1f - (current / limit).coerceIn(0f, 0.85f)
-                val next = (current - amount * resist).coerceIn(0f, limit)
-                if (next != current) change.consume()
-                scope.launch { offset.snapTo(-next) }
-                val reached = next >= trigger
-                if (reached && !armed) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                armed = reached
+                    val current = -offset.value
+                    val resist = 1f - (current / limit).coerceIn(0f, 0.85f)
+                    val next = (current - delta.x * resist).coerceIn(0f, limit)
+                    change.consume()
+                    scope.launch { offset.snapTo(-next) }
+                    val reached = next >= trigger
+                    if (reached && !armed) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                    armed = reached
+                }
+                if (!active) return@awaitEachGesture
+                if (armed) {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onReply()
+                }
+                armed = false
+                scope.launch { offset.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 400f)) }
             }
         },
     ) {
@@ -3149,7 +3160,7 @@ private fun formatted(text: String, entities: List<TdApi.TextEntity>, link: Colo
                     SpoilerMode.Shown -> addStyle(androidx.compose.ui.text.SpanStyle(background = content.copy(alpha = 0.08f)), start, end)
                 }
                 is TdApi.TextEntityTypeUrl -> if (!com.pixelgram.android.feature.pixel.Credits.handles(text.substring(start, end))) addLink(androidx.compose.ui.text.LinkAnnotation.Url(text.substring(start, end).let { if (it.contains("://")) it else "https://$it" }, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
-                is TdApi.TextEntityTypeTextUrl -> if (com.pixelgram.android.feature.pixel.Credits.handles(type.url)) addLink(androidx.compose.ui.text.LinkAnnotation.Clickable("tg-credits", androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.feature.pixel.Credits.open = true }, start, end) else addLink(androidx.compose.ui.text.LinkAnnotation.Url(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))), start, end)
+                is TdApi.TextEntityTypeTextUrl -> if (com.pixelgram.android.feature.pixel.Credits.handles(type.url)) addLink(androidx.compose.ui.text.LinkAnnotation.Clickable("tg-credits", androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.feature.pixel.Credits.open = true }, start, end) else addLink(androidx.compose.ui.text.LinkAnnotation.Clickable(type.url, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))) { com.pixelgram.android.nav.LinkConfirm.ask(type.url, text.substring(start, end)) }, start, end)
                 is TdApi.TextEntityTypeCustomEmoji -> addStringAnnotation(com.pixelgram.android.ui.components.CustomEmojiTag, com.pixelgram.android.ui.components.customEmojiKey(type.customEmojiId), start, end)
                 is TdApi.TextEntityTypeMention -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("https://t.me/" + text.substring(start, end).removePrefix("@"), androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link))), start, end)
                 is TdApi.TextEntityTypeMentionName -> addLink(androidx.compose.ui.text.LinkAnnotation.Url("tg://user?id=" + type.userId, androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = link))), start, end)

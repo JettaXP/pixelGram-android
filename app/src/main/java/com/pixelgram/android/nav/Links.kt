@@ -1,5 +1,8 @@
 package com.pixelgram.android.nav
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.Link
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -109,7 +112,7 @@ fun linkedText(text: TdApi.FormattedText, link: Color, opener: LinkOpener): Anno
         val part = value.substring(start, end)
         val action: (() -> Unit)? = when (val type = entity.type) {
             is TdApi.TextEntityTypeUrl -> ({ opener.url(part) })
-            is TdApi.TextEntityTypeTextUrl -> ({ opener.url(type.url) })
+            is TdApi.TextEntityTypeTextUrl -> ({ LinkConfirm.ask(type.url, part) })
             is TdApi.TextEntityTypeMention -> ({ opener.username(part) })
             is TdApi.TextEntityTypeMentionName -> ({ opener.user(type.userId) })
             is TdApi.TextEntityTypeEmailAddress -> ({ opener.url("mailto:$part") })
@@ -118,4 +121,37 @@ fun linkedText(text: TdApi.FormattedText, link: Color, opener: LinkOpener): Anno
         }
         if (action != null) addLink(LinkAnnotation.Clickable("link$start", style) { action() }, start, end)
     }
+}
+
+object LinkConfirm {
+    var pending by androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    fun ask(url: String, shown: String) {
+        val bare = { v: String -> v.removePrefix("https://").removePrefix("http://").removePrefix("www.").trimEnd('/') }
+        if (bare(url).equals(bare(shown), ignoreCase = true) || SettingsLinks.matches(url) || com.pixelgram.android.feature.pixel.Credits.handles(url)) PendingNav.external = url else pending = url
+    }
+}
+
+@androidx.compose.runtime.Composable
+fun LinkConfirmHost(onOpen: (String) -> Unit) {
+    val url = LinkConfirm.pending ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { LinkConfirm.pending = null },
+        icon = { com.pixelgram.android.ui.components.Icon(androidx.compose.material.icons.Icons.Rounded.Link, null) },
+        title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.link_confirm_title)) },
+        text = { androidx.compose.material3.Text(url, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                LinkConfirm.pending = null
+                onOpen(url)
+            }) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.link_confirm_open)) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText(null, url))
+                LinkConfirm.pending = null
+            }) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.action_copy)) }
+        },
+    )
 }

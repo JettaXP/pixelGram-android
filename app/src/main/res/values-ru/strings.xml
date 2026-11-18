@@ -1102,4 +1102,6 @@
     <string name="restricted_until">Вы не можете писать до %1$s</string>
     <string name="restricted_forever">Вы не можете писать в этом чате</string>
     <string name="restricted_media">Отправка этого запрещена в этом чате</string>
+    <string name="link_confirm_title">Открыть эту ссылку?</string>
+    <string name="link_confirm_open">Открыть</string>
 </resources>

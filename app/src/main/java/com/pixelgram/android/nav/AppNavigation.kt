@@ -9,6 +9,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBars
@@ -109,6 +113,9 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         }
     }
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLowest)) {
+    androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier.fillMaxSize().androidx_swipeBack(currentStack, backScope) { navigator.back() },
+    ) {
     NavDisplay(
         backStack = stack,
         onBack = {
@@ -151,6 +158,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
             entry<StarsKey> { com.pixelgram.android.feature.premium.StarsScreen(graph, navigator) }
         },
     )
+    }
     com.pixelgram.android.feature.player.FullPlayerOverlay(graph)
     com.pixelgram.android.feature.stories.StoryOverlays(graph)
     com.pixelgram.android.feature.chat.GiftSheetHost()
@@ -169,6 +177,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
         }
     }
     val externalOpener = rememberLinkOpener(graph, navigator)
+    LinkConfirmHost { externalOpener.url(it) }
     androidx.compose.runtime.LaunchedEffect(PendingNav.external) {
         PendingNav.external?.let { url ->
             PendingNav.external = null
@@ -199,6 +208,46 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
 }
 
 private const val HoldMs = 600
+
+private fun androidx.compose.ui.Modifier.androidx_swipeBack(
+    stack: androidx.compose.runtime.State<List<NavKey>>,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onBack: () -> Unit,
+): androidx.compose.ui.Modifier = this.then(
+    androidx.compose.ui.Modifier.pointerInput(Unit) {
+        val velocity = androidx.compose.ui.input.pointer.util.VelocityTracker()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (stack.value.size < 2 || EtgBack.phase != EtgBack.Idle) return@awaitEachGesture
+            var dragged = false
+            var total = androidx.compose.ui.geometry.Offset.Zero
+            velocity.resetTracking()
+            velocity.addPosition(down.uptimeMillis, down.position)
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) break
+                if (!dragged) {
+                    if (change.isConsumed) return@awaitEachGesture
+                    total += change.positionChange()
+                    if (total.getDistance() < viewConfiguration.touchSlop) continue
+                    if (total.x <= 0f || kotlin.math.abs(total.x) < kotlin.math.abs(total.y) * 1.5f) return@awaitEachGesture
+                    dragged = true
+                }
+                change.consume()
+                velocity.addPosition(change.uptimeMillis, change.position)
+                val dx = (change.position.x - down.position.x).coerceAtLeast(0f)
+                EtgBack.manual(dx / size.width, change.position.y, stack.value)
+            }
+            if (!dragged) return@awaitEachGesture
+            val speed = velocity.calculateVelocity().x
+            if (EtgBack.progress > 0.35f || speed > 1200f) {
+                EtgBack.commit(scope)
+                onBack()
+            } else EtgBack.released(scope)
+        }
+    },
+)
 
 object EtgBack {
     const val Idle = 0
@@ -246,6 +295,24 @@ object EtgBack {
         }
         touchY = event.touchY
         progress = gesture.getInterpolation(event.progress.coerceIn(0f, 1f))
+    }
+
+    fun manual(fraction: Float, y: Float, stack: List<NavKey>) {
+        if (phase == Commit) return
+        if (phase != Drag) {
+            if (stack.size < 2) return
+            job?.cancel()
+            hidden = null
+            closingKey = stack[stack.lastIndex].toString()
+            enteringKey = stack[stack.lastIndex - 1].toString()
+            fromLeft = true
+            startY = y
+            scrim = 1f
+            commitRaw = 0f
+            phase = Drag
+        }
+        touchY = y
+        progress = gesture.getInterpolation(fraction.coerceIn(0f, 1f))
     }
 
     fun released(scope: kotlinx.coroutines.CoroutineScope) {
