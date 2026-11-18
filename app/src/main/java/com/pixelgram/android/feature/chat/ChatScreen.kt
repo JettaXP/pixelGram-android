@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.material.icons.rounded.Lock
 import com.pixelgram.android.util.chatListTime
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Web
@@ -417,6 +418,23 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                         modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(vertical = 18.dp),
                     )
                 }
+            } else if (!ui.canSend && !ui.channel) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(vertical = 18.dp, horizontal = 16.dp),
+                    ) {
+                        Icon(Icons.Rounded.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (ui.restrictedUntil > 0) stringResource(R.string.restricted_until, java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(ui.restrictedUntil * 1000L)))
+                            else stringResource(R.string.restricted_forever),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
             } else if (!ui.canSend) {
                 ChannelBar(graph, chatId, ui.linkedChatId) { navigator.open(ChatKey(it)) }
             } else {
@@ -503,8 +521,20 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 val sender = if (group && !message.outgoing) snapshot.users[message.senderId] else null
                                 if (group && !message.outgoing && sender == null && message.senderId > 0) LaunchedEffect(message.senderId) { runCatching { graph.td.send(TdApi.GetUser(message.senderId)) } }
                                 if (guest && message.guestCallerId > 0 && snapshot.users[message.guestCallerId] == null) LaunchedEffect(message.guestCallerId) { runCatching { graph.td.send(TdApi.GetUser(message.guestCallerId)) } }
+                                val adminTags by androidx.compose.runtime.produceState(emptyMap<Long, MemberTag>(), chatId, group, MemberTagsCache.version) {
+                                    if (group && privateUserId == 0L && !ui.channel) value = MemberTagsCache.admins(graph, chatId)
+                                }
+                                val tag = if (group && !message.outgoing && !guest) adminTags[message.senderId] ?: message.senderTag.takeIf { it.isNotBlank() }?.let { MemberTag(it, TagKind.Member) } else null
                                 val guestCaller = if (guest) snapshot.users[message.guestCallerId]?.name ?: graph.store.chat(message.guestCallerId)?.title.orEmpty() else ""
                                 MessageBubble(
+                                    senderTag = tag,
+                                    onTagClick = tag?.let { t ->
+                                        {
+                                            val mine = message.senderId == snapshot.meId
+                                            val admin = t.kind != TagKind.Member
+                                            TagSheets.current = TagRequest(chatId, message.senderId, sender?.name.orEmpty(), chat?.title.orEmpty(), t, mine && (admin || chat?.permissions?.canEditTag == true))
+                                        }
+                                    },
                                     extras = if (message.markup is TdApi.ReplyMarkupInlineKeyboard || (ui.channel && message.comments >= 0)) {
                                         {
                                             MessageBotExtras(
@@ -875,6 +905,8 @@ private val ReplyLimit = 110.dp
 
 @Composable
 internal fun MessageBubble(
+    senderTag: MemberTag? = null,
+    onTagClick: (() -> Unit)? = null,
     onBubbleWidth: (Int) -> Unit = {},
     extras: (@Composable () -> Unit)? = null,
     message: UiMessage,
@@ -1042,14 +1074,20 @@ internal fun MessageBubble(
             ) {
                 WidestColumn(Modifier.padding(4.dp)) {
                     if (senderName != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp)) {
                         Text(
                             senderName,
                             style = MaterialTheme.typography.labelLarge,
                             color = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.senderId]?.let { com.pixelgram.android.td.AccentColors.colors(it.accentColorId, com.pixelgram.android.ui.theme.LocalDarkTheme.current).first() } ?: com.pixelgram.android.ui.components.avatarColor(message.senderId),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
+                            modifier = Modifier.weight(1f, fill = false),
                         )
+                        if (senderTag != null) {
+                            Spacer(Modifier.width(8.dp))
+                            MemberTagLabel(senderTag, small = true, onClick = onTagClick)
+                        }
+                        }
                     }
                     if (message.viaBotId != 0L) {
                         val bot = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.viaBotId]?.username
@@ -3227,7 +3265,21 @@ private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onCam
             verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 4.dp, bottom = 28.dp),
         ) {
-            items.forEachIndexed { index, (icon, label, action) ->
+            val perms = controller.state.value.permissions
+            val allowed = listOf(
+                perms == null || perms.canSendPhotos || perms.canSendVideos,
+                perms == null || perms.canSendPhotos,
+                perms == null || perms.canSendDocuments,
+                perms == null || perms.canSendBasicMessages,
+                perms == null || perms.canSendBasicMessages,
+                perms == null || perms.canSendPolls,
+                perms == null || perms.canSendBasicMessages,
+            )
+            val restrictedText = stringResource(R.string.restricted_media)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            items.forEachIndexed { index, (icon, label, rawAction) ->
+                val enabled = allowed.getOrElse(index) { true }
+                val action = if (enabled) rawAction else ({ android.widget.Toast.makeText(context, restrictedText, android.widget.Toast.LENGTH_SHORT).show() })
                 val appear = remember { androidx.compose.animation.core.Animatable(0f) }
                 LaunchedEffect(Unit) {
                     kotlinx.coroutines.delay(index * 25L)
@@ -3237,7 +3289,7 @@ private fun AttachSheet(controller: ChatController, onGallery: () -> Unit, onCam
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f).graphicsLayer {
-                        alpha = appear.value.coerceIn(0f, 1f)
+                        alpha = appear.value.coerceIn(0f, 1f) * (if (enabled) 1f else 0.38f)
                         translationY = (1f - appear.value) * 24.dp.toPx()
                     },
                 ) {

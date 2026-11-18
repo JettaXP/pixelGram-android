@@ -131,7 +131,7 @@ private fun TabsBody(graph: AppGraph, navigator: Navigator, userId: Long, chatId
     AnimatedContent(tab, transitionSpec = { fadeIn(enter) togetherWith fadeOut(exit) }, label = "profile-tab") { current ->
         Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
             when (current) {
-                ProfileTab.Members -> MembersList(graph, supergroupId, onOpenUser)
+                ProfileTab.Members -> MembersList(graph, supergroupId, chatId, onOpenUser)
                 ProfileTab.Posts -> PostsGrid(graph, if (userId != 0L) userId else chatId)
                 ProfileTab.Gifts -> GiftsGrid(graph, owner)
                 ProfileTab.Groups -> GroupsList(graph, navigator, userId)
@@ -274,8 +274,9 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
 }
 
 @Composable
-private fun MembersList(graph: AppGraph, supergroupId: Long, onOpenUser: (Long) -> Unit) {
-    val members by produceState<List<TdApi.ChatMember>?>(null, supergroupId) {
+private fun MembersList(graph: AppGraph, supergroupId: Long, chatId: Long, onOpenUser: (Long) -> Unit) {
+    val tagVersion = com.pixelgram.android.feature.chat.MemberTagsCache.version
+    val members by produceState<List<TdApi.ChatMember>?>(null, supergroupId, tagVersion) {
         value = runCatching { graph.td.send(TdApi.GetSupergroupMembers(supergroupId, TdApi.SupergroupMembersFilterRecent(), 0, 200)).members.toList() }.getOrNull() ?: emptyList()
     }
     val list = members ?: return Loading()
@@ -287,11 +288,8 @@ private fun MembersList(graph: AppGraph, supergroupId: Long, onOpenUser: (Long) 
             val id = (member.memberId as? TdApi.MessageSenderUser)?.userId ?: (member.memberId as? TdApi.MessageSenderChat)?.chatId ?: 0L
             val user = snapshot.users[id]
             if (user == null && member.memberId is TdApi.MessageSenderUser) androidx.compose.runtime.LaunchedEffect(id) { runCatching { graph.td.send(TdApi.GetUser(id)) } }
-            val role = member.tag.takeIf { it.isNotBlank() } ?: when (member.status) {
-                is TdApi.ChatMemberStatusCreator -> owner
-                is TdApi.ChatMemberStatusAdministrator -> admin
-                else -> null
-            }
+            val tag = com.pixelgram.android.feature.chat.memberTag(member)
+            val admin = member.status is TdApi.ChatMemberStatusCreator || member.status is TdApi.ChatMemberStatusAdministrator
             androidx.compose.material3.SegmentedListItem(
                 onClick = { if (member.memberId is TdApi.MessageSenderUser) onOpenUser(id) },
                 shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, list.size),
@@ -301,15 +299,17 @@ private fun MembersList(graph: AppGraph, supergroupId: Long, onOpenUser: (Long) 
                 },
                 supportingContent = user?.let { u ->
                     {
-                        val line = com.pixelgram.android.ui.components.statusLine(u)
+                        val line = if (u.bot && admin) stringResource(R.string.bot_reads_all) else com.pixelgram.android.ui.components.statusLine(u)
                         Text(line, color = if (u.online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
                 },
-                trailingContent = role?.let { r ->
+                trailingContent = tag?.let { t ->
                     {
-                        val accent = member.status is TdApi.ChatMemberStatusCreator || member.status is TdApi.ChatMemberStatusAdministrator
-                        Surface(shape = RoundedCornerShape(10.dp), color = if (accent) MaterialTheme.colorScheme.primaryContainer else Color.Transparent) {
-                            Text(r, style = MaterialTheme.typography.labelLarge, color = if (accent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        val chatTitle = graph.store.chat(chatId)?.title.orEmpty()
+                        val mine = id == snapshot.meId
+                        val canEdit = mine && (admin || graph.store.chat(chatId)?.permissions?.canEditTag == true)
+                        com.pixelgram.android.feature.chat.MemberTagLabel(t) {
+                            com.pixelgram.android.feature.chat.TagSheets.current = com.pixelgram.android.feature.chat.TagRequest(chatId, id, user?.name.orEmpty(), chatTitle, t, canEdit)
                         }
                     }
                 },

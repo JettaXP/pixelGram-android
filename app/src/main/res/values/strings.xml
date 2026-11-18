@@ -1046,4 +1046,21 @@
     <string name="login_alert_text">We detected a new login to your account from %1$s, %2$s. Is it you?</string>
     <string name="login_alert_yes">Yes, it\'s me</string>
     <string name="login_alert_no">No, it\'s not me!</string>
+    <string name="tag_owner_title">Owner tag</string>
+    <string name="tag_admin_title">Admin tag</string>
+    <string name="tag_member_title">Member tag</string>
+    <string name="tag_explain_owner_pre">This purple tag</string>
+    <string name="tag_explain_owner_post">is %1$s\'s owner tag in %2$s.</string>
+    <string name="tag_explain_admin_pre">This green tag</string>
+    <string name="tag_explain_admin_post">is %1$s\'s admin tag in %2$s.</string>
+    <string name="tag_explain_member_pre">This tag</string>
+    <string name="tag_explain_member_post">is %1$s\'s member tag in %2$s.</string>
+    <string name="tag_edit_hint">Share your role, title or how you\'re known in this group. Up to 16 characters, no emoji.</string>
+    <string name="tag_save">Save tag</string>
+    <string name="tag_edit">Edit tag</string>
+    <string name="tag_understood">Understood</string>
+    <string name="bot_reads_all">has access to messages</string>
+    <string name="restricted_until">You are muted until %1$s</string>
+    <string name="restricted_forever">You can\'t send messages in this chat</string>
+    <string name="restricted_media">Sending this is restricted in this chat</string>
 </resources>

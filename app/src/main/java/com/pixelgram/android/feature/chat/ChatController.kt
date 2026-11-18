@@ -26,6 +26,7 @@ data class UiMessage(
     val replyToId: Long,
     val replyQuote: String = "",
     val guestCallerId: Long = 0L,
+    val senderTag: String = "",
     val pending: Boolean,
     val failed: Boolean,
     val edited: Boolean,
@@ -62,6 +63,8 @@ data class ChatUi(
     val typing: List<Long> = emptyList(),
     val replies: Map<Long, UiMessage> = emptyMap(),
     val canSend: Boolean = true,
+    val permissions: TdApi.ChatPermissions? = null,
+    val restrictedUntil: Int = 0,
     val members: Int = 0,
     val online: Int = 0,
     val channel: Boolean = false,
@@ -105,6 +108,11 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                 }
             }.getOrDefault(0)
             ui.value = ui.value.copy(members = members, channel = (chat?.type as? TdApi.ChatTypeSupergroup)?.isChannel == true)
+            (chat?.type as? TdApi.ChatTypeBasicGroup)?.let { type ->
+                val status = runCatching { graph.td.send(TdApi.GetBasicGroup(type.basicGroupId)).status }.getOrNull()
+                val admin = status is TdApi.ChatMemberStatusCreator || status is TdApi.ChatMemberStatusAdministrator
+                if (!admin) ui.value = ui.value.copy(permissions = chat.permissions, canSend = chat.permissions.canSendBasicMessages)
+            }
             (chat?.type as? TdApi.ChatTypeSupergroup)?.let { type ->
                 val group = runCatching { graph.td.send(TdApi.GetSupergroup(type.supergroupId)) }.getOrNull()
                 val full = runCatching { graph.td.send(TdApi.GetSupergroupFullInfo(type.supergroupId)) }.getOrNull()
@@ -115,7 +123,18 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     is TdApi.ChatMemberStatusLeft, is TdApi.ChatMemberStatusBanned -> !type.isChannel && chat.permissions.canSendBasicMessages
                     else -> !type.isChannel && chat.permissions.canSendBasicMessages
                 }
-                ui.value = ui.value.copy(canSend = canPost, linkedChatId = if (type.isChannel) full?.linkedChatId ?: 0 else 0)
+                val status = group?.status
+                val permissions = when (status) {
+                    is TdApi.ChatMemberStatusCreator, is TdApi.ChatMemberStatusAdministrator -> null
+                    is TdApi.ChatMemberStatusRestricted -> status.permissions
+                    else -> if (type.isChannel) null else chat.permissions
+                }
+                ui.value = ui.value.copy(
+                    canSend = canPost,
+                    permissions = permissions,
+                    restrictedUntil = (status as? TdApi.ChatMemberStatusRestricted)?.restrictedUntilDate ?: 0,
+                    linkedChatId = if (type.isChannel) full?.linkedChatId ?: 0 else 0,
+                )
             }
         }
         loadPinned()
@@ -703,6 +722,7 @@ internal fun TdApi.Message.toUi(readOutbox: Long): UiMessage {
         content = content,
         replyToId = (replyTo as? TdApi.MessageReplyToMessage)?.messageId ?: 0,
         replyQuote = (replyTo as? TdApi.MessageReplyToMessage)?.quote?.text?.text.orEmpty(),
+        senderTag = senderTag.orEmpty(),
         guestCallerId = when (val caller = guestBotCallerId) {
             is TdApi.MessageSenderUser -> caller.userId
             is TdApi.MessageSenderChat -> caller.chatId

@@ -1085,4 +1085,21 @@
     <string name="login_alert_text">Обнаружен новый вход в аккаунт с устройства %1$s, %2$s. Это вы?</string>
     <string name="login_alert_yes">Да, это я</string>
     <string name="login_alert_no">Нет, это не я!</string>
+    <string name="tag_owner_title">Тег владельца</string>
+    <string name="tag_admin_title">Тег администратора</string>
+    <string name="tag_member_title">Тег участника</string>
+    <string name="tag_explain_owner_pre">Этот фиолетовый тег</string>
+    <string name="tag_explain_owner_post">— тег владельца %1$s в чате %2$s.</string>
+    <string name="tag_explain_admin_pre">Этот зелёный тег</string>
+    <string name="tag_explain_admin_post">— тег администратора %1$s в чате %2$s.</string>
+    <string name="tag_explain_member_pre">Этот тег</string>
+    <string name="tag_explain_member_post">— тег участника %1$s в чате %2$s.</string>
+    <string name="tag_edit_hint">Укажите роль, должность или как вас знают в группе. До 16 символов, без эмодзи.</string>
+    <string name="tag_save">Сохранить тег</string>
+    <string name="tag_edit">Изменить тег</string>
+    <string name="tag_understood">Понятно</string>
+    <string name="bot_reads_all">имеет доступ к сообщениям</string>
+    <string name="restricted_until">Вы не можете писать до %1$s</string>
+    <string name="restricted_forever">Вы не можете писать в этом чате</string>
+    <string name="restricted_media">Отправка этого запрещена в этом чате</string>
 </resources>
