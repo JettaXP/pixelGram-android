@@ -1018,4 +1018,26 @@
     <string name="emoji_style_apple">iOS</string>
     <string name="emoji_style_download">Tap to download</string>
     <string name="emoji_style_failed">Couldn\'t download this emoji set or this device can\'t draw it</string>
+    <string name="gift_from_short">Gift from</string>
+    <string name="gift_view">View</string>
+    <string name="gift_copy_link">Copy link</string>
+    <string name="gift_ton">This gift is on the TON blockchain.</string>
+    <string name="gift_owner">Owner</string>
+    <string name="gift_model">Model</string>
+    <string name="gift_symbol">Symbol</string>
+    <string name="gift_backdrop">Backdrop</string>
+    <string name="gift_quantity">Quantity</string>
+    <string name="gift_issued_of">%1$s/%2$s issued</string>
+    <string name="gift_value">Value</string>
+    <string name="gift_received_title">Received gift</string>
+    <string name="gift_from">From</string>
+    <string name="gift_to">To</string>
+    <string name="gift_date">Date</string>
+    <string name="gift_convert_short">sell for %1$d ⭐</string>
+    <string name="gift_visible">This gift is visible.</string>
+    <string name="gift_hidden">This gift is hidden.</string>
+    <string name="gift_hide">Hide from profile</string>
+    <string name="gift_show">Show on profile</string>
+    <string name="preview_gift">Gift</string>
+    <string name="preview_gift_from">%1$s sent you a gift for %2$d Stars</string>
 </resources>

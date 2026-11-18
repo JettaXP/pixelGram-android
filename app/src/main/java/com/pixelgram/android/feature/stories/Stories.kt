@@ -107,9 +107,17 @@ import java.io.File
 object StoryViewer {
     var chatId by mutableStateOf<Long?>(null)
     var queue by mutableStateOf<List<Long>>(emptyList())
+    var fixed by mutableStateOf<Pair<List<Int>, Int>?>(null)
 
     fun open(chatId: Long, queue: List<Long>) {
+        fixed = null
         this.queue = queue
+        this.chatId = chatId
+    }
+
+    fun openList(chatId: Long, ids: List<Int>, start: Int) {
+        fixed = ids to start
+        queue = listOf(chatId)
         this.chatId = chatId
     }
 }
@@ -259,9 +267,11 @@ private class LoadedStory(val story: TdApi.Story, val path: String?, val video: 
 @Composable
 private fun StoryViewerScreen(graph: AppGraph, chatId: Long) {
     val owner = graph.store.snapshot.collectAsState().value.stories.firstOrNull { it.chatId == chatId }
-    var ids by remember(chatId) { mutableStateOf(owner?.storyIds.orEmpty()) }
-    var index by remember(chatId) { mutableIntStateOf(ids.indexOfFirst { it > (owner?.maxRead ?: 0) }.coerceAtLeast(0)) }
+    val fixed = StoryViewer.fixed
+    var ids by remember(chatId, fixed) { mutableStateOf(fixed?.first ?: owner?.storyIds.orEmpty()) }
+    var index by remember(chatId, fixed) { mutableIntStateOf(fixed?.second ?: ids.indexOfFirst { it > (owner?.maxRead ?: 0) }.coerceAtLeast(0)) }
     LaunchedEffect(owner?.storyIds) {
+        if (fixed != null) return@LaunchedEffect
         val fresh = owner?.storyIds ?: return@LaunchedEffect
         if (ids.isEmpty()) index = fresh.indexOfFirst { it > owner.maxRead }.coerceAtLeast(0)
         else ids.getOrNull(index)?.let { current -> fresh.indexOf(current).takeIf { it >= 0 }?.let { index = it } }

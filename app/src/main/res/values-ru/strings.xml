@@ -1057,4 +1057,26 @@
     <string name="emoji_style_apple">iOS</string>
     <string name="emoji_style_download">Нажмите, чтобы скачать</string>
     <string name="emoji_style_failed">Не удалось скачать набор или устройство не может его отобразить</string>
+    <string name="gift_from_short">Подарок от</string>
+    <string name="gift_view">Открыть</string>
+    <string name="gift_copy_link">Копировать</string>
+    <string name="gift_ton">Подарок в блокчейне TON.</string>
+    <string name="gift_owner">Владелец</string>
+    <string name="gift_model">Модель</string>
+    <string name="gift_symbol">Узор</string>
+    <string name="gift_backdrop">Фон</string>
+    <string name="gift_quantity">Выпущено</string>
+    <string name="gift_issued_of">%1$s из %2$s</string>
+    <string name="gift_value">Цена</string>
+    <string name="gift_received_title">Полученный подарок</string>
+    <string name="gift_from">От</string>
+    <string name="gift_to">Кому</string>
+    <string name="gift_date">Дата</string>
+    <string name="gift_convert_short">продать за %1$d ⭐</string>
+    <string name="gift_visible">Подарок виден в профиле.</string>
+    <string name="gift_hidden">Подарок скрыт.</string>
+    <string name="gift_hide">Скрыть</string>
+    <string name="gift_show">Показать</string>
+    <string name="preview_gift">Подарок</string>
+    <string name="preview_gift_from">%1$s отправил(а) вам подарок за %2$d звёзд</string>
 </resources>

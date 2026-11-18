@@ -741,6 +741,7 @@ private fun previewLabel(kind: PreviewKind): String? = when (kind) {
     PreviewKind.Location -> stringResource(R.string.preview_location)
     PreviewKind.Contact -> stringResource(R.string.preview_contact)
     PreviewKind.Service -> stringResource(R.string.preview_service)
+    PreviewKind.Gift -> "🎁 " + stringResource(R.string.preview_gift)
     PreviewKind.Other -> null
 }
 

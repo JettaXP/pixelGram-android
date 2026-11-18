@@ -222,8 +222,8 @@ private fun PostsGrid(graph: AppGraph, chatId: Long) {
     Grid(list.withIndex().toList()) { (index, story) ->
         val shape = cellShape(index, list.size, 3)
         when (val content = story.content) {
-            is TdApi.StoryContentPhoto -> Thumb(graph, content.photo.thumb(), content.photo.minithumbnail?.data, shape, false) {}
-            is TdApi.StoryContentVideo -> Thumb(graph, content.video.thumbnail?.file, content.video.minithumbnail?.data, shape, true) {}
+            is TdApi.StoryContentPhoto -> Thumb(graph, content.photo.thumb(), content.photo.minithumbnail?.data, shape, false) { com.pixelgram.android.feature.stories.StoryViewer.openList(story.posterChatId, list.map { it.id }, index) }
+            is TdApi.StoryContentVideo -> Thumb(graph, content.video.thumbnail?.file, content.video.minithumbnail?.data, shape, true) { com.pixelgram.android.feature.stories.StoryViewer.openList(story.posterChatId, list.map { it.id }, index) }
             else -> Box(Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh))
         }
     }
@@ -231,21 +231,37 @@ private fun PostsGrid(graph: AppGraph, chatId: Long) {
 
 @Composable
 private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
-    val gifts by produceState<List<TdApi.ReceivedGift>?>(null, owner) {
+    val changed = com.pixelgram.android.feature.chat.GiftSheets.changed
+    val gifts by produceState<List<TdApi.ReceivedGift>?>(null, owner, changed) {
         value = runCatching {
             graph.td.send(TdApi.GetReceivedGifts("", owner, 0, false, false, false, false, false, false, false, false, false, "", 60)).gifts.toList()
         }.getOrNull() ?: emptyList()
     }
     val list = gifts ?: return Loading()
     val snapshot by graph.store.snapshot.collectAsState()
+    val own = (owner as? TdApi.MessageSenderUser)?.userId == snapshot.meId
     Grid(list.withIndex().toList()) { (index, gift) ->
-        val sticker = when (val g = gift.gift) {
-            is TdApi.SentGiftRegular -> g.gift.sticker
-            is TdApi.SentGiftUpgraded -> g.gift.model?.sticker
-            else -> null
-        }
-        Box(Modifier.fillMaxSize().clip(cellShape(index, list.size, 3)).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-            if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f))
+        val shape = cellShape(index, list.size, 3)
+        val upgraded = (gift.gift as? TdApi.SentGiftUpgraded)?.gift
+        Box(
+            Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Received(gift, own) },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (upgraded != null) {
+                com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f)
+                Text(
+                    "#" + "%,d".format(upgraded.number),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(50)).background(com.pixelgram.android.feature.chat.giftColor(upgraded.backdrop?.colors?.symbolColor ?: 0x333333).copy(alpha = 0.85f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            } else {
+                val sticker = (gift.gift as? TdApi.SentGiftRegular)?.gift?.sticker
+                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f))
+                (gift.gift as? TdApi.SentGiftRegular)?.gift?.let { g ->
+                    Text("⭐ " + g.starCount, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp))
+                }
+            }
             val sender = (gift.senderId as? TdApi.MessageSenderUser)?.userId
             if (sender != null) {
                 val user = snapshot.users[sender]

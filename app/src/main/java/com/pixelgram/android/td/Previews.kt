@@ -3,7 +3,7 @@ package com.pixelgram.android.td
 import androidx.compose.runtime.Immutable
 import org.drinkless.tdlib.TdApi
 
-enum class PreviewKind { Text, Photo, Video, Gif, Sticker, Voice, VideoNote, Audio, File, Poll, Location, Contact, Service, Other }
+enum class PreviewKind { Gift, Text, Photo, Video, Gif, Sticker, Voice, VideoNote, Audio, File, Poll, Location, Contact, Service, Other }
 
 @Immutable
 data class MessagePreview(val sender: String?, val kind: PreviewKind, val text: String, val entities: List<TdApi.TextEntity> = emptyList(), val thumb: ByteArray? = null, val thumbFileId: Int = 0, val playable: Boolean = false, val forwarded: Boolean = false, val round: Boolean = false, val albumId: Long = 0L, val messageId: Long = 0L, val chatId: Long = 0L)
@@ -29,6 +29,8 @@ internal fun previewOf(message: TdApi.Message, chat: TdApi.Chat, users: Map<Long
         is TdApi.MessageVideo -> c.video.minithumbnail?.data to c.video.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
         is TdApi.MessageAnimation -> c.animation.minithumbnail?.data to c.animation.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
         is TdApi.MessageVideoNote -> c.videoNote.minithumbnail?.data to c.videoNote.thumbnail?.takeIf { it.format is TdApi.ThumbnailFormatJpeg }?.file?.id
+        is TdApi.MessageGift -> null to c.gift.sticker.thumbnail?.takeIf { it.format !is TdApi.ThumbnailFormatTgs }?.file?.id
+        is TdApi.MessageUpgradedGift -> null to c.gift.model?.sticker?.thumbnail?.takeIf { it.format !is TdApi.ThumbnailFormatTgs }?.file?.id
         else -> null to null
     }
     val playable = message.content is TdApi.MessageVideo || message.content is TdApi.MessageVideoNote
@@ -48,6 +50,8 @@ internal fun contentPreview(content: TdApi.MessageContent): Pair<PreviewKind, St
     is TdApi.MessageDocument -> PreviewKind.File to (content.caption.text.ifBlank { content.document.fileName })
     is TdApi.MessagePoll -> PreviewKind.Poll to content.poll.question.text
     is TdApi.MessageLocation -> PreviewKind.Location to ""
+    is TdApi.MessageGift -> PreviewKind.Gift to content.text.text
+    is TdApi.MessageUpgradedGift -> PreviewKind.Gift to content.gift.title + " #" + content.gift.number
     is TdApi.MessageContact -> PreviewKind.Contact to listOf(content.contact.firstName, content.contact.lastName).joinToString(" ").trim()
     else -> PreviewKind.Service to ""
 }
