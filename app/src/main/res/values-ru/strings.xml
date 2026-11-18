@@ -1079,4 +1079,10 @@
     <string name="gift_show">Показать</string>
     <string name="preview_gift">Подарок</string>
     <string name="preview_gift_from">%1$s отправил(а) вам подарок за %2$d звёзд</string>
+    <string name="archive_pull">Потяните вниз для архива</string>
+    <string name="archive_release">Отпустите для архива</string>
+    <string name="login_alert_title">Кто-то получил доступ к вашим сообщениям!</string>
+    <string name="login_alert_text">Обнаружен новый вход в аккаунт с устройства %1$s, %2$s. Это вы?</string>
+    <string name="login_alert_yes">Да, это я</string>
+    <string name="login_alert_no">Нет, это не я!</string>
 </resources>

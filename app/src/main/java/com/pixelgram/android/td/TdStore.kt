@@ -154,6 +154,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
     val savedTopics: StateFlow<Map<Long, TdApi.SavedMessagesTopic>> = savedTopicsFlow.asStateFlow()
     private val connectionFlow = MutableStateFlow<TdApi.ConnectionState>(TdApi.ConnectionStateReady())
     val connection: StateFlow<TdApi.ConnectionState> = connectionFlow.asStateFlow()
+    val unconfirmedSession = MutableStateFlow<TdApi.UnconfirmedSession?>(null)
 
     init {
         EmojiTaps.client = td
@@ -188,6 +189,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateChatUnreadMentionCount -> chats[update.chatId]?.unreadMentionCount = update.unreadMentionCount
             is TdApi.UpdateChatNotificationSettings -> chats[update.chatId]?.notificationSettings = update.notificationSettings
             is TdApi.UpdateUser -> users[update.user.id] = update.user
+            is TdApi.UpdateUnconfirmedSession -> unconfirmedSession.value = update.session
             is TdApi.UpdateSupergroup -> supergroups[update.supergroup.id] = update.supergroup
             is TdApi.UpdateUserStatus -> users[update.userId]?.status = update.status
             is TdApi.UpdateFile -> {

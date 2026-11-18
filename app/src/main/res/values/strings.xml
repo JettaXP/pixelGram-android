@@ -1040,4 +1040,10 @@
     <string name="gift_show">Show on profile</string>
     <string name="preview_gift">Gift</string>
     <string name="preview_gift_from">%1$s sent you a gift for %2$d Stars</string>
+    <string name="archive_pull">Pull down for archive</string>
+    <string name="archive_release">Release for archive</string>
+    <string name="login_alert_title">Someone just got access to your messages!</string>
+    <string name="login_alert_text">We detected a new login to your account from %1$s, %2$s. Is it you?</string>
+    <string name="login_alert_yes">Yes, it\'s me</string>
+    <string name="login_alert_no">No, it\'s not me!</string>
 </resources>

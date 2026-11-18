@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.chats
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -376,8 +378,15 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
         if (listState.firstVisibleItemIndex == 0) {
             val size = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: return@LaunchedEffect
             val offset = listState.firstVisibleItemScrollOffset
-            if (offset > 0) {
-                if (offset > size / 2) listState.animateScrollToItem(1) else listState.animateScrollToItem(0)
+            if (offset > 0 || !archiveShown) {
+                val shown = 1f - offset.toFloat() / size
+                if (archiveShown) {
+                    if (offset > size / 2) listState.animateScrollToItem(1) else listState.animateScrollToItem(0)
+                } else if (shown >= ReleaseShare) {
+                    archiveShown = true
+                    listState.animateScrollToItem(0)
+                    return@LaunchedEffect
+                } else listState.animateScrollToItem(1)
             }
         }
         archiveShown = listState.firstVisibleItemIndex == 0
@@ -415,8 +424,18 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             modifier = Modifier.fillMaxSize(),
         ) {
             val pinnedCount = rows.takeWhile { it.pinned }.size
+            if (listKey == LIST_MAIN) item(key = "login-alert", contentType = "alert") { LoginAlert(graph) }
             if (hasArchive) item(key = "archive", contentType = "archive") {
-                ArchiveRow(archived, Modifier.padding(bottom = 6.dp), onOpenArchive)
+                val pulled by remember {
+                    derivedStateOf {
+                        val first = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                        if (first == null || first.index != 0 || first.size == 0) 0f else 1f - listState.firstVisibleItemScrollOffset.toFloat() / first.size
+                    }
+                }
+                androidx.compose.animation.Crossfade(archiveShown, label = "archive-hint") { shown ->
+                    if (shown) ArchiveRow(archived, Modifier.padding(bottom = 6.dp), onOpenArchive)
+                    else ArchivePullHint(pulled, Modifier.padding(bottom = 6.dp))
+                }
             }
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 var itemBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
@@ -1081,6 +1100,80 @@ private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolea
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private const val ReleaseShare = 0.85f
+
+private suspend fun unconfirmedId(graph: AppGraph, session: TdApi.UnconfirmedSession): Long? {
+    val sessions = graph.td.send(TdApi.GetActiveSessions()).sessions
+    return (sessions.firstOrNull { it.isUnconfirmed && it.deviceModel == session.deviceModel } ?: sessions.firstOrNull { it.isUnconfirmed })?.id
+}
+
+@Composable
+private fun LoginAlert(graph: AppGraph) {
+    val session by graph.store.unconfirmedSession.collectAsState()
+    val scope = rememberCoroutineScope()
+    androidx.compose.animation.AnimatedVisibility(session != null, enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()) {
+        var last by remember { mutableStateOf(session) }
+        session?.let { last = it }
+        val current = last ?: return@AnimatedVisibility
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        ) {
+            androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                Text(stringResource(R.string.login_alert_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.login_alert_text, current.deviceModel, current.location),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilledTonalButton(onClick = {
+                        scope.launch { runCatching { unconfirmedId(graph, current)?.let { graph.td.send(TdApi.ConfirmSession(it)) } } }
+                        graph.store.unconfirmedSession.value = null
+                    }) { Text(stringResource(R.string.login_alert_yes)) }
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            scope.launch { runCatching { unconfirmedId(graph, current)?.let { graph.td.send(TdApi.TerminateSession(it)) } } }
+                            graph.store.unconfirmedSession.value = null
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                    ) { Text(stringResource(R.string.login_alert_no)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchivePullHint(pulled: Float, modifier: Modifier) {
+    val release = pulled >= ReleaseShare
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    LaunchedEffect(release) { if (release) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick) }
+    val container by androidx.compose.animation.animateColorAsState(if (release) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest, label = "pull-bg")
+    val content = if (release) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    val rotation by androidx.compose.animation.core.animateFloatAsState(if (release) 180f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "pull-arrow")
+    Box(
+        modifier.fillMaxWidth().height(76.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp)).background(container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.align(Alignment.CenterStart).padding(start = 22.dp).size(width = 28.dp, height = 52.dp)) {
+            Box(Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.CircleShape).background(content.copy(alpha = 0.2f)))
+            val fill = pulled.coerceIn(0f, 1f)
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.54f + 0.46f * fill).clip(androidx.compose.foundation.shape.CircleShape).background(content.copy(alpha = 0.35f)))
+            Box(Modifier.align(Alignment.BottomCenter).size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(content), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(18.dp).graphicsLayer { rotationZ = rotation }, tint = container)
+            }
+        }
+        androidx.compose.animation.AnimatedContent(release, label = "pull-text") { r ->
+            Text(stringResource(if (r) R.string.archive_release else R.string.archive_pull), style = MaterialTheme.typography.titleMedium, color = content)
+        }
+    }
+}
+
 @Composable
 private fun ArchiveRow(archived: List<ChatRow>, modifier: Modifier, onClick: () -> Unit) {
     val unread = archived.sumOf { it.unread }
