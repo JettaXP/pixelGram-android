@@ -1,5 +1,9 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.automirrored.rounded.Forward
 import androidx.compose.material.icons.rounded.Visibility
@@ -127,6 +131,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val chat = remember(chatId, snapshot) { if (chatId != 0L) graph.store.chat(chatId) else null }
     var full by remember { mutableStateOf<TdApi.UserFullInfo?>(null) }
     var showQr by remember { mutableStateOf(false) }
+    var groupQr by remember { mutableStateOf<String?>(null) }
     var collectible by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -354,11 +359,24 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 }
             }
             if (group != null && chat != null) {
+                val effectiveMuted by androidx.compose.runtime.produceState(chat.notificationSettings.muteFor > 0, chatId, chat.notificationSettings.useDefaultMuteFor, chat.notificationSettings.muteFor) {
+                    value = if (!chat.notificationSettings.useDefaultMuteFor) chat.notificationSettings.muteFor > 0 else {
+                        val scopeKind: TdApi.NotificationSettingsScope = if (group.isChannel) TdApi.NotificationSettingsScopeChannelChats() else TdApi.NotificationSettingsScopeGroupChats()
+                        runCatching { graph.td.send(TdApi.GetScopeNotificationSettings(scopeKind)).muteFor > 0 }.getOrDefault(chat.notificationSettings.muteFor > 0)
+                    }
+                }
+                val publicName = supergroup?.usernames?.activeUsernames?.firstOrNull()
+                val shareLink = publicName?.let { "https://t.me/$it" } ?: groupFull?.inviteLink?.inviteLink
+                val shareContext = LocalContext.current
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) { navigator.open(ChatKey(chatId)) }
-                    MuteAction(graph, chatId, chat.notificationSettings.muteFor > 0)
+                    if (!group.isChannel) ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) { navigator.open(ChatKey(chatId)) }
+                    androidx.compose.runtime.key(effectiveMuted) { MuteAction(graph, chatId, effectiveMuted) }
                     groupFull?.linkedChatId?.takeIf { it != 0L }?.let { linked ->
-                        ProfileAction(if (group.isChannel) Icons.AutoMirrored.Rounded.Chat else Icons.Rounded.Campaign, stringResource(if (group.isChannel) R.string.profile_discussion else R.string.profile_channel)) { navigator.open(ChatKey(linked)) }
+                        ProfileAction(if (group.isChannel) Icons.Rounded.Forum else Icons.Rounded.Campaign, stringResource(if (group.isChannel) R.string.profile_discussion else R.string.profile_channel)) { navigator.open(ChatKey(linked)) }
+                    }
+                    if (shareLink != null) ProfileAction(Icons.Rounded.Share, stringResource(R.string.profile_share)) {
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, shareLink)
+                        shareContext.startActivity(android.content.Intent.createChooser(send, null))
                     }
                     val member = supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true
                     ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
@@ -379,7 +397,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 val names = supergroup?.usernames?.activeUsernames?.toList().orEmpty()
                 val rows = buildList {
                     if (about.isNotBlank()) add("about")
-                    names.forEach { add("u:$it") }
+                    if (names.isNotEmpty()) add("u:" + names.first())
                     groupFull?.inviteLink?.inviteLink?.takeIf { names.isEmpty() }?.let { add("link:$it") }
                     add("id")
                 }
@@ -390,7 +408,37 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                             row == "about" -> SettingsItem(about, position, stringResource(R.string.profile_description), Icons.Rounded.Info, pill = true, onLongClick = { copy(about) })
                             row.startsWith("u:") -> {
                                 val name = row.removePrefix("u:")
-                                SettingsItem("t.me/$name", position, stringResource(R.string.profile_link), Icons.Rounded.Link, pill = true, onClick = { collectible = name }, onLongClick = { copy("https://t.me/$name") })
+                                val extra = names.drop(1)
+                                SettingsItem(
+                                    "t.me/$name",
+                                    position,
+                                    stringResource(R.string.profile_link),
+                                    Icons.Rounded.Link,
+                                    pill = true,
+                                    onClick = { collectible = name },
+                                    onLongClick = { copy("https://t.me/$name") },
+                                    headlineContent = {
+                                        Column {
+                                            Text("t.me/$name")
+                                            if (extra.isNotEmpty()) {
+                                                val also = stringResource(R.string.profile_also)
+                                                val accent = MaterialTheme.colorScheme.primary
+                                                val muted = MaterialTheme.colorScheme.onSurfaceVariant
+                                                val text = androidx.compose.ui.text.buildAnnotatedString {
+                                                    withStyle(androidx.compose.ui.text.SpanStyle(color = muted)) { append("$also ") }
+                                                    extra.forEachIndexed { i, other ->
+                                                        if (i > 0) withStyle(androidx.compose.ui.text.SpanStyle(color = muted)) { append(", ") }
+                                                        withLink(androidx.compose.ui.text.LinkAnnotation.Clickable(other) { collectible = other }) {
+                                                            withStyle(androidx.compose.ui.text.SpanStyle(color = accent)) { append("@$other") }
+                                                        }
+                                                    }
+                                                }
+                                                Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+                                            }
+                                        }
+                                    },
+                                    trailing = { androidx.compose.material3.IconButton(onClick = { groupQr = name }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_share)) } },
+                                )
                             }
                             row.startsWith("link:") -> {
                                 val link = row.removePrefix("link:")
@@ -532,6 +580,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
     if (showQr && username != null) ProfileQrSheet(username) { showQr = false }
+    groupQr?.let { name -> ProfileQrSheet(name) { groupQr = null } }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
