@@ -308,7 +308,7 @@ class MusicPlayer(private val context: Context, private val td: TdClient) {
         fadeJob?.cancel()
         if (cast.active) {
             val playing = !stateFlow.value.playing
-            if (castEnded) castCurrent(0, true) else cast.toggle()
+            if (castEnded) castCurrent(0, true) else cast.toggle { castCurrent(cast.position.coerceAtLeast(0), true) }
             stateFlow.update { it.copy(playing = playing) }
             return
         }

@@ -1156,13 +1156,13 @@ internal fun MessageBubble(
                         val text = if (zalgo) com.pixelgram.android.util.stripZalgo(message.text) else message.text
                         val entities = if (zalgo) emptyList() else message.entities
                         val lastLine = remember(text) { androidx.compose.runtime.mutableFloatStateOf(-1f) }
-                        TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                        TextWithMeta(lastLine.floatValue, showMeta = message.reactions.isEmpty(), modifier = Modifier.layoutId(StretchWidth).padding(start = 10.dp, end = 10.dp, top = 5.dp, bottom = if (message.reactions.isEmpty()) 5.dp else 2.dp)) {
                             MessageText(
                                 text,
                                 entities,
                                 MaterialTheme.colorScheme.primary,
                                 onContainer,
-                                MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.4f).sp),
+                                MaterialTheme.typography.bodyLarge.copy(fontSize = prefs.messageFontSize.sp, lineHeight = (prefs.messageFontSize * 1.3f).sp),
                                 prefs.messageFontSize.toFloat(),
                                 onLastLine = { lastLine.floatValue = it },
                             )
@@ -1175,7 +1175,7 @@ internal fun MessageBubble(
                     }
                     (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
                     if (message.reactions.isNotEmpty()) {
-                        ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 4.dp)) {
+                        ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 5.dp, top = 1.dp)) {
                             message.reactions.forEach { reaction ->
                                 val chosen = reaction.chosen
                                 Surface(
@@ -1187,7 +1187,7 @@ internal fun MessageBubble(
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                                     ) {
                                         ReactionGlyph(reaction.emoji, 18.dp)
                                         if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
@@ -2827,7 +2827,7 @@ private fun ReactionFlow(modifier: Modifier = Modifier, content: @Composable () 
         if (inline) {
             width = maxOf(widest, lastWidth + metaGap + meta.width).coerceAtLeast(constraints.minWidth)
             height = y + maxOf(lineHeight, meta.height)
-            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + maxOf(lineHeight, meta.height) - meta.height)
+            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + (maxOf(lineHeight, meta.height) - meta.height) * 3 / 4)
         } else {
             width = maxOf(widest, lastWidth, meta.width).coerceAtLeast(constraints.minWidth)
             height = y + lineHeight + gap + meta.height

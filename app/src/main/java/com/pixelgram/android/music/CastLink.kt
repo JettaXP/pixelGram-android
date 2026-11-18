@@ -181,11 +181,22 @@ class CastLink(private val context: Context) {
             .setContentType(mime)
             .setMetadata(metadata)
             .build()
+        stateFlow.value = stateFlow.value.copy(error = null)
         remote.load(MediaLoadRequestData.Builder().setMediaInfo(info).setAutoplay(autoplay).setCurrentTime(position).build())
+            .setResultCallback { result ->
+                if (!result.status.isSuccess) {
+                    val message = "Cast: ${result.status.statusCode}${result.status.statusMessage?.let { " $it" } ?: ""} · $mime"
+                    stateFlow.value = stateFlow.value.copy(error = message)
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
     }
 
-    fun toggle() {
-        client?.togglePlayback()
+    val loaded: Boolean get() = client?.let { it.mediaStatus != null && it.playerState != MediaStatus.PLAYER_STATE_IDLE && it.playerState != MediaStatus.PLAYER_STATE_UNKNOWN } == true
+
+    fun toggle(reload: () -> Unit) {
+        val remote = client ?: return
+        if (!loaded) reload() else remote.togglePlayback()
     }
 
     fun seek(position: Long) {
