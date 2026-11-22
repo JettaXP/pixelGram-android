@@ -65,6 +65,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Version
+        run: echo "APP_PATCH=$(( GITHUB_RUN_NUMBER - 62 ))" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
         with:
@@ -132,12 +134,10 @@ jobs:
           cp "$universal" pixelGram-android.apk
           cp "$(ls phone/*.apk | head -n1)" pixelGram-android-arm64.apk
           notes="$(printf 'build %s · pixelGram Android %s (%s)\n\n%s' "$GITHUB_RUN_NUMBER" "$version" "$(git rev-parse --short HEAD)" "$(git log -1 --pretty=%s)")"
-          if ! gh release view "v$version" >/dev/null 2>&1; then
-            gh release create "v$version" pixelGram-android.apk pixelGram-android-arm64.apk \
-              --latest --target "$GITHUB_SHA" \
-              --title "pixelGram Android $version" \
-              --notes "$notes"
-          fi
+          gh release create "v$version" pixelGram-android.apk pixelGram-android-arm64.apk \
+            --latest --target "$GITHUB_SHA" \
+            --title "pixelGram Android $version" \
+            --notes "$notes"
           gh release delete alpha --yes --cleanup-tag || true
           gh release create alpha pixelGram-android.apk pixelGram-android-arm64.apk \
             --prerelease --latest=false --target "$GITHUB_SHA" \
