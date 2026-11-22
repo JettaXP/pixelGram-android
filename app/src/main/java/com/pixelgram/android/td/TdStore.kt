@@ -200,7 +200,13 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateChatReadOutbox -> chats[update.chatId]?.lastReadOutboxMessageId = update.lastReadOutboxMessageId
             is TdApi.UpdateChatUnreadMentionCount -> chats[update.chatId]?.unreadMentionCount = update.unreadMentionCount
             is TdApi.UpdateChatNotificationSettings -> chats[update.chatId]?.notificationSettings = update.notificationSettings
-            is TdApi.UpdateUser -> users[update.user.id] = update.user
+            is TdApi.UpdateUser -> {
+                users[update.user.id] = update.user
+                if (!update.user.isContact && local?.contains("orig_${update.user.id}") == true) {
+                    val fresh = listOf(update.user.firstName, update.user.lastName).filter { it.isNotBlank() }.joinToString(" ")
+                    if (fresh.isNotBlank()) local.edit().putString("orig_${update.user.id}", fresh).apply()
+                }
+            }
             is TdApi.UpdateUnconfirmedSession -> unconfirmedSession.value = update.session
             is TdApi.UpdateSupergroup -> supergroups[update.supergroup.id] = update.supergroup
             is TdApi.UpdateUserStatus -> users[update.userId]?.status = update.status
