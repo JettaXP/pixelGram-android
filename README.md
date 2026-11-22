@@ -4,6 +4,8 @@
 
 <p align="center"><a href="README.ru.md">Русский</a></p>
 
+<p align="center"><a href="https://rookieenough.github.io/Orion-Data/app/?id=pixelgram"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="56"></a></p>
+
 A Telegram client for Android written from scratch in Kotlin and Jetpack Compose with Material 3 Expressive, built on [TDLib](https://github.com/tdlib/td).
 
 Companion of [pixelGram Desktop](https://github.com/JettaXP/pixelGram).
