@@ -1407,4 +1407,5 @@
     <string name="balance_public">Баланс виден всем из-за прозрачности блокчейна.</string>
     <string name="balance_open_wallet">Открыть кошелёк</string>
     <string name="balance_open_explorer">Открыть в обозревателе</string>
+    <string name="gift_view_ton">Открыть в блокчейне TON</string>
 </resources>

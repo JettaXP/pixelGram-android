@@ -173,6 +173,7 @@ fun ChatsTab(
     val storyOwners = snapshot.stories.filter { it.archived == archive }
     val storyHeight = with(density) { StoryRowHeight.toPx() }
     val stories = remember { StoryPull(scope, storyHeight) }
+    stories.hasStories = storyOwners.isNotEmpty()
     val tracker = remember { HideOnScroll(with(density) { HideDistance.toPx() }, with(density) { ShowDistance.toPx() }) }
     var newMessage by remember { mutableStateOf(false) }
     var fabMenu by remember { mutableStateOf(false) }
@@ -370,7 +371,7 @@ fun ChatsTab(
             }
             val archived = if (key == LIST_MAIN && appearance.archivePull) snapshot.lists[LIST_ARCHIVE].orEmpty() else emptyList()
             val pageRows = if (id < 0 && !archive) remember(mainRows, id) { virtualRows(mainRows, id) } else snapshot.lists[key].orEmpty()
-            ChatListPage(graph, navigator, key, pageRows, if (page == pager.currentPage) scrollTop else 0, archived, onOpenArchive)
+            ChatListPage(graph, navigator, key, pageRows, if (page == pager.currentPage) scrollTop else 0, archived, onOpenArchive, stories.takeIf { page == pager.currentPage })
         }
     }
 }
@@ -383,7 +384,7 @@ private fun virtualRows(rows: List<ChatRow>, id: Int): List<ChatRow> = when (id)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0, archived: List<ChatRow> = emptyList(), onOpenArchive: () -> Unit = {}) {
+private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String, rows: List<ChatRow>, scrollTop: Int = 0, archived: List<ChatRow> = emptyList(), onOpenArchive: () -> Unit = {}, stories: StoryPull? = null) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val selection = remember(listKey) { androidx.compose.runtime.mutableStateListOf<Long>() }
     val selecting = selection.isNotEmpty()
@@ -401,6 +402,13 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
         if (!hasArchive) return@LaunchedEffect
         androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex }.collect { index -> if (index >= 1 && archiveShown) archiveShown = false }
     }
+    if (stories != null) androidx.compose.runtime.SideEffect {
+        stories.atTop = {
+            val index = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            if (hasArchive && !archiveShown) index == 1 && offset == 0 else index == 0 && offset == 0
+        }
+    }
     val pullScope = rememberCoroutineScope()
     val pullConnection = remember(hasArchive) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
@@ -413,8 +421,18 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             }
 
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (!hasArchive || archiveShown || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
+                if (!hasArchive || archiveShown) return androidx.compose.ui.geometry.Offset.Zero
                 if (available.y <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
+                    return when (listState.firstVisibleItemIndex) {
+                        0 -> available
+                        1 -> {
+                            val remaining = listState.firstVisibleItemScrollOffset.toFloat()
+                            if (available.y > remaining) androidx.compose.ui.geometry.Offset(0f, available.y - remaining) else androidx.compose.ui.geometry.Offset.Zero
+                        }
+                        else -> androidx.compose.ui.geometry.Offset.Zero
+                    }
+                }
                 val k = visible()
                 val revealing = listState.firstVisibleItemIndex == 0 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0)
                 if (!revealing) return androidx.compose.ui.geometry.Offset.Zero
@@ -938,6 +956,8 @@ private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 private class StoryPull(private val scope: kotlinx.coroutines.CoroutineScope, private val height: Float) : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
     private val anim = androidx.compose.animation.core.Animatable(0f)
     val progress: Float get() = anim.value
+    var hasStories = false
+    var atTop: () -> Boolean = { false }
 
     fun expand() {
         scope.launch { anim.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = 380f)) }
@@ -947,6 +967,12 @@ private class StoryPull(private val scope: kotlinx.coroutines.CoroutineScope, pr
         if (available.y < 0f && anim.value > 0f) {
             val delta = available.y / height
             val next = (anim.value + delta).coerceAtLeast(0f)
+            val used = (next - anim.value) * height
+            scope.launch { anim.snapTo(next) }
+            return androidx.compose.ui.geometry.Offset(0f, used)
+        }
+        if (available.y > 0f && hasStories && anim.value < 1f && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && atTop()) {
+            val next = (anim.value + available.y / height).coerceAtMost(1f)
             val used = (next - anim.value) * height
             scope.launch { anim.snapTo(next) }
             return androidx.compose.ui.geometry.Offset(0f, used)
@@ -1153,9 +1179,9 @@ private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolea
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private const val ReleaseShare = 0.85f
-private const val PullParallaxStart = 0.45f
-private const val PullParallaxEnd = 0.25f
-private const val PullMinMs = 220L
+private const val PullParallaxStart = 0.32f
+private const val PullParallaxEnd = 0.2f
+private const val PullMinMs = 320L
 
 private suspend fun unconfirmedId(graph: AppGraph, session: TdApi.UnconfirmedSession): Long? {
     val sessions = graph.td.send(TdApi.GetActiveSessions()).sessions
@@ -1205,7 +1231,10 @@ private fun LoginAlert(graph: AppGraph) {
 
 @Composable
 private fun ArchivePullHint(pulled: Float, modifier: Modifier) {
-    val release = pulled >= ReleaseShare
+    var latched by remember { mutableStateOf(false) }
+    if (!latched && pulled >= ReleaseShare) latched = true
+    if (latched && pulled < ReleaseShare - 0.1f) latched = false
+    val release = latched
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(release) { if (release) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick) }
     val container by androidx.compose.animation.animateColorAsState(if (release) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest, label = "pull-bg")

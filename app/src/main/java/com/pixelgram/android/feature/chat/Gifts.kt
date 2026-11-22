@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.ui.text.withStyle
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -318,35 +321,52 @@ fun GiftSheetHost() {
         val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, link)
         context.startActivity(android.content.Intent.createChooser(send, null))
     }
-    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ModalBottomSheet(
+        onDismissRequest = dismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = if (uniqueName != null) null else ({ androidx.compose.material3.BottomSheetDefaults.DragHandle() }),
+    ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 16.dp),
         ) {
             val nft = unique
             if (uniqueName != null) {
                 if (nft == null) {
-                    LoadingIndicator(Modifier.padding(32.dp))
+                    LoadingIndicator(Modifier.padding(48.dp))
                 } else {
-                    UniqueGiftArt(nft, Modifier.fillMaxWidth().height(260.dp), modelScale = 0.6f, square = false)
-                    Text("${nft.title} #${"%,d".format(nft.number)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FilledTonalButton(onClick = { share("https://t.me/nft/${nft.name}") }) {
-                            Icon(Icons.Rounded.Share, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.profile_share))
+                    Box(Modifier.fillMaxWidth()) {
+                        UniqueGiftArt(nft, Modifier.fillMaxWidth().height(330.dp), shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), modelScale = 0.5f, square = false)
+                        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                androidx.compose.ui.text.buildAnnotatedString {
+                                    append(nft.title)
+                                    withStyle(androidx.compose.ui.text.SpanStyle(color = Color.White.copy(alpha = 0.7f))) { append(" #${"%,d".format(nft.number)}") }
+                                },
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                            )
+                            nft.model?.let { Text(it.name, style = MaterialTheme.typography.titleSmall, color = Color.White.copy(alpha = 0.75f)) }
                         }
-                        FilledTonalButton(onClick = { copy("https://t.me/nft/${nft.name}") }) {
-                            Icon(Icons.Rounded.ContentCopy, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.gift_copy_link))
-                        }
-                    }
-                    if (nft.giftAddress.isNotBlank()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.gift_ton), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://tonviewer.com/${nft.giftAddress}"))) }) { Text(stringResource(R.string.gift_view)) }
+                        var menu by remember { mutableStateOf(false) }
+                        Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                            androidx.compose.material3.IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, null, tint = Color.White) }
+                            com.pixelgram.android.ui.components.ExpressiveMenu(
+                                menu,
+                                { menu = false },
+                                listOf(
+                                    listOfNotNull(
+                                        com.pixelgram.android.ui.components.MenuEntry(Icons.Rounded.Share, stringResource(R.string.profile_share)) { share("https://t.me/nft/${nft.name}") },
+                                        com.pixelgram.android.ui.components.MenuEntry(Icons.Rounded.ContentCopy, stringResource(R.string.gift_copy_link)) { copy("https://t.me/nft/${nft.name}") },
+                                        nft.giftAddress.takeIf { it.isNotBlank() }?.let { addr ->
+                                            com.pixelgram.android.ui.components.MenuEntry(Icons.AutoMirrored.Rounded.OpenInNew, stringResource(R.string.gift_view_ton)) { com.pixelgram.android.nav.PendingNav.external = "https://tonviewer.com/$addr" }
+                                        },
+                                    ),
+                                ),
+                            )
                         }
                     }
                     val rows = buildList {
@@ -363,9 +383,11 @@ fun GiftSheetHost() {
                         nft.backdrop?.let { add(GiftRow(stringResource(R.string.gift_backdrop)) { ValueText(it.name, rarityText(it.rarity)) }) }
                         val issued = if (nft.maxUpgradedCount > 0) stringResource(R.string.gift_issued_of, "%,d".format(nft.totalUpgradedCount), "%,d".format(nft.maxUpgradedCount)) else "%,d".format(nft.totalUpgradedCount)
                         add(GiftRow(stringResource(R.string.gift_quantity)) { ValueText(issued) })
-                        if (nft.valueAmount > 0 && nft.valueCurrency.isNotBlank()) add(GiftRow(stringResource(R.string.gift_value)) { ValueText(formatPrice(nft.valueAmount, nft.valueCurrency)) })
+                        if (nft.valueAmount > 0 && nft.valueCurrency.isNotBlank()) add(GiftRow(stringResource(R.string.gift_value)) {
+                            ValueText("~" + formatPrice(nft.valueAmount, nft.valueCurrency), stringResource(R.string.username_learn_more)) { com.pixelgram.android.nav.PendingNav.external = "https://t.me/nft/${nft.name}" }
+                        })
                     }
-                    GiftTable(rows)
+                    Box(Modifier.padding(horizontal = 16.dp)) { GiftTable(rows) }
                 }
             } else {
                 val regular: TdApi.Gift? = when (target) {
@@ -375,6 +397,7 @@ fun GiftSheetHost() {
                 }
                 val snapshot by graph.store.snapshot.collectAsState()
                 regular?.sticker?.let { StickerView(it, snapshot.files, { id -> graph.store.requestFileAsync(id) }, Modifier.size(170.dp)) }
+                Column(Modifier.padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val own = when (target) {
                     is GiftTarget.Received -> target.own
                     is GiftTarget.Message -> !target.outgoing
@@ -443,8 +466,9 @@ fun GiftSheetHost() {
                         }) { Text(stringResource(if (saved) R.string.gift_hide else R.string.gift_show)) }
                     }
                 }
+                }
             }
-            Button(onClick = dismiss, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("OK") }
+            Button(onClick = dismiss, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(52.dp)) { Text("OK") }
         }
     }
 }

@@ -1362,4 +1362,5 @@
     <string name="balance_public">Your balance is public due to blockchain transparency.</string>
     <string name="balance_open_wallet">Open wallet</string>
     <string name="balance_open_explorer">View in explorer</string>
+    <string name="gift_view_ton">View in TON blockchain</string>
 </resources>

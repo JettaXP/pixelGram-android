@@ -37,6 +37,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -240,8 +244,9 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
     val list = gifts ?: return Loading()
     val snapshot by graph.store.snapshot.collectAsState()
     val own = (owner as? TdApi.MessageSenderUser)?.userId == snapshot.meId
-    Grid(list.withIndex().toList()) { (index, gift) ->
-        val shape = cellShape(index, list.size, 3)
+    val ordered = remember(list) { list.sortedByDescending { it.isPinned } }
+    Grid(ordered.withIndex().toList()) { (index, gift) ->
+        val shape = cellShape(index, ordered.size, 3)
         val upgraded = (gift.gift as? TdApi.SentGiftUpgraded)?.gift
         Box(
             Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Received(gift, own) },
@@ -249,24 +254,38 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
         ) {
             if (upgraded != null) {
                 com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f)
-                Text(
-                    "#" + "%,d".format(upgraded.number),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(50)).background(com.pixelgram.android.feature.chat.giftColor(upgraded.backdrop?.colors?.symbolColor ?: 0x333333).copy(alpha = 0.85f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                )
+                val ribbon = upgraded.backdrop?.colors?.let { com.pixelgram.android.feature.chat.giftColor(it.edgeColor) } ?: MaterialTheme.colorScheme.primary
+                Box(Modifier.align(Alignment.TopEnd).size(64.dp).clip(RoundedCornerShape(topEnd = 12.dp))) {
+                    Text(
+                        "#" + "%,d".format(upgraded.number),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        maxLines = 1,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .requiredWidth(96.dp)
+                            .offset(x = 14.dp, y = (-14).dp)
+                            .graphicsLayer { rotationZ = 45f }
+                            .background(androidx.compose.ui.graphics.lerp(ribbon, Color.Black, 0.25f))
+                            .padding(vertical = 2.dp),
+                    )
+                }
             } else {
                 val sticker = (gift.gift as? TdApi.SentGiftRegular)?.gift?.sticker
-                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f))
-                (gift.gift as? TdApi.SentGiftRegular)?.gift?.let { g ->
-                    Text("⭐ " + g.starCount, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp))
-                }
+                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false)
             }
-            val sender = (gift.senderId as? TdApi.MessageSenderUser)?.userId
-            if (sender != null) {
-                val user = snapshot.users[sender]
-                Box(Modifier.align(Alignment.TopStart).padding(6.dp)) {
-                    Avatar(user?.name.orEmpty(), sender, user?.photoFileId?.let { snapshot.files[it] }, user?.minithumb, 22.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
+            if (gift.isPinned) {
+                Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.PushPin, null, Modifier.size(13.dp).graphicsLayer { rotationZ = 45f }, tint = Color.White)
+                }
+            } else if (upgraded == null) {
+                val sender = (gift.senderId as? TdApi.MessageSenderUser)?.userId
+                if (sender != null) {
+                    val user = snapshot.users[sender]
+                    Box(Modifier.align(Alignment.TopStart).padding(6.dp)) {
+                        Avatar(user?.name.orEmpty(), sender, user?.photoFileId?.let { snapshot.files[it] }, user?.minithumb, 22.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
+                    }
                 }
             }
         }
