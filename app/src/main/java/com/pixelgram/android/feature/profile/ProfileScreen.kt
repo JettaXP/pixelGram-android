@@ -452,7 +452,21 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             full?.rating?.takeIf { !self || it.level > 0 }?.let { rating ->
                 RatingChip(rating, user?.firstName.orEmpty())
             }
-            full?.firstProfileAudio?.let { audio ->
+            val npContext = LocalContext.current
+            val badgeMap by graph.remote.badges.collectAsState()
+            val supporter = self && (snapshot.meId in badgeMap || snapshot.meId in com.pixelgram.android.pixel.PixelRemote.BadgeOwners)
+            val scrobbled by androidx.compose.runtime.produceState<NowPlayingTrack?>(null, supporter) {
+                if (!supporter) return@produceState
+                while (true) {
+                    value = NowPlayingFeed.current(npContext)
+                    kotlinx.coroutines.delay(30_000)
+                }
+            }
+            scrobbled?.let { track ->
+                Spacer(Modifier.height(16.dp))
+                NowPlayingCard(track) { com.pixelgram.android.nav.PendingNav.external = track.profileUrl }
+            }
+            if (scrobbled == null) full?.firstProfileAudio?.let { audio ->
                 Spacer(Modifier.height(16.dp))
                 val playlist = stringResource(R.string.player_playlist_of, playlistName(user))
                 ProfileMusicCard(audio) {

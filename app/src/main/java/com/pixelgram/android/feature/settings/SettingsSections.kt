@@ -122,7 +122,7 @@ fun SettingsSectionScreen(graph: AppGraph, section: String, navigator: Navigator
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             if (current == SettingsSection.Account) {
-                AccountEditor(graph)
+                AccountEditorScreen(graph, navigator)
                 return@Column
             }
             if (current == SettingsSection.Privacy) {

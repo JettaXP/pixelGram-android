@@ -1164,4 +1164,21 @@
     <string name="debug_webview_off">Disable WebView debug</string>
     <string name="debug_reload_config">Reload app config</string>
     <string name="debug_optimize_storage">Optimize storage</string>
+    <string name="account_your_name">Your name</string>
+    <string name="account_bio_note">Everyone can see your bio.</string>
+    <string name="account_your_info">Your info</string>
+    <string name="account_set_username">Set username</string>
+    <string name="account_add_birthday">Add birthday</string>
+    <string name="account_birthday_note">Choose who can see your birthday in Privacy and Security.</string>
+    <string name="account_scrobbling">Scrobbling service</string>
+    <string name="account_personal_channel">Personal channel</string>
+    <string name="account_add">Add</string>
+    <string name="account_automation">Chat automation</string>
+    <string name="account_automation_note">Add a bot to answer messages on your behalf.</string>
+    <string name="account_no_channels">You have no public channels to show.</string>
+    <string name="now_playing_title">Now playing</string>
+    <string name="now_playing_about">Shows the current track in your profile as a card from the scrobbling service. Available to supporters.</string>
+    <string name="now_playing_username">Username</string>
+    <string name="now_playing_key">Last.fm API key</string>
+    <string name="now_playing_key_note">Last.fm needs a free API key:</string>
 </resources>

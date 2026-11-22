@@ -1203,4 +1203,21 @@
     <string name="debug_webview_off">Выключить отладку WebView</string>
     <string name="debug_reload_config">Перезагрузить конфиг</string>
     <string name="debug_optimize_storage">Оптимизировать хранилище</string>
+    <string name="account_your_name">Ваше имя</string>
+    <string name="account_bio_note">Описание видят все.</string>
+    <string name="account_your_info">Ваши данные</string>
+    <string name="account_set_username">Задать имя пользователя</string>
+    <string name="account_add_birthday">Добавить день рождения</string>
+    <string name="account_birthday_note">Кто видит ваш день рождения, можно выбрать в «Конфиденциальности».</string>
+    <string name="account_scrobbling">Сервис скробблинга</string>
+    <string name="account_personal_channel">Личный канал</string>
+    <string name="account_add">Добавить</string>
+    <string name="account_automation">Автоматизация чатов</string>
+    <string name="account_automation_note">Подключите бота, который будет отвечать на сообщения за вас.</string>
+    <string name="account_no_channels">Нет публичных каналов для показа.</string>
+    <string name="now_playing_title">Сейчас играет</string>
+    <string name="now_playing_about">Показывает текущий трек в профиле карточкой из сервиса скробблинга. Доступно тем, кто поддержал проект.</string>
+    <string name="now_playing_username">Имя пользователя</string>
+    <string name="now_playing_key">API-ключ Last.fm</string>
+    <string name="now_playing_key_note">Last.fm требует бесплатный API-ключ:</string>
 </resources>
