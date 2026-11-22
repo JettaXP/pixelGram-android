@@ -670,6 +670,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                     },
                     onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
                     kind = row.kind,
+                    official = row.official,
                 )
                 if (check > 0f) {
                     Box(

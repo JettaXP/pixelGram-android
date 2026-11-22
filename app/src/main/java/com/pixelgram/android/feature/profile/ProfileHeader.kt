@@ -179,6 +179,7 @@ fun ProfileHeader(
                     icon = icon,
                     modifier = Modifier.clickable(enabled = e < 0.3f, onClick = onAvatarClick),
                     onNeedFile = { graph.store.requestFileAsync(photoFileId) },
+                    official = official,
                 )
                 if (showCamera && e < 0.05f) {
                     androidx.compose.material3.FilledIconButton(

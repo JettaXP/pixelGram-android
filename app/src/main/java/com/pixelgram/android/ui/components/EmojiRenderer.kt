@@ -184,6 +184,6 @@ object EmojiRenderer {
 
     private const val Buffers = 2
     private const val FrameMs = 33L
-    private const val MaxIdle = 12
+    private const val MaxIdle = 4
     private val Sizes = intArrayOf(48, 72, 96, 128, 192, 256, 384, 512)
 }

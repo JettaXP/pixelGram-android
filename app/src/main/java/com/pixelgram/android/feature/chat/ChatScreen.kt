@@ -402,6 +402,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 is TdApi.ChatTypeBasicGroup -> com.pixelgram.android.td.ChatKind.Group
                                 else -> null
                             },
+                            official = graph.store.isOfficial(chatId),
                         )
                     }
                 },

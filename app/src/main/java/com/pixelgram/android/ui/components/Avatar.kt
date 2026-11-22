@@ -1,5 +1,6 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.material3.toShape
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -40,6 +41,7 @@ fun avatarColor(seed: Long): Color {
     return Color.hsl(hue, if (dark) 0.45f else 0.55f, if (dark) 0.35f else 0.62f)
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun Avatar(
     title: String,
@@ -51,10 +53,12 @@ fun Avatar(
     icon: ImageVector? = null,
     onNeedFile: (() -> Unit)? = null,
     kind: com.pixelgram.android.td.ChatKind? = null,
+    official: Boolean = false,
 ) {
     if (path == null && onNeedFile != null) LaunchedEffect(seed) { onNeedFile() }
     val color = avatarColor(seed)
-    val shape = kind?.let { com.pixelgram.android.ui.theme.LocalAvatarKindShapes.current[if (it == com.pixelgram.android.td.ChatKind.Secret) com.pixelgram.android.td.ChatKind.Private else it] } ?: LocalAvatarShape.current
+    val cookie = androidx.compose.material3.MaterialShapes.Cookie12Sided.toShape()
+    val shape = if (official) cookie else kind?.let { com.pixelgram.android.ui.theme.LocalAvatarKindShapes.current[if (it == com.pixelgram.android.td.ChatKind.Secret) com.pixelgram.android.td.ChatKind.Private else it] } ?: LocalAvatarShape.current
     Box(
         modifier
             .size(size)
