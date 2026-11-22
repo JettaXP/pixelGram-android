@@ -87,6 +87,8 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.ToggleButtonShapes
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -138,9 +140,12 @@ fun FolderChips(
         horizontalArrangement = Arrangement.spacedBy(ChipGap),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
+            .padding(horizontal = 12.dp, vertical = 4.dp)
             .fillMaxWidth()
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .horizontalScroll(scroll)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(BarInset),
     ) {
         tabs.forEachIndexed { index, tab ->
             FolderPill(
@@ -163,11 +168,11 @@ fun FolderChips(
 private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onClick: () -> Unit, modifier: Modifier, amount: (() -> Float)? = null) {
     val colors = MaterialTheme.colorScheme
     val fade = tween<Color>(SwitchMs, easing = FastOutSlowInEasing)
-    val animatedContainer by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, fade, label = "pill-container")
+    val animatedContainer by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainer, fade, label = "pill-container")
     val animatedContent by animateColorAsState(if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant, fade, label = "pill-content")
     val fraction = amount?.invoke()
     val animatedCorner by androidx.compose.animation.core.animateDpAsState(if (selected) PillHeight / 2 else ChipCorner, tween(SwitchMs, easing = FastOutSlowInEasing), label = "pill-corner")
-    val container = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.surfaceContainerHigh, colors.primaryContainer, fraction) else animatedContainer
+    val container = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.surfaceContainer, colors.primaryContainer, fraction) else animatedContainer
     val content = if (fraction != null) androidx.compose.ui.graphics.lerp(colors.onSurfaceVariant, colors.onPrimaryContainer, fraction) else animatedContent
     val dip = remember { Animatable(1f) }
     var first by remember { mutableStateOf(true) }
@@ -236,8 +241,9 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
     }
 }
 
-private val PillHeight = 36.dp
-private val ChipGap = 6.dp
+private val PillHeight = 40.dp
+private val ChipGap = 2.dp
+private val BarInset = 6.dp
 private const val SwitchMs = 220
 private const val DipAlpha = 0.45f
 

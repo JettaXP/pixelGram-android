@@ -1179,9 +1179,9 @@ private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolea
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private const val ReleaseShare = 0.85f
-private const val PullParallaxStart = 0.32f
-private const val PullParallaxEnd = 0.2f
-private const val PullMinMs = 320L
+private const val PullParallaxStart = 0.42f
+private const val PullParallaxEnd = 0.24f
+private const val PullMinMs = 240L
 
 private suspend fun unconfirmedId(graph: AppGraph, session: TdApi.UnconfirmedSession): Long? {
     val sessions = graph.td.send(TdApi.GetActiveSessions()).sessions
@@ -1246,9 +1246,16 @@ private fun ArchivePullHint(pulled: Float, modifier: Modifier) {
     ) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 22.dp).size(width = 28.dp, height = 52.dp)) {
             Box(Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.CircleShape).background(content.copy(alpha = 0.2f)))
-            val fill = pulled.coerceIn(0f, 1f)
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.54f + 0.46f * fill).clip(androidx.compose.foundation.shape.CircleShape).background(content.copy(alpha = 0.35f)))
-            Box(Modifier.align(Alignment.BottomCenter).size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(content), contentAlignment = Alignment.Center) {
+            val travel = with(androidx.compose.ui.platform.LocalDensity.current) { 24.dp.toPx() }
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { translationY = travel * (pulled / ReleaseShare).coerceIn(0f, 1f) }
+                    .size(28.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(content),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(Icons.Rounded.ArrowDownward, null, Modifier.size(18.dp).graphicsLayer { rotationZ = rotation }, tint = container)
             }
         }

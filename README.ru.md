@@ -1,10 +1,19 @@
-# pixelGram для Android
+<p align="center"><img src="docs/logo.png" width="112" height="112" alt="pixelGram"></p>
 
-[English](README.md)
+<h1 align="center">pixelGram для Android</h1>
+
+<p align="center"><a href="README.md">English</a></p>
 
 Клиент Telegram для Android, написанный с нуля на Kotlin и Jetpack Compose в стиле Material 3 Expressive, на основе [TDLib](https://github.com/tdlib/td).
 
 Компаньон [pixelGram Desktop](https://github.com/JettaXP/pixelGram).
+
+## Скриншоты
+
+| | | |
+|:-:|:-:|:-:|
+| <img src="docs/screenshots/chats.png" width="240" alt="Чаты"> | <img src="docs/screenshots/chat.png" width="240" alt="Чат"> | <img src="docs/screenshots/message_menu.png" width="240" alt="Меню сообщения"> |
+| <img src="docs/screenshots/player.png" width="240" alt="Плеер"> | <img src="docs/screenshots/profile.png" width="240" alt="Профиль"> | <img src="docs/screenshots/pixel_settings.png" width="240" alt="Настройки pixelGram"> |
 
 ## Статус
 
