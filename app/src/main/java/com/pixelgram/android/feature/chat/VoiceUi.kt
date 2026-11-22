@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -114,8 +115,7 @@ fun VoiceButton(
                         }.clip(CircleShape).background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (telegram) TgVoiceVideoIcon(video, MaterialTheme.colorScheme.onPrimary, Modifier.size(30.dp))
-                        else Icon(if (video) Icons.Rounded.Videocam else Icons.Rounded.Mic, null, tint = MaterialTheme.colorScheme.onPrimary)
+                        RecordIcon(video, locked = false)
                     }
                 }
             }
@@ -187,26 +187,28 @@ fun VoiceButton(
             androidx.compose.animation.AnimatedContent(
                 when {
                     recorder.locked -> 2
-                    telegram -> 0
                     video -> 1
                     else -> 0
                 },
                 transitionSpec = { (androidx.compose.animation.scaleIn(initialScale = 0.4f) + fadeIn()) togetherWith (androidx.compose.animation.scaleOut(targetScale = 0.4f) + fadeOut()) },
                 label = "record-icon",
             ) { state ->
-            if (telegram && state != 2) TgVoiceVideoIcon(video, MaterialTheme.colorScheme.onPrimary, Modifier.size(30.dp))
-            else if (telegram) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
-            else Icon(
-                when (state) {
-                    2 -> Icons.AutoMirrored.Rounded.Send
-                    1 -> Icons.Rounded.Videocam
-                    else -> Icons.Rounded.Mic
-                },
-                stringResource(R.string.voice_record),
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
+            RecordIcon(state == 1, locked = state == 2)
             }
         }
+    }
+}
+
+@Composable
+private fun RecordIcon(video: Boolean, locked: Boolean) {
+    val tint = MaterialTheme.colorScheme.onPrimary
+    if (locked) {
+        Box(Modifier.size(28.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), Modifier.align(Alignment.Center).size(24.dp), tint = tint)
+            Icon(Icons.Rounded.Lock, null, Modifier.align(Alignment.BottomEnd).size(12.dp), tint = tint)
+        }
+    } else {
+        Icon(if (video) Icons.Rounded.Videocam else Icons.Rounded.GraphicEq, stringResource(R.string.voice_record), Modifier.size(26.dp), tint = tint)
     }
 }
 

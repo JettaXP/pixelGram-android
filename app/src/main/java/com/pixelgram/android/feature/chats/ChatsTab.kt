@@ -413,6 +413,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     val pullConnection = remember(hasArchive) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             var pullStart = 0L
+            var gate = 0
 
             fun visible(): Float {
                 val first = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return 0f
@@ -436,12 +437,15 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                 val k = visible()
                 val revealing = listState.firstVisibleItemIndex == 0 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0)
                 if (!revealing) return androidx.compose.ui.geometry.Offset.Zero
+                if (gate == 0) gate = if (stories != null && stories.hasStories && stories.progress < 0.99f) -1 else 1
+                if (gate < 0) return available
                 if (pullStart == 0L) pullStart = System.currentTimeMillis()
                 val factor = (PullParallaxStart - k * PullParallaxEnd).coerceIn(0.05f, 1f)
                 return androidx.compose.ui.geometry.Offset(0f, available.y * (1f - factor))
             }
 
             override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                gate = 0
                 if (!hasArchive || archiveShown || listState.firstVisibleItemIndex != 0) {
                     pullStart = 0L
                     return androidx.compose.ui.unit.Velocity.Zero
@@ -450,7 +454,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                 val held = pullStart != 0L && System.currentTimeMillis() - pullStart >= PullMinMs
                 pullStart = 0L
                 pullScope.launch {
-                    if (k >= ReleaseShare && held) {
+                    if (k >= ReleaseShare && held && available.y < PullMaxVelocity) {
                         archiveShown = true
                         listState.animateScrollToItem(0)
                     } else {
@@ -657,6 +661,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                         else -> null
                     },
                     onNeedFile = if (row.photoFileId != 0) onNeedPhoto else null,
+                    kind = row.kind,
                 )
                 if (check > 0f) {
                     Box(
@@ -1182,6 +1187,7 @@ private const val ReleaseShare = 0.85f
 private const val PullParallaxStart = 0.42f
 private const val PullParallaxEnd = 0.24f
 private const val PullMinMs = 240L
+private const val PullMaxVelocity = 2600f
 
 private suspend fun unconfirmedId(graph: AppGraph, session: TdApi.UnconfirmedSession): Long? {
     val sessions = graph.td.send(TdApi.GetActiveSessions()).sessions

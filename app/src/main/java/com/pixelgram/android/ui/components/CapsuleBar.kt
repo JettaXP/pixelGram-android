@@ -33,6 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -58,12 +61,16 @@ fun <K> CapsuleBar(
         modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        var barHeight by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0.dp) }
+        val side = if (barHeight > itemHeight) (barHeight - itemHeight) / 2 else inset
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalHapticFeedback provides NoHaptics) {
         HorizontalFloatingToolbar(
-            modifier = Modifier.clickable(interactionSource = null, indication = null) {},
+            modifier = Modifier.clickable(interactionSource = null, indication = null) {}.onSizeChanged { barHeight = with(density) { it.height.toDp() } },
             expanded = true,
             colors = FloatingToolbarDefaults.standardFloatingToolbarColors(toolbarContainerColor = MaterialTheme.colorScheme.surfaceBright),
             expandedShadowElevation = 6.dp,
-            contentPadding = PaddingValues(inset),
+            contentPadding = PaddingValues(horizontal = side, vertical = inset),
         ) {
             items.forEachIndexed { index, item ->
                 if (index > 0) Spacer(Modifier.width(spacing))
@@ -92,4 +99,9 @@ fun <K> CapsuleBar(
             }
         }
     }
+    }
+}
+
+private object NoHaptics : androidx.compose.ui.hapticfeedback.HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: androidx.compose.ui.hapticfeedback.HapticFeedbackType) {}
 }

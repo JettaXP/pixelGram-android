@@ -368,6 +368,7 @@
     <string name="profile_set_photo_for">Set photo</string>
     <string name="profile_remove_photo">Remove photo</string>
     <string name="profile_join">Join</string>
+    <string name="profile_subscribe">Subscribe</string>
     <string name="profile_description">Description</string>
     <string name="profile_link">Link</string>
     <string name="file_no_app">No app can open this file</string>
@@ -1363,4 +1364,13 @@
     <string name="balance_open_wallet">Open wallet</string>
     <string name="balance_open_explorer">View in explorer</string>
     <string name="gift_view_ton">View in TON blockchain</string>
+    <string name="pixel_avatar_kind_all">All chats</string>
+    <string name="pixel_avatar_kind_private">Private chats</string>
+    <string name="pixel_avatar_kind_bots">Bots</string>
+    <string name="pixel_avatar_kind_groups">Groups</string>
+    <string name="pixel_avatar_kind_channels">Channels</string>
+    <string name="pixel_avatar_kind_same">Same as all chats</string>
+    <string name="pixel_avatar_kind_own">Own shape for this type</string>
+    <string name="pixel_avatar_kind_all_sub">Used everywhere without its own shape</string>
+    <string name="pixel_avatar_kind_reset">Use the shape for all chats</string>
 </resources>

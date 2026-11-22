@@ -36,6 +36,7 @@ data class AppearanceSettings(
     val monochrome: Boolean = false,
     val avatarShape: AvatarShape = AvatarShape.Circle,
     val avatarCorner: Int = 50,
+    val kindShapes: Map<String, AvatarShape> = emptyMap(),
     val hidePhone: Boolean = true,
     val phoneDetails: Boolean = true,
     val navBarStyle: NavBarStyle = NavBarStyle.Expressive,
@@ -96,6 +97,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val Mono = booleanPreferencesKey("monochrome")
         val Shape = stringPreferencesKey("avatar_shape")
         val Corner = intPreferencesKey("avatar_corner")
+        val KindShapes = stringPreferencesKey("avatar_kind_shapes")
         val HidePhone = booleanPreferencesKey("hide_phone")
         val PhoneDetails = booleanPreferencesKey("phone_details")
         val NavBar = stringPreferencesKey("nav_bar")
@@ -146,7 +148,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val C_blinkSmoothness = intPreferencesKey("blink_smoothness")
         val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_largeEmoji, K_inlineMath, K_archivePull, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
         val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize, K_fontStamp)
-        val strings = listOf(Theme, Shape, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji, K_composerStyle, K_appFont, K_emojiStyle, K_composerLeft, K_composerRight, K_composerExtra)
+        val strings = listOf(Theme, Shape, KindShapes, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji, K_composerStyle, K_appFont, K_emojiStyle, K_composerLeft, K_composerRight, K_composerExtra)
     }
 
     suspend fun exportValues(): Map<String, String> =
@@ -174,6 +176,11 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         monochrome = p[Keys.Mono] ?: false,
         avatarShape = AvatarShape.entries.firstOrNull { it.name == p[Keys.Shape] } ?: AvatarShape.Circle,
         avatarCorner = p[Keys.Corner] ?: 50,
+        kindShapes = p[Keys.KindShapes].orEmpty().split(',').mapNotNull { entry ->
+            val parts = entry.split('=')
+            val shape = AvatarShape.entries.firstOrNull { it.name == parts.getOrNull(1) }
+            if (parts.size == 2 && shape != null) parts[0] to shape else null
+        }.toMap(),
         hidePhone = p[Keys.HidePhone] ?: true,
         phoneDetails = p[Keys.PhoneDetails] ?: true,
         navBarStyle = NavBarStyle.entries.firstOrNull { it.name == p[Keys.NavBar] } ?: NavBarStyle.Expressive,
@@ -239,6 +246,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.Mono] = next.monochrome
                 p[Keys.Shape] = next.avatarShape.name
                 p[Keys.Corner] = next.avatarCorner
+                p[Keys.KindShapes] = next.kindShapes.entries.joinToString(",") { "${it.key}=${it.value.name}" }
                 p[Keys.HidePhone] = next.hidePhone
                 p[Keys.PhoneDetails] = next.phoneDetails
                 p[Keys.NavBar] = next.navBarStyle.name

@@ -9,3 +9,5 @@ val LocalDarkTheme = staticCompositionLocalOf { false }
 val LocalAppearance = androidx.compose.runtime.compositionLocalOf { com.pixelgram.android.settings.AppearanceSettings() }
 
 fun countLabel(value: Int, exact: Boolean): String = if (!exact && value > 999) "999+" else value.toString()
+
+val LocalAvatarKindShapes = staticCompositionLocalOf<Map<com.pixelgram.android.td.ChatKind, Shape>> { emptyMap() }

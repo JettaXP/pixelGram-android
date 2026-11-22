@@ -396,6 +396,12 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 else -> null
                             },
                             onNeedFile = if (saved) null else ({ chat?.photo?.small?.id?.let(graph.store::requestFileAsync) }),
+                            kind = when (val type = chat?.type) {
+                                is TdApi.ChatTypePrivate, is TdApi.ChatTypeSecret -> if (snapshot.users[privateUserId]?.bot == true) com.pixelgram.android.td.ChatKind.Bot else com.pixelgram.android.td.ChatKind.Private
+                                is TdApi.ChatTypeSupergroup -> if (type.isChannel) com.pixelgram.android.td.ChatKind.Channel else com.pixelgram.android.td.ChatKind.Group
+                                is TdApi.ChatTypeBasicGroup -> com.pixelgram.android.td.ChatKind.Group
+                                else -> null
+                            },
                         )
                     }
                 },
@@ -870,15 +876,15 @@ private fun SwipeToReply(onReply: () -> Unit, content: @Composable () -> Unit) {
                 var total = androidx.compose.ui.geometry.Offset.Zero
                 var active = false
                 while (true) {
-                    val event = awaitPointerEvent()
+                    val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                     if (!change.pressed) break
                     val delta = change.positionChange()
                     if (!active) {
                         if (change.isConsumed) return@awaitEachGesture
                         total += delta
-                        if (total.getDistance() < viewConfiguration.touchSlop) continue
-                        if (total.x >= 0f || kotlin.math.abs(total.x) < kotlin.math.abs(total.y)) return@awaitEachGesture
+                        if (kotlin.math.abs(total.x) < viewConfiguration.touchSlop * 0.8f && kotlin.math.abs(total.y) < viewConfiguration.touchSlop * 1.6f) continue
+                        if (total.x >= 0f || kotlin.math.abs(total.x) < kotlin.math.abs(total.y) * 0.6f) return@awaitEachGesture
                         active = true
                     }
                     val current = -offset.value

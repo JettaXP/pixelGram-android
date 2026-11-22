@@ -44,6 +44,9 @@ fun PixelTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
     ) {
         CompositionLocalProvider(
             LocalAvatarShape provides animatedAvatarShape(settings.avatarShape, settings.avatarCorner),
+            LocalAvatarKindShapes provides AvatarKinds.associateWith { kind ->
+                androidx.compose.runtime.key(kind) { animatedAvatarShape(settings.kindShapes[kind.name] ?: settings.avatarShape, settings.avatarCorner) }
+            },
             LocalDarkTheme provides dark,
             LocalAppearance provides settings,
             content = content,
@@ -51,8 +54,10 @@ fun PixelTheme(settings: AppearanceSettings, content: @Composable () -> Unit) {
     }
 }
 
+val AvatarKinds = listOf(com.pixelgram.android.td.ChatKind.Private, com.pixelgram.android.td.ChatKind.Bot, com.pixelgram.android.td.ChatKind.Group, com.pixelgram.android.td.ChatKind.Channel)
+
 @Composable
-private fun animatedAvatarShape(shape: AvatarShape, corner: Int): androidx.compose.ui.graphics.Shape {
+internal fun animatedAvatarShape(shape: AvatarShape, corner: Int): androidx.compose.ui.graphics.Shape {
     val target = shape.shape(corner)
     val key = shape to corner
     var from by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(key) }

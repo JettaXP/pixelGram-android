@@ -135,9 +135,6 @@ private fun InfoRow(icon: ImageVector, tone: Color, text: String, position: Segm
         SettingsItem(
             title = text,
             icon = icon,
-            iconBackground = tone,
-            iconTint = Color.White,
-            iconShape = RoundedCornerShape(12.dp),
             position = position,
             onClick = onClick,
             onLongClick = if (copyValue != null) ({
@@ -223,8 +220,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
             stringResource(R.string.account_scrobbling),
             SegmentPosition.Top,
             icon = Icons.Rounded.PlayArrow,
-            iconBackground = Color(0xFF2EB8D6),
-            iconTint = Color.White,
             iconShape = RoundedCornerShape(12.dp),
             onClick = { nowPlaying = true },
             trailing = { Text(serviceLabel(service), color = MaterialTheme.colorScheme.primary) },
@@ -234,8 +229,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
             stringResource(R.string.account_personal_channel),
             SegmentPosition.Middle,
             icon = Icons.Rounded.Campaign,
-            iconBackground = Color(0xFFF29A1F),
-            iconTint = Color.White,
             iconShape = RoundedCornerShape(12.dp),
             onClick = { personal = true },
             trailing = { Text(if (personalId != 0L) graph.store.chat(personalId)?.title.orEmpty() else stringResource(R.string.account_add), color = MaterialTheme.colorScheme.primary) },
@@ -244,8 +237,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
             stringResource(R.string.account_automation),
             SegmentPosition.Bottom,
             icon = Icons.Rounded.AutoAwesome,
-            iconBackground = Color(0xFFA35BE8),
-            iconTint = Color.White,
             iconShape = RoundedCornerShape(12.dp),
             onClick = { navigator.open(com.pixelgram.android.nav.BusinessKey) },
         )
@@ -255,7 +246,7 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
     Spacer(Modifier.height(8.dp))
     val accounts = remember { com.pixelgram.android.account.Accounts.all(context) }
     val active = remember { com.pixelgram.android.account.Accounts.active(context) }
-    val others = accounts.filter { it.id != active }
+    val others = accounts.filter { it.id != active && it.userId != 0L }
     SettingsGroup {
         val total = others.size + 1
         SettingsItem(
@@ -265,12 +256,14 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
             onClick = { com.pixelgram.android.account.Accounts.add(context) },
         )
         others.forEachIndexed { i, account ->
-            SettingsItem(
-                account.name.ifBlank { stringResource(R.string.accounts_unnamed) },
-                segmentPosition(i + 1, total),
+            val (index, count) = segmentPosition(i + 1, total).let { p -> (i + 1) to total }
+            androidx.compose.material3.SegmentedListItem(
                 onClick = { com.pixelgram.android.account.Accounts.switchTo(context, account.id) },
-                trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
-            )
+                shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
+                colors = com.pixelgram.android.ui.components.segmentedColors(),
+                leadingContent = { com.pixelgram.android.ui.components.Avatar(account.name, account.userId, account.photo, null, 40.dp) },
+                trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
+            ) { Text(account.name.ifBlank { stringResource(R.string.accounts_unnamed) }) }
         }
     }
     Spacer(Modifier.height(12.dp))

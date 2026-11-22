@@ -156,10 +156,18 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
             CompositionLocalProvider(LocalBottomBarPadding provides if (floating) barHeight else 0.dp) {
                 val order = appearance.navTabs
                 val pager = androidx.compose.foundation.pager.rememberPagerState(order.indexOf(tab).coerceAtLeast(0)) { order.size }
-                LaunchedEffect(pager.settledPage, order) { order.getOrNull(pager.settledPage)?.let { if (it != tab) tab = it } }
+                var jumping by remember { mutableStateOf(false) }
+                LaunchedEffect(pager.settledPage, order) { if (!jumping) order.getOrNull(pager.settledPage)?.let { if (it != tab) tab = it } }
                 LaunchedEffect(tab, order) {
                     val index = order.indexOf(tab)
-                    if (index >= 0 && index != pager.currentPage && !pager.isScrollInProgress) pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 700f))
+                    if (index >= 0 && index != pager.targetPage) {
+                        jumping = true
+                        try {
+                            pager.animateScrollToPage(index, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 700f))
+                        } finally {
+                            jumping = false
+                        }
+                    }
                 }
                 val openDrawer: (() -> Unit)? = if (appearance.showDrawer) ({ scope.launch { drawer.open() } }) else null
                 val drawerPull = remember(openDrawer) {
@@ -333,7 +341,10 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
         }
         val context = androidx.compose.ui.platform.LocalContext.current
         val myPhoto = me?.photoFileId?.let { snapshot.files[it] }
-        LaunchedEffect(me, myPhoto) { if (me != null) com.pixelgram.android.account.Accounts.remember(context, me.name, me.phone, me.id, myPhoto) }
+        LaunchedEffect(me?.id, me?.name, me?.phone, myPhoto) {
+            val current = me ?: return@LaunchedEffect
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.pixelgram.android.account.Accounts.remember(context, current.name, current.phone, current.id, myPhoto) }
+        }
         androidx.compose.animation.AnimatedVisibility(accountsOpen) {
             val active = com.pixelgram.android.account.Accounts.active(context)
             val others = remember(accountsOpen) { com.pixelgram.android.account.Accounts.all(context).filter { it.id != active && it.userId != 0L } }

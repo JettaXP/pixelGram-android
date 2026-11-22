@@ -29,7 +29,15 @@ object Accounts {
     fun remember(context: Context, name: String, phone: String, userId: Long, photo: String? = null) {
         val id = active(context)
         val edit = prefs(context).edit().putString("name_$id", name).putString("phone_$id", phone).putLong("user_$id", userId)
-        if (photo != null) edit.putString("photo_$id", photo)
+        if (photo != null) {
+            val copy = java.io.File(context.filesDir, "account-photos/$id.jpg")
+            val stored = runCatching {
+                copy.parentFile?.mkdirs()
+                java.io.File(photo).copyTo(copy, overwrite = true)
+                copy.absolutePath
+            }.getOrDefault(photo)
+            edit.putString("photo_$id", stored)
+        }
         edit.apply()
     }
 

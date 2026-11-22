@@ -183,7 +183,9 @@ fun StoryStack(graph: AppGraph, owners: List<StoryOwner>, modifier: Modifier = M
                 Modifier
                     .padding(start = StackStep * index)
                     .zIndex((StackCount - index).toFloat())
-                    .size(StackSize)
+                    .size(StackSize + 4.dp)
+                    .background(MaterialTheme.colorScheme.surface, shape)
+                    .padding(2.dp)
                     .border(2.dp, if (owner.unread) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
                     .padding(3.dp),
             ) {

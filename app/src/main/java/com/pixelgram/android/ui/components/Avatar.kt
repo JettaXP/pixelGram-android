@@ -50,13 +50,15 @@ fun Avatar(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     onNeedFile: (() -> Unit)? = null,
+    kind: com.pixelgram.android.td.ChatKind? = null,
 ) {
     if (path == null && onNeedFile != null) LaunchedEffect(seed) { onNeedFile() }
     val color = avatarColor(seed)
+    val shape = kind?.let { com.pixelgram.android.ui.theme.LocalAvatarKindShapes.current[if (it == com.pixelgram.android.td.ChatKind.Secret) com.pixelgram.android.td.ChatKind.Private else it] } ?: LocalAvatarShape.current
     Box(
         modifier
             .size(size)
-            .clip(LocalAvatarShape.current)
+            .clip(shape)
             .background(if (icon != null) MaterialTheme.colorScheme.primary else color),
         contentAlignment = Alignment.Center,
     ) {

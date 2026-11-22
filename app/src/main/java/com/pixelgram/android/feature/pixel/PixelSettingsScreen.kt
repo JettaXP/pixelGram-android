@@ -41,6 +41,8 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
@@ -394,16 +396,38 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
         }
     }
     SettingsGroup(stringResource(R.string.pixel_avatars)) {
-        AvatarShapePicker(settings.avatarShape) { shape -> update { it.copy(avatarShape = shape) } }
-        if (settings.avatarShape == AvatarShape.Custom) {
-            SettingsItem(stringResource(R.string.pixel_avatar_corner), SegmentPosition.Bottom, "${settings.avatarCorner}%", Icons.Rounded.RoundedCorner)
-            Slider(
-                value = settings.avatarCorner.toFloat(),
-                onValueChange = { value -> update { it.copy(avatarCorner = value.roundToInt()) } },
-                valueRange = 0f..50f,
-                steps = 9,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+        var kind by remember { mutableStateOf<com.pixelgram.android.td.ChatKind?>(null) }
+        val current = kind?.let { settings.kindShapes[it.name] } ?: settings.avatarShape
+        AvatarKindPicker(settings, kind) { kind = it }
+        AvatarShapePicker(current, settings.avatarCorner, kind, settings.kindShapes[kind?.name] != null, onReset = { update { s -> s.copy(kindShapes = s.kindShapes - kind!!.name) } }, last = current != AvatarShape.Custom) { shape ->
+            val target = kind
+            update { if (target == null) it.copy(avatarShape = shape) else it.copy(kindShapes = it.kindShapes + (target.name to shape)) }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            current == AvatarShape.Custom,
+            enter = androidx.compose.animation.expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = androidx.compose.animation.shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + androidx.compose.animation.fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
+        ) {
+            androidx.compose.material3.Card(
+                shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(1, 2).shape,
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                modifier = Modifier.padding(top = androidx.compose.material3.ListItemDefaults.SegmentedGap),
+            ) {
+                androidx.compose.foundation.layout.Column(Modifier.padding(vertical = 12.dp)) {
+                    Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.RoundedCorner, null)
+                        Text(stringResource(R.string.pixel_avatar_corner), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(start = 16.dp))
+                        Text("${settings.avatarCorner}%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Slider(
+                        value = settings.avatarCorner.toFloat(),
+                        onValueChange = { value -> update { it.copy(avatarCorner = value.roundToInt()) } },
+                        valueRange = 0f..50f,
+                        steps = 9,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+            }
         }
     }
     SettingsGroup(stringResource(R.string.pixel_privacy)) {
@@ -420,12 +444,75 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AvatarShapePicker(selected: AvatarShape, onSelect: (AvatarShape) -> Unit) {
+private fun AvatarKindPicker(settings: com.pixelgram.android.settings.AppearanceSettings, kind: com.pixelgram.android.td.ChatKind?, onSelect: (com.pixelgram.android.td.ChatKind?) -> Unit) {
+    val entries = listOf<com.pixelgram.android.td.ChatKind?>(null) + com.pixelgram.android.ui.theme.AvatarKinds
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(bottom = 8.dp),
+    ) {
+        items(entries.size) { i ->
+            val entry = entries[i]
+            val custom = entry?.let { settings.kindShapes[it.name] }
+            androidx.compose.material3.FilterChip(
+                selected = kind == entry,
+                onClick = { onSelect(entry) },
+                label = { Text(stringResource(kindLabel(entry))) },
+                leadingIcon = {
+                    androidx.compose.animation.AnimatedVisibility(
+                        custom != null,
+                        enter = androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.expandHorizontally(MaterialTheme.motionScheme.fastSpatialSpec()),
+                        exit = androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.shrinkHorizontally(MaterialTheme.motionScheme.fastSpatialSpec()),
+                    ) {
+                        var last by remember { mutableStateOf(custom ?: AvatarShape.Circle) }
+                        if (custom != null) last = custom
+                        Box(Modifier.size(16.dp).clip(com.pixelgram.android.ui.theme.animatedAvatarShape(last, settings.avatarCorner)).background(MaterialTheme.colorScheme.primary))
+                    }
+                },
+            )
+        }
+    }
+}
+
+private fun kindLabel(kind: com.pixelgram.android.td.ChatKind?): Int = when (kind) {
+    null -> R.string.pixel_avatar_kind_all
+    com.pixelgram.android.td.ChatKind.Bot -> R.string.pixel_avatar_kind_bots
+    com.pixelgram.android.td.ChatKind.Group -> R.string.pixel_avatar_kind_groups
+    com.pixelgram.android.td.ChatKind.Channel -> R.string.pixel_avatar_kind_channels
+    else -> R.string.pixel_avatar_kind_private
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AvatarShapePicker(selected: AvatarShape, corner: Int, kind: com.pixelgram.android.td.ChatKind?, overridden: Boolean, onReset: () -> Unit, last: Boolean, onSelect: (AvatarShape) -> Unit) {
     val state = rememberLazyListState(initialFirstVisibleItemIndex = (AvatarShape.entries.indexOf(selected) - 2).coerceAtLeast(0))
+    val bottomRadius by androidx.compose.animation.core.animateDpAsState(if (last) 24.dp else 4.dp, MaterialTheme.motionScheme.defaultSpatialSpec(), label = "picker-corner")
     androidx.compose.material3.Card(
-        shape = androidx.compose.material3.ListItemDefaults.segmentedShapes(0, if (selected == AvatarShape.Custom) 2 else 1).shape,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp, 24.dp, bottomRadius, bottomRadius),
         colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(64.dp).clip(com.pixelgram.android.ui.theme.animatedAvatarShape(selected, corner)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.Face, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
+            }
+            androidx.compose.foundation.layout.Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(stringResource(kindLabel(kind)), style = MaterialTheme.typography.titleMedium)
+                androidx.compose.animation.AnimatedContent(kind != null && !overridden, label = "kind-same") { same ->
+                    Text(
+                        stringResource(if (same) R.string.pixel_avatar_kind_same else if (kind == null) R.string.pixel_avatar_kind_all_sub else R.string.pixel_avatar_kind_own),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                kind != null && overridden,
+                enter = androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.fadeOut(),
+            ) {
+                androidx.compose.material3.FilledTonalIconButton(onClick = onReset) { Icon(androidx.compose.material.icons.Icons.Rounded.Refresh, stringResource(R.string.pixel_avatar_kind_reset)) }
+            }
+        }
         LazyRow(
             state = state,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),

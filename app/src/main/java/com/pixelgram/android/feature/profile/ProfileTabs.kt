@@ -33,6 +33,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -248,12 +250,13 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
     Grid(ordered.withIndex().toList()) { (index, gift) ->
         val shape = cellShape(index, ordered.size, 3)
         val upgraded = (gift.gift as? TdApi.SentGiftUpgraded)?.gift
+        var visible by remember { mutableStateOf(false) }
         Box(
-            Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Received(gift, own) },
+            Modifier.fillMaxSize().onGloballyPositioned { visible = it.boundsInWindow().height > 0f }.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Received(gift, own) },
             contentAlignment = Alignment.Center,
         ) {
             if (upgraded != null) {
-                com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f)
+                com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f, still = !visible)
                 val ribbon = upgraded.backdrop?.colors?.let { com.pixelgram.android.feature.chat.giftColor(it.edgeColor) } ?: MaterialTheme.colorScheme.primary
                 Box(Modifier.align(Alignment.TopEnd).size(64.dp).clip(RoundedCornerShape(topEnd = 12.dp))) {
                     Text(
@@ -273,7 +276,7 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
                 }
             } else {
                 val sticker = (gift.gift as? TdApi.SentGiftRegular)?.gift?.sticker
-                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false)
+                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false, still = !visible)
             }
             if (gift.isPinned) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {

@@ -383,9 +383,15 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 val publicName = supergroup?.usernames?.activeUsernames?.firstOrNull()
                 val shareLink = publicName?.let { "https://t.me/$it" } ?: groupFull?.inviteLink?.inviteLink
                 val shareContext = LocalContext.current
+                var joined by remember(chatId) { mutableStateOf<Boolean?>(null) }
+                val member = joined ?: (supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true)
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!member) ProfileAction(Icons.Rounded.PersonAdd, stringResource(if (group.isChannel) R.string.profile_subscribe else R.string.profile_join)) {
+                        joined = true
+                        scope.launch { runCatching { graph.td.send(TdApi.JoinChat(chatId)) }.onFailure { joined = false } }
+                    }
                     if (!group.isChannel) ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) { navigator.open(ChatKey(chatId)) }
-                    androidx.compose.runtime.key(effectiveMuted) { MuteAction(graph, chatId, effectiveMuted) }
+                    if (member) androidx.compose.runtime.key(effectiveMuted) { MuteAction(graph, chatId, effectiveMuted) }
                     groupFull?.linkedChatId?.takeIf { it != 0L }?.let { linked ->
                         ProfileAction(if (group.isChannel) Icons.Rounded.Forum else Icons.Rounded.Campaign, stringResource(if (group.isChannel) R.string.profile_discussion else R.string.profile_channel)) { navigator.open(ChatKey(linked)) }
                     }
@@ -393,11 +399,10 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                         val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, shareLink)
                         shareContext.startActivity(android.content.Intent.createChooser(send, null))
                     }
-                    val member = supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true
                     if (com.pixelgram.android.feature.admin.canManage(supergroup?.status)) ProfileAction(Icons.Rounded.Settings, stringResource(R.string.admin_manage)) { navigator.open(com.pixelgram.android.nav.ManageChatKey(chatId)) }
-                    else ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
+                    else if (member) ProfileAction(Icons.AutoMirrored.Rounded.Logout, stringResource(R.string.chat_leave)) {
                         scope.launch {
-                            runCatching { graph.td.send(if (member) TdApi.LeaveChat(chatId) else TdApi.JoinChat(chatId)) }
+                            runCatching { graph.td.send(TdApi.LeaveChat(chatId)) }
                             navigator.back()
                         }
                     }
@@ -592,7 +597,7 @@ private fun RowScope.ProfileAction(
             shapes = ButtonDefaults.shapes(),
             colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
             contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().height(44.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             val spatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
             androidx.compose.animation.AnimatedContent(

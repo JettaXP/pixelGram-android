@@ -367,6 +367,7 @@
     <string name="profile_set_photo_for">Поставить фото</string>
     <string name="profile_remove_photo">Убрать фото</string>
     <string name="profile_join">Вступить</string>
+    <string name="profile_subscribe">Подписаться</string>
     <string name="profile_description">Описание</string>
     <string name="profile_link">Ссылка</string>
     <string name="file_no_app">Нет приложения, чтобы открыть этот файл</string>
@@ -1408,4 +1409,13 @@
     <string name="balance_open_wallet">Открыть кошелёк</string>
     <string name="balance_open_explorer">Открыть в обозревателе</string>
     <string name="gift_view_ton">Открыть в блокчейне TON</string>
+    <string name="pixel_avatar_kind_all">Все чаты</string>
+    <string name="pixel_avatar_kind_private">Личные чаты</string>
+    <string name="pixel_avatar_kind_bots">Боты</string>
+    <string name="pixel_avatar_kind_groups">Группы</string>
+    <string name="pixel_avatar_kind_channels">Каналы</string>
+    <string name="pixel_avatar_kind_same">Как у всех чатов</string>
+    <string name="pixel_avatar_kind_own">Своя форма для этого типа</string>
+    <string name="pixel_avatar_kind_all_sub">Используется везде, где нет своей формы</string>
+    <string name="pixel_avatar_kind_reset">Использовать форму всех чатов</string>
 </resources>
