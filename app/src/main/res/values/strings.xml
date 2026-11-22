@@ -1341,4 +1341,25 @@
         <item quantity="one">%d request</item>
         <item quantity="other">%d requests</item>
     </plurals>
+    <string name="action_translate">Translate</string>
+    <string name="profile_copy_link">Copy link</string>
+    <string name="profile_open_in">Open in…</string>
+    <string name="profile_regdate">Registration date</string>
+    <string name="profile_notes">Notes</string>
+    <string name="profile_notes_private">only visible to you</string>
+    <string name="profile_notes_hint">Only you can see this note</string>
+    <string name="profile_add_note">Add note</string>
+    <string name="regdate_self">You created your account approximately in %1$s.</string>
+    <string name="regdate_self_earlier">You created your account earlier than %1$s.</string>
+    <string name="regdate_self_later">You created your account later than %1$s.</string>
+    <string name="regdate_user">%1$s created their account approximately in %2$s.</string>
+    <string name="regdate_user_earlier">%1$s created their account earlier than %2$s.</string>
+    <string name="regdate_user_later">%1$s created their account later than %2$s.</string>
+    <string name="username_collectible_title">%1$s is a collectible username that belongs to</string>
+    <string name="username_plain_title">%1$s belongs to</string>
+    <string name="username_bought_on">This username was bought on Fragment on %1$s for</string>
+    <string name="username_learn_more">Learn more</string>
+    <string name="balance_public">Your balance is public due to blockchain transparency.</string>
+    <string name="balance_open_wallet">Open wallet</string>
+    <string name="balance_open_explorer">View in explorer</string>
 </resources>

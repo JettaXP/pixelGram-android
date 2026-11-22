@@ -1386,4 +1386,25 @@
         <item quantity="many">%d заявок</item>
         <item quantity="other">%d заявки</item>
     </plurals>
+    <string name="action_translate">Перевести</string>
+    <string name="profile_copy_link">Копировать ссылку</string>
+    <string name="profile_open_in">Открыть в…</string>
+    <string name="profile_regdate">Дата регистрации</string>
+    <string name="profile_notes">Заметки</string>
+    <string name="profile_notes_private">видно только вам</string>
+    <string name="profile_notes_hint">Эту заметку видите только вы</string>
+    <string name="profile_add_note">Добавить заметку</string>
+    <string name="regdate_self">Вы создали аккаунт примерно в %1$s.</string>
+    <string name="regdate_self_earlier">Вы создали аккаунт раньше, чем в %1$s.</string>
+    <string name="regdate_self_later">Вы создали аккаунт позже, чем в %1$s.</string>
+    <string name="regdate_user">%1$s создал(а) аккаунт примерно в %2$s.</string>
+    <string name="regdate_user_earlier">%1$s создал(а) аккаунт раньше, чем в %2$s.</string>
+    <string name="regdate_user_later">%1$s создал(а) аккаунт позже, чем в %2$s.</string>
+    <string name="username_collectible_title">%1$s — коллекционный юзернейм, который принадлежит</string>
+    <string name="username_plain_title">%1$s принадлежит</string>
+    <string name="username_bought_on">Этот юзернейм был куплен на Fragment %1$s за</string>
+    <string name="username_learn_more">Подробнее</string>
+    <string name="balance_public">Баланс виден всем из-за прозрачности блокчейна.</string>
+    <string name="balance_open_wallet">Открыть кошелёк</string>
+    <string name="balance_open_explorer">Открыть в обозревателе</string>
 </resources>

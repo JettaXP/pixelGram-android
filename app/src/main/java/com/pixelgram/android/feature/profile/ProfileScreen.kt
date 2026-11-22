@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.ui.text.withStyle
@@ -324,21 +325,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 title = if (showServerName && serverName != null) serverName else title,
                 onTitleClick = serverName?.takeIf { it != title }?.let { { showServerName = !showServerName } },
                 subtitleLeading = full?.rating?.takeIf { !self || it.level > 0 }?.let { r -> { LevelBadge(r.level) { ratingOpen = true } } },
-                belowSubtitle = full?.tonWalletCard?.takeIf { it.gramAmount > 0 || self }?.let { card ->
-                    {
-                        androidx.compose.material3.Surface(
-                            onClick = { com.pixelgram.android.nav.PendingNav.external = "https://tonviewer.com/${card.address}" },
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                                Text(stringResource(R.string.profile_balance) + ": ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("💎 " + java.math.BigDecimal.valueOf(card.gramAmount, 9).stripTrailingZeros().toPlainString(), style = MaterialTheme.typography.labelLarge)
-                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                },
+                belowSubtitle = full?.tonWalletCard?.let { card -> { BalanceChip(card, title, self) } },
                 orbit = orbitGifts,
                 subtitle = status,
                 photoFileId = user?.bigPhotoFileId ?: chat?.photo?.big?.id ?: 0,
@@ -527,74 +514,23 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 PersonalChannelCard(graph, personal) { navigator.open(ChatKey(personal)) }
             }
             Spacer(Modifier.height(8.dp))
-            SettingsGroup {
-                val context = LocalContext.current
-                val copiedText = stringResource(R.string.profile_copied)
-                val copy: (String) -> Unit = { value ->
-                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(null, value))
-                    android.widget.Toast.makeText(context, copiedText, android.widget.Toast.LENGTH_SHORT).show()
-                }
-                val names = user?.usernames?.takeIf { it.isNotEmpty() } ?: listOfNotNull(username)
-                val rows = buildList {
-                    if (bio.isNotBlank()) add("bio")
-                    names.forEach { add("u:$it") }
-                    if (phone.isNotBlank()) add("phone")
-                    if (userId != 0L) add("id")
-                    if (birthday != null) add("birthday")
-                }
-                rows.forEachIndexed { index, row ->
-                    val position = com.pixelgram.android.ui.components.segmentPosition(index, rows.size)
-                    when {
-                        row == "phone" -> SettingsItem(
-                            "+$phone",
-                            position,
-                            subtitle = listOfNotNull(stringResource(R.string.profile_phone), phoneDetails?.takeIf { it.isNotBlank() }).joinToString(" · "),
-                            icon = Icons.Rounded.Phone,
-                            pill = true,
-                            headlineContent = { HiddenPhone("+" + formatPhone(phone), hidden = appearance.hidePhone && self) },
-                            onLongClick = { copy("+$phone") },
-                        )
-                        row.startsWith("u:") -> {
-                            val name = row.removePrefix("u:")
-                            SettingsItem(
-                                "@$name",
-                                position,
-                                stringResource(if (name == names.first()) R.string.profile_username else R.string.profile_extra_username),
-                                Icons.Rounded.AlternateEmail,
-                                pill = true,
-                                onClick = { collectible = name },
-                                onLongClick = { copy("@$name") },
-                                trailing = if (name == names.first()) {
-                                    { androidx.compose.material3.IconButton(onClick = { showQr = true }) { Icon(Icons.Rounded.QrCode2, stringResource(R.string.profile_share)) } }
-                                } else {
-                                    null
-                                },
-                            )
-                        }
-                        row == "bio" -> {
-                            val linkColor = MaterialTheme.colorScheme.primary
-                            val bioText = remember(full, linkColor) { full?.bio?.let { com.pixelgram.android.nav.linkedText(it, linkColor, opener) } }
-                            SettingsItem(
-                                bio,
-                                position,
-                                stringResource(R.string.profile_bio),
-                                Icons.Rounded.Info,
-                                pill = true,
-                                onLongClick = { copy(bio) },
-                                headlineContent = bioText?.let { { Text(it, color = MaterialTheme.colorScheme.onSurface) } },
-                            )
-                        }
-                        row == "id" -> SettingsItem(userId.toString(), position, "ID", Icons.Rounded.Tag, pill = true, onLongClick = { copy(userId.toString()) })
-                        row == "birthday" -> SettingsItem(
-                            birthdayText(LocalContext.current, birthday!!),
-                            position,
-                            stringResource(R.string.profile_birthday),
-                            Icons.Rounded.Cake,
-                            pill = true,
-                        )
-                    }
-                }
+            if (userId != 0L) {
+                val linkColor = MaterialTheme.colorScheme.primary
+                val bioText = remember(full, linkColor) { full?.bio?.let { com.pixelgram.android.nav.linkedText(it, linkColor, opener) } }
+                UserInfoRows(
+                    graph = graph,
+                    userId = userId,
+                    user = user,
+                    full = full,
+                    self = self,
+                    names = user?.usernames?.takeIf { it.isNotEmpty() } ?: listOfNotNull(username),
+                    phoneDetails = phoneDetails,
+                    hidePhone = appearance.hidePhone,
+                    bioText = bioText,
+                    onUsername = { collectible = it },
+                    onQr = { showQr = true },
+                    onNoteChanged = { scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } },
+                )
             }
             if (user?.deleted != true) {
                 ProfileTabs(
@@ -621,7 +557,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     }
     MediaSelectionBar(graph, navigator)
     if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
-    collectible?.let { name -> UsernameSheet(graph, name) { collectible = null } }
+    collectible?.let { name -> UsernameSheet(graph, name, if (userId != 0L) userId else chatId) { collectible = null } }
     if (showQr && username != null) ProfileQrSheet(username) { showQr = false }
     groupQr?.let { name -> ProfileQrSheet(name) { groupQr = null } }
 }
@@ -996,39 +932,79 @@ private fun RatingSheet(rating: TdApi.UserRating, name: String, onDismiss: () ->
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun UsernameSheet(graph: AppGraph, name: String, onDismiss: () -> Unit) {
+private fun UsernameSheet(graph: AppGraph, name: String, ownerId: Long, onDismiss: () -> Unit) {
     val info by produceState<TdApi.CollectibleItemInfo?>(null, name) {
         value = runCatching { graph.td.send(TdApi.GetCollectibleItemInfo(TdApi.CollectibleItemTypeUsername(name))) }.getOrNull()
     }
+    val snapshot by graph.store.snapshot.collectAsState()
     val state = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val close: () -> Unit = { scope.launch { state.hide() }.invokeOnCompletion { onDismiss() } }
     val context = LocalContext.current
+    val copiedText = stringResource(R.string.profile_copied)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Rounded.AlternateEmail, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-            Text("@$name", style = MaterialTheme.typography.headlineSmallEmphasized)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(80.dp).clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.AlternateEmail, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            }
+            Spacer(Modifier.height(16.dp))
             val item = info
-            if (item != null) {
-                val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(item.purchaseDate * 1000L))
-                Text(stringResource(R.string.username_bought, date), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Text(
-                    "${formatAmount(item.cryptocurrencyAmount, 9)} ${item.cryptocurrency} · ${formatAmount(item.amount, 2)} ${item.currency}",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(item.url))) }, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.username_fragment))
+            val accent = MaterialTheme.colorScheme.primary
+            val title = androidx.compose.ui.text.buildAnnotatedString {
+                val template = stringResource(if (item != null) R.string.username_collectible_title else R.string.username_plain_title, "\u0000")
+                val parts = template.split("\u0000")
+                append(parts[0])
+                withStyle(androidx.compose.ui.text.SpanStyle(color = accent)) { append("@$name") }
+                if (parts.size > 1) append(parts[1])
+            }
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(horizontal = 26.dp))
+            val owner = snapshot.users[ownerId]
+            if (owner != null) {
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 12.dp)) {
+                        com.pixelgram.android.ui.components.Avatar(owner.name, ownerId, owner.localPhoto ?: snapshot.files[owner.photoFileId], owner.minithumb, 30.dp)
+                        Spacer(Modifier.size(8.dp))
+                        Text(owner.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                    }
                 }
             }
-            OutlinedButton(
+            if (item != null) {
+                Spacer(Modifier.height(16.dp))
+                val date = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(item.purchaseDate * 1000L))
+                val fiat = java.text.NumberFormat.getCurrencyInstance().apply { runCatching { currency = java.util.Currency.getInstance(item.currency) } }.format(java.math.BigDecimal.valueOf(item.amount, 2))
+                val text = androidx.compose.ui.text.buildAnnotatedString {
+                    append(stringResource(R.string.username_bought_on, date))
+                    append(" ")
+                    appendInlineContent("gram", "TON")
+                    append(" ${formatAmount(item.cryptocurrencyAmount, 9)} ($fiat)")
+                }
+                Text(
+                    text,
+                    inlineContent = mapOf("gram" to androidx.compose.foundation.text.InlineTextContent(androidx.compose.ui.text.Placeholder(androidx.compose.ui.unit.TextUnit(16f, androidx.compose.ui.unit.TextUnitType.Sp), androidx.compose.ui.unit.TextUnit(16f, androidx.compose.ui.unit.TextUnitType.Sp), androidx.compose.ui.text.PlaceholderVerticalAlign.Center)) {
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.mini_gram_16), null)
+                    }),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            if (item != null) Button(
+                onClick = { com.pixelgram.android.nav.PendingNav.external = item.url },
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text(stringResource(R.string.username_learn_more)) }
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.FilledTonalButton(
                 onClick = {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://t.me/$name")
-                    context.startActivity(Intent.createChooser(send, null))
+                    context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText(null, "https://t.me/$name"))
+                    android.widget.Toast.makeText(context, copiedText, android.widget.Toast.LENGTH_SHORT).show()
+                    close()
                 },
                 shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.action_share)) }
-            androidx.compose.material3.TextButton(onClick = close) { Text(stringResource(R.string.action_close)) }
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text(stringResource(R.string.profile_copy_link)) }
         }
     }
 }
@@ -1169,15 +1145,14 @@ private fun EditProfileSheet(graph: AppGraph, full: TdApi.UserFullInfo?, onDismi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun ProfileQrSheet(username: String, onDismiss: () -> Unit) {
+internal fun ProfileQrSheet(username: String, link: String = "https://t.me/$username", onDismiss: () -> Unit) {
         val context = LocalContext.current
-        val link = "https://t.me/$username"
         val qrSheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val qrScope = rememberCoroutineScope()
         ModalBottomSheet(onDismissRequest = { onDismiss() }, sheetState = qrSheet) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 ExpressiveQrCode(link, Modifier.fillMaxWidth(0.85f).aspectRatio(1f))
-                Text("@$username", style = MaterialTheme.typography.titleLargeEmphasized)
+                Text(if (link.startsWith("https://t.me/")) "@$username" else username, style = if (link.startsWith("https://t.me/")) MaterialTheme.typography.titleLargeEmphasized else MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { qrScope.launch { qrSheet.hide() }.invokeOnCompletion { onDismiss() } }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.action_close)) }
                     Button(

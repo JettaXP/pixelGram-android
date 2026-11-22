@@ -110,18 +110,18 @@ fun ProfileHeader(
             val profileColors = if (colorId >= 0) com.pixelgram.android.td.ProfileAccentColors.background(colorId, dark) else null
             if (banner == null && (profileColors != null || patternId != 0L)) {
                 val center = avatarTop + AvatarSize / 2
-                Box(Modifier.fillMaxWidth().height(avatarTop + AvatarSize + 60.dp).graphicsLayer { alpha = 1f - e }) {
+                Box(Modifier.fillMaxWidth().height(avatarTop + AvatarSize + 14.dp + infoHeight + 24.dp).graphicsLayer { alpha = 1f - e }) {
                     if (profileColors != null) {
                         Box(
                             Modifier.matchParentSize().background(
                                 Brush.radialGradient(
                                     listOf(profileColors.first(), profileColors.last()),
                                     center = androidx.compose.ui.geometry.Offset.Unspecified.let { androidx.compose.ui.geometry.Offset(with(density) { (full / 2).toPx() }, with(density) { center.toPx() }) },
-                                    radius = with(density) { (full * 0.7f).toPx() },
+                                    radius = with(density) { (full * 1.25f).toPx() },
                                 ),
                             ),
                         )
-                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to surface)))
+                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.75f to Color.Transparent, 1f to surface)))
                     }
                     if (patternId != 0L) {
                         val tint = if (profileColors != null) Color.White else MaterialTheme.colorScheme.primary
@@ -190,27 +190,46 @@ fun ProfileHeader(
                 }
             }
             if (orbit.isNotEmpty() && e < 0.4f) {
-                val angles = listOf(205f, 160f, 245f, -25f, 20f, -65f)
+                val box = maxOf(AvatarSize, 96.dp)
+                val acx = full / 2
+                val ay = avatarTop - (box - AvatarSize) / 2
+                val acy = ay + box / 2
+                val spots = listOf(
+                    (acx * 2f / 3f - 6.dp) to (ay - 4.dp),
+                    (acx * 4f / 3f + 12.dp) to (ay - 4.dp),
+                    (acx / 2f - 20.dp) to (acy - 13.dp),
+                    (acx * 1.5f + 20.dp) to (acy - 13.dp),
+                    (acx * 2f / 3f - 12.dp) to (ay + box - 16.dp),
+                    (acx * 4f / 3f + 12.dp) to (ay + box - 16.dp),
+                )
+                val appear by androidx.compose.animation.core.animateFloatAsState(1f - e * 2.5f, label = "orbit")
                 orbit.take(6).forEachIndexed { i, gift ->
-                    val angle = Math.toRadians(angles[i].toDouble())
-                    val radius = AvatarSize / 2 + 46.dp
-                    val dx = radius * kotlin.math.cos(angle).toFloat()
-                    val dy = radius * kotlin.math.sin(angle).toFloat()
+                    val (cx, cy) = spots[i]
                     val glow = gift.backdrop?.colors?.let { com.pixelgram.android.feature.chat.giftColor(it.centerColor) } ?: MaterialTheme.colorScheme.primary
-                    val appear = androidx.compose.animation.core.animateFloatAsState(1f - e * 2.5f, label = "orbit")
+                    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(gift.name) {
+                        kotlinx.coroutines.delay(i * 60L)
+                        enter.animateTo(1f, androidx.compose.animation.core.spring(0.55f, 300f))
+                    }
                     Box(
                         Modifier
-                            .align(Alignment.TopCenter)
-                            .offset(x = dx, y = avatarTop + AvatarSize / 2 + dy - 22.dp)
-                            .size(44.dp)
-                            .graphicsLayer { alpha = appear.value.coerceIn(0f, 1f); scaleX = alpha; scaleY = alpha }
-                            .background(Brush.radialGradient(listOf(glow.copy(alpha = 0.55f), Color.Transparent)), androidx.compose.foundation.shape.CircleShape)
+                            .align(Alignment.TopStart)
+                            .offset(x = cx - 22.5.dp, y = cy - 22.5.dp)
+                            .size(45.dp)
+                            .graphicsLayer {
+                                val v = enter.value * appear.coerceIn(0f, 1f)
+                                alpha = v.coerceIn(0f, 1f)
+                                val sc = 0.5f + 0.5f * v
+                                scaleX = sc
+                                scaleY = sc
+                            }
+                            .background(Brush.radialGradient(listOf(glow, glow.copy(alpha = 0f))), androidx.compose.foundation.shape.CircleShape)
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Unique(gift.name) },
                         contentAlignment = Alignment.Center,
                     ) {
                         gift.model?.sticker?.let { sticker ->
-                            com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(30.dp), video = false)
+                            com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(24.dp), video = false)
                         }
                     }
                 }
