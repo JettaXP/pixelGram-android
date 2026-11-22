@@ -123,17 +123,33 @@ fun ChatsTab(
     val appearance by graph.appearance.state.collectAsState()
     val archive = baseList == LIST_ARCHIVE
     val allTitle = stringResource(R.string.folder_all)
-    val tabs = remember(snapshot.folders, snapshot.unread, allTitle, archive, appearance.hideAllChats) {
+    val folderContext = androidx.compose.ui.platform.LocalContext.current
+    com.pixelgram.android.feature.settings.FolderPrefs.init(folderContext)
+    val unreadTitle = stringResource(R.string.folders_unread)
+    val mentionsTitle = stringResource(R.string.folders_mentions)
+    val prefsOrder = com.pixelgram.android.feature.settings.FolderPrefs.order
+    val unreadOn = com.pixelgram.android.feature.settings.FolderPrefs.unread
+    val mentionsOn = com.pixelgram.android.feature.settings.FolderPrefs.mentions
+    val mainRows = snapshot.lists[LIST_MAIN].orEmpty()
+    val tabs = remember(snapshot.folders, snapshot.unread, allTitle, archive, appearance.hideAllChats, prefsOrder, unreadOn, mentionsOn, mainRows) {
         if (archive) {
             emptyList()
         } else {
             val main = snapshot.unread[LIST_MAIN]
-            val folders = snapshot.folders.map { f ->
-                val u = snapshot.unread[folderKey(f.id)]
-                FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
+            val byId = snapshot.folders.associateBy { it.id }
+            val virtual = { id: Int -> virtualRows(mainRows, id).let { rows -> rows.size to rows.count { !it.muted } } }
+            val all = com.pixelgram.android.feature.settings.FolderPrefs.arrange(com.pixelgram.android.feature.settings.FolderPrefs.all(snapshot.folders))
+            all.mapNotNull { id ->
+                when (id) {
+                    0 -> if (!appearance.hideAllChats || snapshot.folders.isEmpty()) FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0) else null
+                    com.pixelgram.android.feature.settings.FolderPrefs.UnreadId -> if (unreadOn) virtual(id).let { (c, u) -> FolderTab(id, unreadTitle, "Unread", c, u) } else null
+                    com.pixelgram.android.feature.settings.FolderPrefs.MentionsId -> if (mentionsOn) virtual(id).let { (c, u) -> FolderTab(id, mentionsTitle, "Mention", c, u) } else null
+                    else -> byId[id]?.let { f ->
+                        val u = snapshot.unread[folderKey(f.id)]
+                        FolderTab(f.id, f.title, f.icon ?: "Custom", u?.chats ?: 0, u?.unmuted ?: 0)
+                    }
+                }
             }
-            if (appearance.hideAllChats && folders.isNotEmpty()) folders
-            else listOf(FolderTab(0, allTitle, "All", main?.chats ?: 0, main?.unmuted ?: 0)) + folders
         }
     }
     var folder by rememberSaveable { mutableStateOf(0) }
@@ -348,13 +364,21 @@ fun ChatsTab(
             val id = tabs.getOrNull(page)?.id ?: 0
             val key = when {
                 archive -> LIST_ARCHIVE
+                id < 0 -> "virtual:$id"
                 id != 0 -> folderKey(id)
                 else -> LIST_MAIN
             }
             val archived = if (key == LIST_MAIN && appearance.archivePull) snapshot.lists[LIST_ARCHIVE].orEmpty() else emptyList()
-            ChatListPage(graph, navigator, key, snapshot.lists[key].orEmpty(), if (page == pager.currentPage) scrollTop else 0, archived, onOpenArchive)
+            val pageRows = if (id < 0 && !archive) remember(mainRows, id) { virtualRows(mainRows, id) } else snapshot.lists[key].orEmpty()
+            ChatListPage(graph, navigator, key, pageRows, if (page == pager.currentPage) scrollTop else 0, archived, onOpenArchive)
         }
     }
+}
+
+private fun virtualRows(rows: List<ChatRow>, id: Int): List<ChatRow> = when (id) {
+    com.pixelgram.android.feature.settings.FolderPrefs.UnreadId -> rows.filter { it.unread > 0 }
+    com.pixelgram.android.feature.settings.FolderPrefs.MentionsId -> rows.filter { it.mentions > 0 || (it.kind == com.pixelgram.android.td.ChatKind.Private && it.unread > 0) }
+    else -> rows
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

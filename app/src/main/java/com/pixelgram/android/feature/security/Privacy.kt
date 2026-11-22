@@ -296,7 +296,7 @@ private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FullDialog(title: String, onDismiss: () -> Unit, fab: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+internal fun FullDialog(title: String, onDismiss: () -> Unit, fab: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Scaffold(
             topBar = {
@@ -365,7 +365,7 @@ private class Candidate(val id: Long, val title: String, val subtitle: String, v
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PeoplePicker(graph: AppGraph, title: String, initial: List<Long>, onDismiss: () -> Unit, onDone: (List<Long>) -> Unit) {
+internal fun PeoplePicker(graph: AppGraph, title: String, initial: List<Long>, onDismiss: () -> Unit, everything: Boolean = false, onDone: (List<Long>) -> Unit) {
     val snapshot by graph.store.snapshot.collectAsState()
     val selected = remember { mutableStateListOf<Long>().apply { addAll(initial) } }
     var query by remember { mutableStateOf("") }
@@ -374,10 +374,11 @@ private fun PeoplePicker(graph: AppGraph, title: String, initial: List<Long>, on
         val users = (contacts + initial.filter { it > 0 }).distinct().mapNotNull { id ->
             snapshot.users[id]?.let { Candidate(id, it.name, it.username?.let { u -> "@$u" }.orEmpty(), it.photoFileId, it.localPhoto, it.minithumb) }
         }
-        val groups = snapshot.lists[com.pixelgram.android.td.LIST_MAIN].orEmpty().filter { it.kind == com.pixelgram.android.td.ChatKind.Group }.map { row ->
+        val groups = snapshot.lists[com.pixelgram.android.td.LIST_MAIN].orEmpty().filter { if (everything) it.userId == 0L || it.userId !in contacts else it.kind == com.pixelgram.android.td.ChatKind.Group }.map { row ->
             Candidate(row.id, row.title, "", row.photoFileId, row.photoPath, row.minithumb)
         }
-        (users + groups).sortedBy { it.title.lowercase() }
+        if (everything) (groups + users.map { u -> Candidate(snapshot.lists[com.pixelgram.android.td.LIST_MAIN].orEmpty().firstOrNull { it.userId == u.id }?.id ?: u.id, u.title, u.subtitle, u.photo, u.local, u.mini) }).distinctBy { it.id }.sortedBy { it.title.lowercase() }
+        else (users + groups).sortedBy { it.title.lowercase() }
     }
     val shown = candidates.filter { query.isBlank() || it.title.contains(query, true) || it.subtitle.contains(query, true) }
     FullDialog(title, onDismiss, fab = {

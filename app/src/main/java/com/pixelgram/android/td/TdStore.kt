@@ -44,7 +44,7 @@ data class ChatRow(
 )
 
 @Immutable
-data class FolderInfo(val id: Int, val title: String, val icon: String?)
+data class FolderInfo(val id: Int, val title: String, val icon: String?, val colorId: Int = -1, val shareable: Boolean = false, val hasLinks: Boolean = false)
 
 @Immutable
 data class UnreadInfo(val chats: Int, val unmuted: Int)
@@ -210,7 +210,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
                 if (file.local.isDownloadingCompleted) files[file.id] = file.local.path else files.remove(file.id)
             }
             is TdApi.UpdateChatFolders -> folders = update.chatFolders.map {
-                FolderInfo(it.id, it.name.text.text, it.icon?.name)
+                FolderInfo(it.id, it.name.text.text, it.icon?.name, it.colorId, it.isShareable, it.hasMyInviteLinks)
             }
             is TdApi.UpdateUnreadChatCount -> unread[update.chatList.key()] = UnreadInfo(update.unreadCount, update.unreadUnmutedCount)
             is TdApi.UpdateChatAction -> {

@@ -1189,4 +1189,35 @@
     <string name="business_bot_pause">Pause</string>
     <string name="business_bot_manage">Manage bot</string>
     <string name="business_bot_remove">Remove from this chat</string>
+    <string name="folders_about">Create folders for different groups of chats and quickly switch between them. Long-press the handle to reorder.</string>
+    <string name="folders_unread">Unread</string>
+    <string name="folders_mentions">Mentions</string>
+    <string name="folders_hidden">Hidden</string>
+    <string name="folders_all_sub">All your chats</string>
+    <string name="folders_unread_sub">Chats with unread messages</string>
+    <string name="folders_mentions_sub">Mentions and unread private messages</string>
+    <string name="folders_shared">Shared folder</string>
+    <string name="folders_cloud">Cloud folder</string>
+    <string name="folders_links">Invite links</string>
+    <string name="folders_recommended">Recommended folders</string>
+    <string name="folders_add">Add</string>
+    <string name="folders_included">Included chats</string>
+    <string name="folders_excluded">Excluded chats</string>
+    <string name="folders_add_chats">Add chats</string>
+    <string name="folders_remove_chats">Exclude chats</string>
+    <string name="folders_muted">Muted</string>
+    <string name="folders_read">Read</string>
+    <string name="folders_archived">Archived</string>
+    <string name="folders_color">Folder color</string>
+    <string name="folders_color_hint">The color is shown on folder tags in the chat list.</string>
+    <string name="folders_share">Share folder</string>
+    <string name="folders_share_sub">Create links so others can add this folder</string>
+    <string name="folders_share_title">Share \"%1$s\"</string>
+    <string name="folders_share_about">Anyone with a link can add this folder and join the chats in it.</string>
+    <string name="folders_create_link">Create a new link</string>
+    <string name="link_copied">Link copied</string>
+    <plurals name="folders_link_chats">
+        <item quantity="one">%d chat</item>
+        <item quantity="other">%d chats</item>
+    </plurals>
 </resources>

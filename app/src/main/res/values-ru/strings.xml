@@ -1228,4 +1228,37 @@
     <string name="business_bot_pause">Пауза</string>
     <string name="business_bot_manage">Управление ботом</string>
     <string name="business_bot_remove">Убрать из этого чата</string>
+    <string name="folders_about">Создавайте папки для разных групп чатов и быстро переключайтесь между ними. Зажмите ручку, чтобы изменить порядок.</string>
+    <string name="folders_unread">Непрочитанные</string>
+    <string name="folders_mentions">Упоминания</string>
+    <string name="folders_hidden">Скрыта</string>
+    <string name="folders_all_sub">Все ваши чаты</string>
+    <string name="folders_unread_sub">Чаты с непрочитанными сообщениями</string>
+    <string name="folders_mentions_sub">Упоминания и непрочитанные личные сообщения</string>
+    <string name="folders_shared">Общая папка</string>
+    <string name="folders_cloud">Облачная папка</string>
+    <string name="folders_links">Ссылки-приглашения</string>
+    <string name="folders_recommended">Рекомендуемые папки</string>
+    <string name="folders_add">Добавить</string>
+    <string name="folders_included">Добавленные чаты</string>
+    <string name="folders_excluded">Исключённые чаты</string>
+    <string name="folders_add_chats">Добавить чаты</string>
+    <string name="folders_remove_chats">Исключить чаты</string>
+    <string name="folders_muted">Без уведомлений</string>
+    <string name="folders_read">Прочитанные</string>
+    <string name="folders_archived">Архивированные</string>
+    <string name="folders_color">Цвет папки</string>
+    <string name="folders_color_hint">Цвет отображается на метках папки в списке чатов.</string>
+    <string name="folders_share">Поделиться папкой</string>
+    <string name="folders_share_sub">Создайте ссылки, чтобы другие могли добавить эту папку</string>
+    <string name="folders_share_title">Поделиться «%1$s»</string>
+    <string name="folders_share_about">Любой, у кого есть ссылка, сможет добавить папку и вступить в её чаты.</string>
+    <string name="folders_create_link">Создать новую ссылку</string>
+    <string name="link_copied">Ссылка скопирована</string>
+    <plurals name="folders_link_chats">
+        <item quantity="one">%d чат</item>
+        <item quantity="few">%d чата</item>
+        <item quantity="many">%d чатов</item>
+        <item quantity="other">%d чата</item>
+    </plurals>
 </resources>
