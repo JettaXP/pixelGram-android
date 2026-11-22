@@ -145,7 +145,7 @@ private fun SessionRow(session: TdApi.Session, position: com.pixelgram.android.u
 @Composable
 private fun SessionDetails(session: TdApi.Session, onTerminate: () -> Unit) {
     val pixel = session.isPixelgram()
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
                 .size(88.dp)
@@ -160,12 +160,17 @@ private fun SessionDetails(session: TdApi.Session, onTerminate: () -> Unit) {
         Text(session.deviceModel.ifBlank { session.platform }, style = MaterialTheme.typography.headlineSmallEmphasized)
         Text("${session.applicationName} ${session.applicationVersion}", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
-        Detail(stringResource(R.string.session_system), listOf(session.platform, session.systemVersion).filter { it.isNotBlank() }.joinToString(" "))
-        Detail(stringResource(R.string.session_location), session.location)
-        Detail(stringResource(R.string.session_ip), session.ipAddress)
-        Detail(stringResource(R.string.session_logged_in), fullDate(session.logInDate))
-        Detail(stringResource(R.string.session_last_active), fullDate(session.lastActiveDate))
-        Detail(stringResource(R.string.session_official), stringResource(if (session.isOfficialApplication) R.string.yes else R.string.no))
+        val details = listOf(
+            stringResource(R.string.session_system) to listOf(session.platform, session.systemVersion).filter { it.isNotBlank() }.joinToString(" "),
+            stringResource(R.string.session_location) to session.location,
+            stringResource(R.string.session_ip) to session.ipAddress,
+            stringResource(R.string.session_logged_in) to fullDate(session.logInDate),
+            stringResource(R.string.session_last_active) to fullDate(session.lastActiveDate),
+            stringResource(R.string.session_official) to stringResource(if (session.isOfficialApplication) R.string.yes else R.string.no),
+        ).filter { it.second.isNotBlank() }
+        Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+            details.forEachIndexed { index, (label, value) -> Detail(label, value, index, details.size) }
+        }
         if (!session.isCurrent) {
             Spacer(Modifier.height(20.dp))
             Button(
@@ -178,12 +183,13 @@ private fun SessionDetails(session: TdApi.Session, onTerminate: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Detail(label: String, value: String) {
-    if (value.isBlank()) return
-    androidx.compose.material3.ListItem(
-        headlineContent = { Text(value) },
+private fun Detail(label: String, value: String, index: Int, count: Int) {
+    androidx.compose.material3.SegmentedListItem(
+        onClick = {},
+        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
+        colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
         overlineContent = { Text(label) },
-        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-    )
+    ) { Text(value) }
 }

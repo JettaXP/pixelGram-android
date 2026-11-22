@@ -104,6 +104,11 @@ fun SearchScreen(graph: AppGraph, navigator: Navigator) {
             results = coroutineScope {
                 val local = async {
                     val ids = LinkedHashSet<Long>()
+                    text.trim().removePrefix("tg://user?id=").toLongOrNull()?.takeIf { kotlin.math.abs(it) >= 1000 }?.let { raw ->
+                        val user = runCatching { graph.td.send(TdApi.GetUser(raw)) }.getOrNull()
+                        if (user != null) runCatching { graph.td.send(TdApi.CreatePrivateChat(raw, true)) }.getOrNull()?.let { ids.add(it.id) }
+                        else listOf(raw, -raw, -1000000000000L - kotlin.math.abs(raw)).firstNotNullOfOrNull { id -> runCatching { graph.td.send(TdApi.GetChat(id)) }.getOrNull() }?.let { ids.add(it.id) }
+                    }
                     runCatching { graph.td.send(TdApi.SearchChats().apply { this.query = text; limit = 50 }).chatIds }.getOrNull()?.forEach(ids::add)
                     runCatching { graph.td.send(TdApi.SearchChatsOnServer().apply { this.query = text; limit = 50 }).chatIds }.getOrNull()?.forEach(ids::add)
                     ids.mapNotNull { runCatching { graph.td.send(TdApi.GetChat(it)) }.getOrNull() }

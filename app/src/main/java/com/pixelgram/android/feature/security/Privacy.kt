@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.security
 
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -316,9 +319,7 @@ private fun PrivacyRuleEditor(graph: AppGraph, kind: PrivacyKind, initial: Parse
     val allow = remember { mutableStateListOf<Long>().apply { addAll(initial.allow) } }
     val deny = remember { mutableStateListOf<Long>().apply { addAll(initial.deny) } }
     var picking by remember { mutableStateOf<Boolean?>(null) }
-    FullDialog(stringResource(kind.title), onDismiss, fab = {
-        FloatingActionButton(onClick = { onSave(build(base, allow, deny)) }) { Icon(Icons.Rounded.Check, stringResource(R.string.action_done)) }
-    }) {
+    FullDialog(stringResource(kind.title), { onSave(build(base, allow, deny)) }) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val options = buildList {
                 add(Base.Everybody)
@@ -385,17 +386,48 @@ internal fun PeoplePicker(graph: AppGraph, title: String, initial: List<Long>, o
         FloatingActionButton(onClick = { onDone(selected.toList()) }) { Icon(Icons.Rounded.Check, stringResource(R.string.action_done)) }
     }) {
         Column(Modifier.fillMaxSize()) {
-            if (selected.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    selected.forEach { id ->
+            val chips = remember { mutableStateListOf<Long>().apply { addAll(initial) } }
+            androidx.compose.runtime.LaunchedEffect(selected.toList()) { selected.forEach { if (it !in chips) chips.add(it) } }
+            var focused by remember { mutableStateOf<Long?>(null) }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()).padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                chips.forEach { id ->
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = id in selected,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.6f) + androidx.compose.animation.shrinkHorizontally(),
+                    ) {
                         val c = candidates.firstOrNull { it.id == id }
-                        Surface(onClick = { selected.remove(id) }, shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 10.dp)) {
-                                Avatar(c?.title.orEmpty(), id, c?.local ?: c?.photo?.let { snapshot.files[it] }, c?.mini, 28.dp)
-                                Spacer(Modifier.width(6.dp))
-                                Text(c?.title ?: id.toString(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(IntrinsicWidth))
-                                Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Rounded.Close, null, Modifier.size(14.dp))
+                        val active = focused == id
+                        val bg by androidx.compose.animation.animateColorAsState(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, label = "chip")
+                        val fg by androidx.compose.animation.animateColorAsState(if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer, label = "chip-fg")
+                        Surface(
+                            onClick = {
+                                if (active) {
+                                    selected.remove(id)
+                                    focused = null
+                                } else {
+                                    focused = id
+                                }
+                            },
+                            shape = CircleShape,
+                            color = bg,
+                            contentColor = fg,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 12.dp)) {
+                                Box(Modifier.size(28.dp)) {
+                                    Avatar(c?.title.orEmpty(), id, c?.local ?: c?.photo?.let { snapshot.files[it] }, c?.mini, 28.dp)
+                                    androidx.compose.animation.AnimatedVisibility(active, enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(), exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut()) {
+                                        Box(Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Rounded.Close, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(c?.title ?: id.toString(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = IntrinsicWidth))
                             }
                         }
                     }
@@ -405,25 +437,26 @@ internal fun PeoplePicker(graph: AppGraph, title: String, initial: List<Long>, o
                 OutlinedTextField(query, { query = it }, placeholder = { Text(stringResource(R.string.privacy_search)) }, singleLine = true, shape = CircleShape, modifier = Modifier.weight(1f))
                 if (selected.isNotEmpty()) TextButton(onClick = { selected.clear() }) { Text(stringResource(R.string.privacy_deselect_all)) }
             }
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(shown, key = { it.id }) { c ->
+            LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
+                item { Spacer(Modifier.height(8.dp)) }
+                itemsIndexed(shown, key = { _, it -> it.id }) { index, c ->
                     val checked = c.id in selected
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { if (checked) selected.remove(c.id) else selected.add(c.id) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Box {
-                            Avatar(c.title, c.id, c.local ?: snapshot.files[c.photo], c.mini, 48.dp, onNeedFile = { if (c.photo != 0) graph.store.requestFileAsync(c.photo) })
-                            if (checked) Box(Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    androidx.compose.material3.SegmentedListItem(
+                        onClick = { if (checked) selected.remove(c.id) else selected.add(c.id) },
+                        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, shown.size),
+                        colors = com.pixelgram.android.ui.components.segmentedColors(),
+                        leadingContent = {
+                            Box {
+                                Avatar(c.title, c.id, c.local ?: snapshot.files[c.photo], c.mini, 44.dp, onNeedFile = { if (c.photo != 0) graph.store.requestFileAsync(c.photo) })
+                                androidx.compose.animation.AnimatedVisibility(checked, Modifier.align(Alignment.BottomEnd), enter = androidx.compose.animation.scaleIn(), exit = androidx.compose.animation.scaleOut()) {
+                                    Box(Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Rounded.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                                    }
+                                }
                             }
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(c.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (c.subtitle.isNotBlank()) Text(c.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                        },
+                        supportingContent = c.subtitle.takeIf { it.isNotBlank() }?.let { { Text(it) } },
+                    ) { Text(c.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
                 item { Spacer(Modifier.height(96.dp)) }
             }

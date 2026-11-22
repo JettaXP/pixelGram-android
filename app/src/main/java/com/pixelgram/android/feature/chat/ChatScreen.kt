@@ -3502,18 +3502,22 @@ private fun BusinessBotBar(graph: AppGraph, chatId: Long, bar: TdApi.BusinessBot
             ) { Text(stringResource(if (bar.isBotPaused) R.string.business_bot_resume else R.string.business_bot_pause)) }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, null) }
-                androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
-                    if (bar.manageUrl.isNotBlank()) androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(stringResource(R.string.business_bot_manage)) },
-                        leadingIcon = { Icon(Icons.Rounded.Settings, null) },
-                        onClick = { menu = false; com.pixelgram.android.nav.PendingNav.external = bar.manageUrl },
-                    )
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(stringResource(R.string.business_bot_remove), color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = { menu = false; scope.launch { runCatching { graph.td.send(TdApi.RemoveBusinessConnectedBotFromChat(chatId)) } } },
-                    )
-                }
+                com.pixelgram.android.ui.components.ExpressiveMenu(
+                    menu,
+                    { menu = false },
+                    listOf(
+                        listOfNotNull(
+                            bar.manageUrl.takeIf { it.isNotBlank() }?.let { url ->
+                                com.pixelgram.android.ui.components.MenuEntry(Icons.Rounded.Settings, stringResource(R.string.business_bot_manage)) { com.pixelgram.android.nav.PendingNav.external = url }
+                            },
+                        ),
+                        listOf(
+                            com.pixelgram.android.ui.components.MenuEntry(Icons.Rounded.Close, stringResource(R.string.business_bot_remove), error = true) {
+                                scope.launch { runCatching { graph.td.send(TdApi.RemoveBusinessConnectedBotFromChat(chatId)) } }
+                            },
+                        ),
+                    ),
+                )
             }
         }
     }

@@ -586,13 +586,13 @@ private fun RowScope.ProfileAction(
         MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "action-content",
     )
-    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         androidx.compose.material3.Button(
             onClick = onClick,
             shapes = ButtonDefaults.shapes(),
             colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
             contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         ) {
             val spatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
             androidx.compose.animation.AnimatedContent(
@@ -606,7 +606,7 @@ private fun RowScope.ProfileAction(
                 Icon(current, null, modifier = Modifier.graphicsLayer { rotationZ = rotation.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.1f) })
             }
         }
-        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
