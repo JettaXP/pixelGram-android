@@ -5,7 +5,7 @@ import android.content.Intent
 import androidx.compose.runtime.Immutable
 
 @Immutable
-data class SavedAccount(val id: Int, val name: String, val phone: String, val userId: Long)
+data class SavedAccount(val id: Int, val name: String, val phone: String, val userId: Long, val photo: String? = null)
 
 object Accounts {
     private const val Prefs = "accounts"
@@ -19,16 +19,24 @@ object Accounts {
 
     fun all(context: Context): List<SavedAccount> = ids(context).map { id ->
         val p = prefs(context)
-        SavedAccount(id, p.getString("name_$id", "").orEmpty(), p.getString("phone_$id", "").orEmpty(), p.getLong("user_$id", 0L))
+        SavedAccount(id, p.getString("name_$id", "").orEmpty(), p.getString("phone_$id", "").orEmpty(), p.getLong("user_$id", 0L), p.getString("photo_$id", null)?.takeIf { java.io.File(it).exists() })
     }
 
     fun databaseDir(id: Int): String = if (id == 0) "tdlib" else "tdlib-$id"
 
     fun filesDir(id: Int): String = if (id == 0) "tdlib-files" else "tdlib-files-$id"
 
-    fun remember(context: Context, name: String, phone: String, userId: Long) {
+    fun remember(context: Context, name: String, phone: String, userId: Long, photo: String? = null) {
         val id = active(context)
-        prefs(context).edit().putString("name_$id", name).putString("phone_$id", phone).putLong("user_$id", userId).apply()
+        val edit = prefs(context).edit().putString("name_$id", name).putString("phone_$id", phone).putLong("user_$id", userId)
+        if (photo != null) edit.putString("photo_$id", photo)
+        edit.apply()
+    }
+
+    fun drawerOpen(context: Context): Boolean = prefs(context).getBoolean("drawer_open", true)
+
+    fun setDrawerOpen(context: Context, open: Boolean) {
+        prefs(context).edit().putBoolean("drawer_open", open).apply()
     }
 
     fun add(context: Context) {

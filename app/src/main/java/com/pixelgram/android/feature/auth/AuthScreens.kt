@@ -321,13 +321,9 @@ private fun CodeScreen(step: AuthStep.Code, ui: AuthUi, controller: AuthControll
             codeSubtitle(step.type, step.phone),
             MaterialShapes.Sunny.toShape(),
         )
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
         ShapeCodeField(code, length, error = ui.error != null)
         ErrorText(ui.error)
-        if (step.details.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(step.details, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-        }
         Spacer(Modifier.height(12.dp))
         if (step.nextType != null) {
             TextButton(onClick = controller::resendCode, enabled = left == 0 && !ui.busy, shapes = ButtonDefaults.shapes()) {
@@ -336,15 +332,6 @@ private fun CodeScreen(step: AuthStep.Code, ui: AuthUi, controller: AuthControll
                     else stringResource(R.string.auth_resend, codeTypeName(step.nextType)),
                 )
             }
-        }
-        if (step.type == CodeType.App) {
-            Text(
-                stringResource(R.string.auth_code_where),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp),
-            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
             OutlinedButton(onClick = controller::backToPhone, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.auth_change_number)) }

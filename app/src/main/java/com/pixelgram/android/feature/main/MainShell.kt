@@ -277,7 +277,8 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
     val banners by graph.remote.banners.collectAsState()
     LaunchedEffect(snapshot.meId) { if (snapshot.meId != 0L) graph.remote.want(snapshot.meId) }
     val banner = banners[snapshot.meId]
-    var accountsOpen by remember { mutableStateOf(false) }
+    val accountsContext = androidx.compose.ui.platform.LocalContext.current
+    var accountsOpen by remember { mutableStateOf(com.pixelgram.android.account.Accounts.drawerOpen(accountsContext)) }
     ModalDrawerSheet(modifier = Modifier.width(DrawerWidth)) {
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(28.dp),
@@ -324,17 +325,18 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                         if (me != null) HiddenPhone("+" + me.phone, hidden = appearance.hidePhone)
                     }
                     val turn by androidx.compose.animation.core.animateFloatAsState(if (accountsOpen) 180f else 0f, label = "accounts-arrow")
-                    androidx.compose.material3.FilledTonalIconButton(onClick = { accountsOpen = !accountsOpen }) {
+                    androidx.compose.material3.FilledTonalIconButton(onClick = { accountsOpen = !accountsOpen; com.pixelgram.android.account.Accounts.setDrawerOpen(accountsContext, accountsOpen) }) {
                         Icon(Icons.Outlined.ExpandMore, stringResource(R.string.accounts_toggle), Modifier.graphicsLayer { rotationZ = turn })
                     }
                 }
             }
         }
         val context = androidx.compose.ui.platform.LocalContext.current
-        LaunchedEffect(me) { if (me != null) com.pixelgram.android.account.Accounts.remember(context, me.name, me.phone, me.id) }
+        val myPhoto = me?.photoFileId?.let { snapshot.files[it] }
+        LaunchedEffect(me, myPhoto) { if (me != null) com.pixelgram.android.account.Accounts.remember(context, me.name, me.phone, me.id, myPhoto) }
         androidx.compose.animation.AnimatedVisibility(accountsOpen) {
             val active = com.pixelgram.android.account.Accounts.active(context)
-            val others = remember(accountsOpen) { com.pixelgram.android.account.Accounts.all(context).filter { it.id != active } }
+            val others = remember(accountsOpen) { com.pixelgram.android.account.Accounts.all(context).filter { it.id != active && it.userId != 0L } }
             Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap)) {
                 val count = others.size + 1
                 others.forEachIndexed { index, account ->
@@ -342,7 +344,7 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                         onClick = { com.pixelgram.android.account.Accounts.switchTo(context, account.id) },
                         shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
                         colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        leadingContent = { Avatar(title = account.name, seed = account.userId, path = null, minithumb = null, size = 36.dp) },
+                        leadingContent = { Avatar(title = account.name, seed = account.userId, path = account.photo, minithumb = null, size = 36.dp) },
                     ) { Text(account.name.ifBlank { stringResource(R.string.accounts_unnamed) }) }
                 }
                 androidx.compose.material3.SegmentedListItem(
