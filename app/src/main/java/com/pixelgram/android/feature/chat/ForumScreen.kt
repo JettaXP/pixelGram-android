@@ -146,7 +146,7 @@ fun ForumScreen(graph: AppGraph, chatId: Long, navigator: Navigator) {
                                 topic.unreadCount > 0 -> Badge(
                                     containerColor = if (topic.notificationSettings.muteFor > 0) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
                                     contentColor = if (topic.notificationSettings.muteFor > 0) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
-                                ) { Text(com.pixelgram.android.ui.theme.countLabel(topic.unreadCount, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers)) }
+                                ) { com.pixelgram.android.ui.components.AnimatedCounter(topic.unreadCount, androidx.compose.material3.LocalTextStyle.current, format = { n -> com.pixelgram.android.ui.theme.countLabel(n, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers) }) }
                                 topic.isPinned -> Icon(Icons.Rounded.PushPin, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
                             }
                         }

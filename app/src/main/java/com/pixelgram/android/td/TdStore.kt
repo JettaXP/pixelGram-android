@@ -193,6 +193,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
                 it.lastReadInboxMessageId = update.lastReadInboxMessageId
                 it.unreadCount = update.unreadCount
             }
+            is TdApi.UpdateChatBusinessBotManageBar -> chats[update.chatId]?.businessBotManageBar = update.businessBotManageBar
             is TdApi.UpdateChatReadOutbox -> chats[update.chatId]?.lastReadOutboxMessageId = update.lastReadOutboxMessageId
             is TdApi.UpdateChatUnreadMentionCount -> chats[update.chatId]?.unreadMentionCount = update.unreadMentionCount
             is TdApi.UpdateChatNotificationSettings -> chats[update.chatId]?.notificationSettings = update.notificationSettings

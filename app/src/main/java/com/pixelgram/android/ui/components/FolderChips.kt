@@ -229,7 +229,7 @@ private fun FolderPill(tab: FolderTab, selected: Boolean, mode: FolderTitle, onC
                     label = "pill-badge-content",
                 )
                 Badge(containerColor = badgeColor, contentColor = badgeContent) {
-                    Text(com.pixelgram.android.ui.theme.countLabel(tab.unreadChats, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers), fontWeight = FontWeight.Bold)
+                    com.pixelgram.android.ui.components.AnimatedCounter(tab.unreadChats, androidx.compose.material3.LocalTextStyle.current.copy(fontWeight = FontWeight.Bold), format = { n -> com.pixelgram.android.ui.theme.countLabel(n, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers) })
                 }
             }
         }

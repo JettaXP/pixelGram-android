@@ -667,6 +667,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     shape = CircleShape,
                 ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
             }
+            Column(Modifier.align(Alignment.TopCenter)) {
+            chat?.businessBotManageBar?.let { bar -> BusinessBotBar(graph, chatId, bar) }
             if (ui.pins.isNotEmpty()) {
                 var pinIndex by remember(ui.pins) { mutableStateOf(0) }
                 val latestPins by androidx.compose.runtime.rememberUpdatedState(ui.pins)
@@ -678,10 +680,11 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     }.collect { found -> if (found != null) pinIndex = found }
                 }
                 val index = pinIndex.coerceIn(0, ui.pins.lastIndex)
-                PinnedBar(ui.pins, index, Modifier.align(Alignment.TopCenter)) {
+                PinnedBar(ui.pins, index) {
                     jumpTo(ui.pins[index].id)
                     pinIndex = (index + 1) % ui.pins.size
                 }
+            }
             }
         }
     }
@@ -1187,20 +1190,35 @@ internal fun MessageBubble(
                     (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
                     if (message.reactions.isNotEmpty()) {
                         ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 5.dp, top = 1.dp)) {
-                            message.reactions.forEach { reaction ->
+                            message.reactions.forEach { reaction -> androidx.compose.runtime.key(reaction.emoji) {
                                 val chosen = reaction.chosen
+                                val appear = remember { androidx.compose.animation.core.Animatable(if (message.reactions.size == 1 && chosen) 0f else 1f) }
+                                val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+                                var wasChosen by remember { mutableStateOf(chosen) }
+                                LaunchedEffect(Unit) { appear.animateTo(1f, androidx.compose.animation.core.spring(0.45f, 500f)) }
+                                LaunchedEffect(chosen) {
+                                    if (chosen && !wasChosen) {
+                                        pop.snapTo(0.4f)
+                                        pop.animateTo(1f, androidx.compose.animation.core.spring(0.35f, 450f))
+                                    }
+                                    wasChosen = chosen
+                                }
+                                val radius by androidx.compose.animation.core.animateDpAsState(if (chosen) 16.dp else 10.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "rr")
+                                val chipColor by androidx.compose.animation.animateColorAsState(if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f), MaterialTheme.motionScheme.fastEffectsSpec(), label = "rc")
+                                val chipContent by androidx.compose.animation.animateColorAsState(if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer, MaterialTheme.motionScheme.fastEffectsSpec(), label = "rt")
                                 Surface(
                                     onClick = { onReact(reaction.emoji) },
-                                    shape = RoundedCornerShape(if (chosen) 16.dp else 10.dp),
-                                    color = if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f),
-                                    contentColor = if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer,
+                                    shape = RoundedCornerShape(radius),
+                                    color = chipColor,
+                                    contentColor = chipContent,
+                                    modifier = Modifier.graphicsLayer { val v = appear.value; scaleX = v; scaleY = v; alpha = v.coerceIn(0f, 1f) },
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                                     ) {
-                                        ReactionGlyph(reaction.emoji, 18.dp)
+                                        Box(Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) { ReactionGlyph(reaction.emoji, 18.dp) }
                                         if (reactor != null && reaction.count <= ReactorAvatars && reaction.recent.size == reaction.count) {
                                             Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
                                                 reaction.recent.forEach { id ->
@@ -1214,11 +1232,11 @@ internal fun MessageBubble(
                                                 }
                                             }
                                         } else {
-                                            Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium)
+                                            com.pixelgram.android.ui.components.AnimatedCounter(reaction.count, MaterialTheme.typography.labelMedium)
                                         }
                                     }
                                 }
-                            }
+                            } }
                             meta(onContainer.copy(alpha = 0.7f))
                         }
                     }
@@ -3428,6 +3446,56 @@ private fun WidestColumn(modifier: Modifier = Modifier, content: @Composable () 
                 val x = if (m.layoutId == AlignEnd) width - p.width else 0
                 p.place(x, y)
                 y += p.height
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessBotBar(graph: AppGraph, chatId: Long, bar: TdApi.BusinessBotManageBar) {
+    val scope = rememberCoroutineScope()
+    val snapshot by graph.store.snapshot.collectAsState()
+    val bot = snapshot.users[bar.botUserId]
+    val botName = bot?.let { listOf(it.firstName, it.lastName).filter { p -> p.isNotBlank() }.joinToString(" ") }.orEmpty()
+    var menu by remember { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)) {
+            Avatar(botName, bar.botUserId, bot?.photoFileId?.let { snapshot.files[it] }, bot?.minithumb, 36.dp, onNeedFile = bot?.photoFileId?.takeIf { it != 0 }?.let { { graph.store.requestFile(it) } })
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(botName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(if (bar.isBotPaused) R.string.business_bot_paused else if (bar.canBotReply) R.string.business_bot_manages else R.string.business_bot_reads),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { scope.launch { runCatching { graph.td.send(TdApi.ToggleBusinessConnectedBotChatIsPaused(chatId, !bar.isBotPaused)) } } },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
+                modifier = Modifier.height(36.dp),
+            ) { Text(stringResource(if (bar.isBotPaused) R.string.business_bot_resume else R.string.business_bot_pause)) }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, null) }
+                androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+                    if (bar.manageUrl.isNotBlank()) androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.business_bot_manage)) },
+                        leadingIcon = { Icon(Icons.Rounded.Settings, null) },
+                        onClick = { menu = false; com.pixelgram.android.nav.PendingNav.external = bar.manageUrl },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.business_bot_remove), color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; scope.launch { runCatching { graph.td.send(TdApi.RemoveBusinessConnectedBotFromChat(chatId)) } } },
+                    )
+                }
             }
         }
     }

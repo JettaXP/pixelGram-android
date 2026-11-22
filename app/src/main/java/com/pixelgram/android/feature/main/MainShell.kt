@@ -241,7 +241,7 @@ internal data class MainTabItem(val tab: MainTab, val selectedIcon: ImageVector,
 @Composable
 internal fun MainNavBar(style: NavBarStyle, tabs: List<MainTabItem>, selected: MainTab, onSelect: (MainTab) -> Unit, inset: Int = 12, spacing: Int = 4, height: Int = 64) {
     val icon: @Composable (MainTabItem) -> Unit = { item ->
-        BadgedBox(badge = { if (item.badge > 0) Badge { Text(com.pixelgram.android.ui.theme.countLabel(item.badge, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers)) } }) {
+        BadgedBox(badge = { if (item.badge > 0) Badge { com.pixelgram.android.ui.components.AnimatedCounter(item.badge, androidx.compose.material3.LocalTextStyle.current, format = { n -> com.pixelgram.android.ui.theme.countLabel(n, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers) }) } }) {
             Icon(if (item.tab == selected) item.selectedIcon else item.icon, contentDescription = null)
         }
     }

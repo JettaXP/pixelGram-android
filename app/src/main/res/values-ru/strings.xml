@@ -1221,4 +1221,11 @@
     <string name="now_playing_key">API-ключ Last.fm</string>
     <string name="now_playing_key_note">Last.fm требует бесплатный API-ключ:</string>
     <string name="profile_balance">Баланс</string>
+    <string name="business_bot_paused">Бот приостановлен в этом чате</string>
+    <string name="business_bot_manages">Бот управляет этим чатом</string>
+    <string name="business_bot_reads">У бота есть доступ к этому чату</string>
+    <string name="business_bot_resume">Запустить</string>
+    <string name="business_bot_pause">Пауза</string>
+    <string name="business_bot_manage">Управление ботом</string>
+    <string name="business_bot_remove">Убрать из этого чата</string>
 </resources>

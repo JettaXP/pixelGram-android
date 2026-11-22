@@ -75,7 +75,7 @@ class VideoNoteRecorder(private val context: Context, private val owner: Lifecyc
     fun prepare() {
         if (capture != null) return
         val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({ runCatching { bind(future.get()) } }, ContextCompat.getMainExecutor(context))
+        future.addListener({ runCatching { provider = future.get() } }, ContextCompat.getMainExecutor(context))
     }
 
     private fun bind(camera: ProcessCameraProvider) {
@@ -99,7 +99,7 @@ class VideoNoteRecorder(private val context: Context, private val owner: Lifecyc
     override fun start(): Boolean {
         if (active) return true
         val video = capture ?: run {
-            runCatching { bind(ProcessCameraProvider.getInstance(context).get()) }
+            runCatching { bind(provider ?: ProcessCameraProvider.getInstance(context).get()) }
             capture
         } ?: return false
         val target = File(context.cacheDir, "round-${System.currentTimeMillis()}.mp4")
@@ -126,6 +126,7 @@ class VideoNoteRecorder(private val context: Context, private val owner: Lifecyc
     }
 
     private fun finalize(event: VideoRecordEvent.Finalize, target: File) {
+        if (!active) idle()
         val duration = (event.recordingStats.recordedDurationNanos / 1_000_000_000L).toInt()
         if (!send || event.hasError() && event.error != VideoRecordEvent.Finalize.ERROR_NONE && duration < 1 || duration < 1) {
             target.delete()
@@ -162,6 +163,12 @@ class VideoNoteRecorder(private val context: Context, private val owner: Lifecyc
         locked = false
         drag = 0f
         elapsed = 0L
+    }
+
+    private fun idle() {
+        runCatching { provider?.unbindAll() }
+        capture = null
+        preview = null
     }
 
     fun release() {

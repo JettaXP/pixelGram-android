@@ -7,7 +7,10 @@ import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asComposePath
 import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.rectangle
+import androidx.graphics.shapes.toPath
 
 enum class AvatarShape {
     Circle, Custom, Square, Slanted, Arch, Fan, Arrow, SemiCircle, Oval, Pill, Triangle, Diamond,
@@ -61,5 +64,22 @@ enum class AvatarShape {
         Circle -> CircleShape
         Custom -> RoundedCornerShape(cornerPercent.coerceIn(0, 50))
         else -> polygon!!.toShape()
+    }
+
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    fun morphPolygon(cornerPercent: Int): RoundedPolygon = when (this) {
+        Circle -> MaterialShapes.Circle
+        Custom -> RoundedPolygon.rectangle(width = 2f, height = 2f, rounding = androidx.graphics.shapes.CornerRounding(cornerPercent.coerceIn(0, 50) / 50f))
+        else -> polygon!!
+    }.normalized()
+}
+
+class MorphShape(private val morph: androidx.graphics.shapes.Morph, private val progress: Float) : Shape {
+    override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+        val path = android.graphics.Path()
+        morph.toPath(progress, path)
+        val matrix = android.graphics.Matrix().apply { setScale(size.width, size.height) }
+        path.transform(matrix)
+        return androidx.compose.ui.graphics.Outline.Generic(path.asComposePath())
     }
 }

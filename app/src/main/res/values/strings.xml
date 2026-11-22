@@ -1182,4 +1182,11 @@
     <string name="now_playing_key">Last.fm API key</string>
     <string name="now_playing_key_note">Last.fm needs a free API key:</string>
     <string name="profile_balance">Balance</string>
+    <string name="business_bot_paused">Bot is paused in this chat</string>
+    <string name="business_bot_manages">Bot manages this chat</string>
+    <string name="business_bot_reads">Bot has access to this chat</string>
+    <string name="business_bot_resume">Start</string>
+    <string name="business_bot_pause">Pause</string>
+    <string name="business_bot_manage">Manage bot</string>
+    <string name="business_bot_remove">Remove from this chat</string>
 </resources>

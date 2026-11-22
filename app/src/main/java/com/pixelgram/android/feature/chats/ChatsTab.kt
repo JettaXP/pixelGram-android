@@ -643,7 +643,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                         containerColor = if (row.muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
                         contentColor = if (row.muted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.widthIn(min = 22.dp),
-                    ) { Text(com.pixelgram.android.ui.theme.countLabel(row.unread, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers)) }
+                    ) { com.pixelgram.android.ui.components.AnimatedCounter(row.unread, androidx.compose.material3.LocalTextStyle.current, format = { n -> com.pixelgram.android.ui.theme.countLabel(n, com.pixelgram.android.ui.theme.LocalAppearance.current.exactNumbers) }) }
                     row.pinned -> Icon(Icons.Rounded.PushPin, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
                 }
             }
@@ -1222,7 +1222,7 @@ private fun ArchiveRow(archived: List<ChatRow>, modifier: Modifier, onClick: () 
         supportingContent = { Text(names, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
         trailingContent = {
             if (unread > 0) Box(Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(MaterialTheme.colorScheme.outline).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                Text(unread.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.surface)
+                com.pixelgram.android.ui.components.AnimatedCounter(unread, MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.surface)
             }
         },
     ) { Text(stringResource(R.string.drawer_archive), style = MaterialTheme.typography.titleMedium) }
