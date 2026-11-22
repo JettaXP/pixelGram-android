@@ -77,6 +77,8 @@ data class UserInfo(
     val emojiStatus: Long = 0L,
     val accentColorId: Int = 0,
     val backgroundEmojiId: Long = 0L,
+    val profileAccentColorId: Int = -1,
+    val profileEmojiId: Long = 0L,
 ) {
     val name: String get() = if (deleted) "Deleted Account" else listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Deleted Account" }
 }
@@ -179,6 +181,7 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             is TdApi.UpdateSavedMessagesTopic -> savedTopicsFlow.value = savedTopicsFlow.value + (update.topic.id to update.topic)
             is TdApi.UpdateConnectionState -> connectionFlow.value = update.state
             is TdApi.UpdateAccentColors -> AccentColors.update(update.colors)
+            is TdApi.UpdateProfileAccentColors -> ProfileAccentColors.update(update.colors)
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
             is TdApi.UpdateAnimatedEmojiMessageClicked -> EmojiTaps.received(update.chatId, update.messageId, update.sticker)
             is TdApi.UpdateAvailableMessageEffects -> MessageEffects.ids = update.reactionEffectIds.toList() + update.stickerEffectIds.toList()
@@ -399,6 +402,8 @@ private fun TdApi.User.info() = UserInfo(
     emojiStatus = (emojiStatus?.type as? TdApi.EmojiStatusTypeCustomEmoji)?.customEmojiId ?: 0L,
     accentColorId = accentColorId,
     backgroundEmojiId = backgroundCustomEmojiId,
+    profileAccentColorId = profileAccentColorId,
+    profileEmojiId = profileBackgroundCustomEmojiId,
     seen = when (status) {
         is TdApi.UserStatusOnline -> Seen.Online
         is TdApi.UserStatusOffline -> Seen.Offline

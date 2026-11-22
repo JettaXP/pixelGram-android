@@ -102,6 +102,44 @@ fun ProfileHeader(
         val size = AvatarSize + (full - AvatarSize) * e
         val top = avatarTop * (1f - e)
         Box(Modifier.fillMaxWidth().height(height + 12.dp * e)) {
+            val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+            val profileUser = snapshot.users[userId]
+            val profileChat = if (profileUser == null) graph.store.chat(userId) else null
+            val colorId = profileUser?.profileAccentColorId ?: profileChat?.profileAccentColorId ?: -1
+            val patternId = profileUser?.profileEmojiId ?: profileChat?.profileBackgroundCustomEmojiId ?: 0L
+            val profileColors = if (colorId >= 0) com.pixelgram.android.td.ProfileAccentColors.background(colorId, dark) else null
+            if (banner == null && (profileColors != null || patternId != 0L)) {
+                val center = avatarTop + AvatarSize / 2
+                Box(Modifier.fillMaxWidth().height(avatarTop + AvatarSize + 60.dp).graphicsLayer { alpha = 1f - e }) {
+                    if (profileColors != null) {
+                        Box(
+                            Modifier.matchParentSize().background(
+                                Brush.radialGradient(
+                                    listOf(profileColors.first(), profileColors.last()),
+                                    center = androidx.compose.ui.geometry.Offset.Unspecified.let { androidx.compose.ui.geometry.Offset(with(density) { (full / 2).toPx() }, with(density) { center.toPx() }) },
+                                    radius = with(density) { (full * 0.7f).toPx() },
+                                ),
+                            ),
+                        )
+                        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to surface)))
+                    }
+                    if (patternId != 0L) {
+                        val tint = if (profileColors != null) Color.White else MaterialTheme.colorScheme.primary
+                        ProfilePatternRings.forEach { ring ->
+                            ring.angles.forEach { a ->
+                                val rad = Math.toRadians(a.toDouble())
+                                val r = AvatarSize / 2 + ring.distance
+                                Box(
+                                    Modifier
+                                        .align(Alignment.TopCenter)
+                                        .offset(x = r * kotlin.math.cos(rad).toFloat(), y = center + r * kotlin.math.sin(rad).toFloat() - ring.size / 2)
+                                        .graphicsLayer { alpha = ring.alpha },
+                                ) { com.pixelgram.android.ui.components.CustomEmojiView(patternId, "", size = ring.size, tint = tint, animate = false, forceTint = true) }
+                            }
+                        }
+                    }
+                }
+            }
             if (banner != null) {
                 Box(Modifier.fillMaxWidth().aspectRatio(BannerRatio).graphicsLayer { alpha = shown * (1f - e) }) {
                     AsyncImage(model = banner, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
@@ -285,3 +323,11 @@ private suspend fun uploadAvatar(context: Context, graph: AppGraph, uri: Uri) {
         graph.td.send(TdApi.SetProfilePhoto(TdApi.InputChatPhotoStatic(TdApi.InputFileLocal(file.absolutePath)), false))
     }
 }
+
+private class PatternRing(val distance: androidx.compose.ui.unit.Dp, val size: androidx.compose.ui.unit.Dp, val alpha: Float, val angles: List<Float>)
+
+private val ProfilePatternRings = listOf(
+    PatternRing(30.dp, 20.dp, 0.5f, listOf(0f, 60f, 120f, 180f, 240f, 300f)),
+    PatternRing(64.dp, 16.dp, 0.32f, listOf(30f, 75f, 105f, 150f, 210f, 255f, 285f, 330f)),
+    PatternRing(100.dp, 13.dp, 0.18f, listOf(0f, 40f, 140f, 180f, 220f, 320f)),
+)

@@ -196,6 +196,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -630,6 +631,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     }
                 }
             }
+            var topBarsHeight by remember { mutableStateOf(0) }
             val dates = remember(ui.messages) { ui.messages.associate { it.id to it.date } }
             val topDate by remember(dates) {
                 derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull { it.key is Long }?.let { dates[it.key as Long] } }
@@ -646,7 +648,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                 visible = dateVisible && topDate != null,
                 enter = fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
                 exit = fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()) + androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { -it },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp + with(LocalDensity.current) { topBarsHeight.toDp() }),
             ) {
                 var shown by remember { mutableStateOf(0) }
                 topDate?.let { shown = it }
@@ -667,7 +669,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     shape = CircleShape,
                 ) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.chat_scroll_down)) }
             }
-            Column(Modifier.align(Alignment.TopCenter)) {
+            Column(Modifier.align(Alignment.TopCenter).onSizeChanged { topBarsHeight = it.height }) {
             chat?.businessBotManageBar?.let { bar -> BusinessBotBar(graph, chatId, bar) }
             if (ui.pins.isNotEmpty()) {
                 var pinIndex by remember(ui.pins) { mutableStateOf(0) }
@@ -1411,6 +1413,16 @@ private fun DocumentRow(document: TdApi.Document, tint: Color) {
     }
 }
 
+private data class PatternSpot(val x: Int, val y: Int, val size: Int, val alpha: Float)
+
+private val ReplyPattern = listOf(
+    PatternSpot(62, 4, 16, 0.38f),
+    PatternSpot(40, 22, 13, 0.3f),
+    PatternSpot(74, 26, 12, 0.26f),
+    PatternSpot(18, 6, 11, 0.2f),
+    PatternSpot(4, 26, 10, 0.14f),
+)
+
 @Composable
 private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>, onClick: () -> Unit = {}, modifier: Modifier = Modifier, quote: String = "") {
     val graph = com.pixelgram.android.LocalGraph.current
@@ -1449,9 +1461,15 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
     ) {
         if (quote.isNotBlank()) Icon(androidx.compose.material.icons.Icons.Rounded.FormatQuote, null, tint = main, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(16.dp))
         if (pattern != 0L) {
-            Row(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).graphicsLayer { alpha = 0.22f }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = 14.dp)
-                com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = 18.dp)
+            Box(Modifier.align(Alignment.TopEnd).layout { m, _ ->
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(92.dp.roundToPx(), 44.dp.roundToPx()))
+                layout(0, 0) { p.place(-p.width, 0) }
+            }) {
+                ReplyPattern.forEach { (x, y, size, alpha) ->
+                    Box(Modifier.offset(x = x.dp, y = y.dp).graphicsLayer { this.alpha = alpha }) {
+                        com.pixelgram.android.ui.components.CustomEmojiView(pattern, "", size = size.toFloat().dp, tint = main, animate = false, forceTint = true)
+                    }
+                }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

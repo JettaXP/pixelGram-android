@@ -28,3 +28,17 @@ object AccentColors {
         return values.map { Color(0xFF000000.toInt() or it) }
     }
 }
+
+object ProfileAccentColors {
+    private val custom = mutableStateMapOf<Int, TdApi.ProfileAccentColor>()
+
+    fun update(colors: Array<TdApi.ProfileAccentColor>) {
+        colors.forEach { custom[it.id] = it }
+    }
+
+    fun background(id: Int, dark: Boolean): List<Color>? {
+        val accent = custom[id] ?: return null
+        val values = (if (dark) accent.darkThemeColors else accent.lightThemeColors)?.backgroundColors ?: return null
+        return values.map { Color(0xFF000000.toInt() or it) }.takeIf { it.isNotEmpty() }
+    }
+}

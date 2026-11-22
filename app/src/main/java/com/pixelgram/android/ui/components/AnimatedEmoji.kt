@@ -87,7 +87,7 @@ fun customEmojiContent(entities: List<TdApi.TextEntity>, text: String, size: Tex
     }.toMap()
 
 @Composable
-fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, size: Dp? = null, tint: Color = LocalContentColor.current, animate: Boolean = true) {
+fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, size: Dp? = null, tint: Color = LocalContentColor.current, animate: Boolean = true, forceTint: Boolean = false) {
     val graph = LocalGraph.current
     val sticker by produceState(EmojiStickers.cached(id), id) { value = EmojiStickers.load(graph.td, id) }
     val sized = if (size != null) modifier.size(size) else modifier
@@ -106,7 +106,7 @@ fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Modifier, s
         val file = if (s.format is TdApi.StickerFormatWebm) s.thumbnail?.file else s.sticker
         file?.local?.path?.takeIf { file.local.isDownloadingCompleted && it.isNotEmpty() }
     }
-    val repaint = (current?.fullType as? TdApi.StickerFullTypeCustomEmoji)?.needsRepainting == true
+    val repaint = forceTint || (current?.fullType as? TdApi.StickerFullTypeCustomEmoji)?.needsRepainting == true
     val painted = if (repaint) {
         sized.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
             drawContent()
