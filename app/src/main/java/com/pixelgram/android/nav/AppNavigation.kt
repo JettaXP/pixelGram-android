@@ -41,6 +41,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object MainKey : NavKey
 @Serializable data class ChatKey(val chatId: Long, val topicId: Int = 0) : NavKey
 @Serializable data class ForumKey(val chatId: Long) : NavKey
+@Serializable data class ManageChatKey(val chatId: Long, val page: String = "") : NavKey
 @Serializable data class ProfileKey(val userId: Long, val chatId: Long = 0) : NavKey
 @Serializable data class PixelSettingsKey(val page: String = "") : NavKey
 @Serializable data object SessionsKey : NavKey
@@ -141,6 +142,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
             entry<MainKey> { MainShell(graph, navigator) }
             entry<ChatKey> { key -> ChatScreen(graph, key.chatId, navigator, key.topicId) }
             entry<ForumKey> { key -> com.pixelgram.android.feature.chat.ForumScreen(graph, key.chatId, navigator) }
+            entry<ManageChatKey> { key -> com.pixelgram.android.feature.admin.ManageChatScreen(graph, key.chatId, key.page, navigator) }
             entry<ProfileKey> { key -> ProfileScreen(graph, key.userId, key.chatId, navigator) }
             entry<ContactsKey> { com.pixelgram.android.feature.contacts.ContactsTab(graph, navigator, onOpenDrawer = null, onBack = { navigator.back() }) }
             entry<StickersKey> { com.pixelgram.android.feature.settings.StickersSettingsScreen(graph, navigator) }

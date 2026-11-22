@@ -407,7 +407,8 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                         shareContext.startActivity(android.content.Intent.createChooser(send, null))
                     }
                     val member = supergroup?.status?.let { it !is TdApi.ChatMemberStatusLeft && it !is TdApi.ChatMemberStatusBanned } == true
-                    ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
+                    if (com.pixelgram.android.feature.admin.canManage(supergroup?.status)) ProfileAction(Icons.Rounded.Settings, stringResource(R.string.admin_manage)) { navigator.open(com.pixelgram.android.nav.ManageChatKey(chatId)) }
+                    else ProfileAction(if (member) Icons.AutoMirrored.Rounded.Logout else Icons.Rounded.PersonAdd, stringResource(if (member) R.string.chat_leave else R.string.profile_join)) {
                         scope.launch {
                             runCatching { graph.td.send(if (member) TdApi.LeaveChat(chatId) else TdApi.JoinChat(chatId)) }
                             navigator.back()
