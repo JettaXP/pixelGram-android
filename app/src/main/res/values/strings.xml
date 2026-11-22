@@ -1147,4 +1147,21 @@
     <string name="privacy_day">1 day</string>
     <string name="privacy_week">1 week</string>
     <string name="privacy_month">1 month</string>
+    <string name="help_header">Help</string>
+    <string name="help_ask">Ask a question</string>
+    <string name="help_site">pixelGram website</string>
+    <string name="help_source">Source code</string>
+    <string name="help_support">Support development</string>
+    <string name="debug_title">Debug menu</string>
+    <string name="debug_reload_contacts">Reload contacts</string>
+    <string name="debug_reset_imported">Reset imported contacts</string>
+    <string name="debug_mark_all_read">Mark all chats as read</string>
+    <string name="debug_enable_logs">Enable logs</string>
+    <string name="debug_disable_logs">Disable logs</string>
+    <string name="debug_clear_cache">Clear sent media cache</string>
+    <string name="debug_clear_cookies">Clear WebView cookies</string>
+    <string name="debug_webview_on">Enable WebView debug</string>
+    <string name="debug_webview_off">Disable WebView debug</string>
+    <string name="debug_reload_config">Reload app config</string>
+    <string name="debug_optimize_storage">Optimize storage</string>
 </resources>

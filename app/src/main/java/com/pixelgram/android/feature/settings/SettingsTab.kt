@@ -53,6 +53,11 @@ import com.pixelgram.android.ui.components.Avatar
 import com.pixelgram.android.ui.components.HiddenPhone
 import com.pixelgram.android.ui.components.SegmentPosition
 import com.pixelgram.android.ui.components.SettingsGroup
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Favorite
 import com.pixelgram.android.ui.components.SettingsItem
 import com.pixelgram.android.ui.components.segmentPosition
 import com.pixelgram.android.util.formatPhone
@@ -174,6 +179,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                     link = "pg://business",
                 )
             }
+            HelpGroup()
             Spacer(Modifier.height(24.dp + (if (onBack != null) 0.dp else com.pixelgram.android.ui.components.LocalBottomBarPadding.current)).let { if (onBack != null) it.navigationBarsPadding() else it })
         }
     }
@@ -204,3 +210,65 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
 }
 
 private const val LogoutSettleMs = 1_500L
+
+@Composable
+private fun HelpGroup() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val open: (String) -> Unit = { url -> com.pixelgram.android.nav.PendingNav.external = url }
+    androidx.compose.material3.Text(
+        stringResource(R.string.help_header),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp),
+    )
+    SettingsGroup {
+        val rows = listOf(
+            Triple(androidx.compose.material.icons.Icons.Rounded.Forum, R.string.help_ask, "https://t.me/pixelgramclient"),
+            Triple(androidx.compose.material.icons.Icons.Rounded.Public, R.string.help_site, "https://pixelgram.jettax.xyz/"),
+            Triple(androidx.compose.material.icons.Icons.Rounded.Code, R.string.help_source, "https://github.com/JettaXP/pixelGram-android"),
+            Triple(androidx.compose.material.icons.Icons.Rounded.Favorite, R.string.help_support, "pg://support"),
+        )
+        val tones = listOf(androidx.compose.ui.graphics.Color(0xFFF2A33A), androidx.compose.ui.graphics.Color(0xFF3AA0F2), androidx.compose.ui.graphics.Color(0xFF8E6BE8), androidx.compose.ui.graphics.Color(0xFF34C759))
+        rows.forEachIndexed { i, (icon, title, url) ->
+            SettingsItem(
+                title = stringResource(title),
+                icon = icon,
+                iconBackground = tones[i],
+                iconTint = androidx.compose.ui.graphics.Color.White,
+                position = segmentPosition(i, rows.size),
+                onClick = { if (url.startsWith("pg://")) com.pixelgram.android.nav.PendingNav.link = url else open(url) },
+            )
+        }
+    }
+    var taps by remember { mutableStateOf(0) }
+    var debug by remember { mutableStateOf(false) }
+    val version = remember {
+        runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            val code = if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+            "pixelGram ${info.versionName} ($code)"
+        }.getOrDefault("pixelGram")
+    }
+    androidx.compose.material3.Text(
+        version,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp)
+            .androidx_combinedClick(onLongClick = { debug = true }) {
+                taps++
+                if (taps >= 5) {
+                    taps = 0
+                    debug = true
+                }
+            }
+            .padding(vertical = 8.dp),
+    )
+    if (debug) DebugMenu { debug = false }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun Modifier.androidx_combinedClick(onLongClick: () -> Unit, onClick: () -> Unit): Modifier =
+    this.then(Modifier.combinedClickable(interactionSource = null, indication = null, onLongClick = onLongClick, onClick = onClick))

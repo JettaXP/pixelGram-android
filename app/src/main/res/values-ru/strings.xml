@@ -1186,4 +1186,21 @@
     <string name="privacy_day">1 день</string>
     <string name="privacy_week">1 неделя</string>
     <string name="privacy_month">1 месяц</string>
+    <string name="help_header">Помощь</string>
+    <string name="help_ask">Задать вопрос</string>
+    <string name="help_site">Сайт pixelGram</string>
+    <string name="help_source">Исходный код</string>
+    <string name="help_support">Поддержать разработку</string>
+    <string name="debug_title">Меню отладки</string>
+    <string name="debug_reload_contacts">Перезагрузить контакты</string>
+    <string name="debug_reset_imported">Сбросить импортированные контакты</string>
+    <string name="debug_mark_all_read">Прочитать все чаты</string>
+    <string name="debug_enable_logs">Включить логи</string>
+    <string name="debug_disable_logs">Выключить логи</string>
+    <string name="debug_clear_cache">Очистить кэш отправленных медиа</string>
+    <string name="debug_clear_cookies">Очистить cookies WebView</string>
+    <string name="debug_webview_on">Включить отладку WebView</string>
+    <string name="debug_webview_off">Выключить отладку WebView</string>
+    <string name="debug_reload_config">Перезагрузить конфиг</string>
+    <string name="debug_optimize_storage">Оптимизировать хранилище</string>
 </resources>

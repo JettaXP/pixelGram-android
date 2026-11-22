@@ -373,23 +373,51 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     LaunchedEffect(hasArchive) {
         if (hasArchive && !archiveShown && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) listState.scrollToItem(1)
     }
-    LaunchedEffect(listState.isScrollInProgress, hasArchive) {
-        if (!hasArchive || listState.isScrollInProgress) return@LaunchedEffect
-        if (listState.firstVisibleItemIndex == 0) {
-            val size = listState.layoutInfo.visibleItemsInfo.firstOrNull()?.size ?: return@LaunchedEffect
-            val offset = listState.firstVisibleItemScrollOffset
-            if (offset > 0 || !archiveShown) {
-                val shown = 1f - offset.toFloat() / size
-                if (archiveShown) {
-                    if (offset > size / 2) listState.animateScrollToItem(1) else listState.animateScrollToItem(0)
-                } else if (shown >= ReleaseShare) {
-                    archiveShown = true
-                    listState.animateScrollToItem(0)
-                    return@LaunchedEffect
-                } else listState.animateScrollToItem(1)
+    LaunchedEffect(hasArchive) {
+        if (!hasArchive) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex }.collect { index -> if (index >= 1 && archiveShown) archiveShown = false }
+    }
+    val pullScope = rememberCoroutineScope()
+    val pullConnection = remember(hasArchive) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            var pullStart = 0L
+
+            fun visible(): Float {
+                val first = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return 0f
+                if (first.index != 0 || first.size == 0) return 0f
+                return (1f - listState.firstVisibleItemScrollOffset.toFloat() / first.size).coerceIn(0f, 1f)
+            }
+
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (!hasArchive || archiveShown || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
+                if (available.y <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val k = visible()
+                val revealing = listState.firstVisibleItemIndex == 0 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0)
+                if (!revealing) return androidx.compose.ui.geometry.Offset.Zero
+                if (pullStart == 0L) pullStart = System.currentTimeMillis()
+                val factor = (PullParallaxStart - k * PullParallaxEnd).coerceIn(0.05f, 1f)
+                return androidx.compose.ui.geometry.Offset(0f, available.y * (1f - factor))
+            }
+
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (!hasArchive || archiveShown || listState.firstVisibleItemIndex != 0) {
+                    pullStart = 0L
+                    return androidx.compose.ui.unit.Velocity.Zero
+                }
+                val k = visible()
+                val held = pullStart != 0L && System.currentTimeMillis() - pullStart >= PullMinMs
+                pullStart = 0L
+                pullScope.launch {
+                    if (k >= ReleaseShare && held) {
+                        archiveShown = true
+                        listState.animateScrollToItem(0)
+                    } else {
+                        listState.animateScrollToItem(1)
+                    }
+                }
+                return available
             }
         }
-        archiveShown = listState.firstVisibleItemIndex == 0
     }
     var loading by remember(listKey) { mutableStateOf(true) }
     val tdList: TdApi.ChatList = remember(listKey) {
@@ -421,10 +449,9 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
             state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().nestedScroll(pullConnection),
         ) {
             val pinnedCount = rows.takeWhile { it.pinned }.size
-            if (listKey == LIST_MAIN) item(key = "login-alert", contentType = "alert") { LoginAlert(graph) }
             if (hasArchive) item(key = "archive", contentType = "archive") {
                 val pulled by remember {
                     derivedStateOf {
@@ -437,6 +464,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                     else ArchivePullHint(pulled, Modifier.padding(bottom = 6.dp))
                 }
             }
+            if (listKey == LIST_MAIN) item(key = "login-alert", contentType = "alert") { LoginAlert(graph) }
             itemsIndexed(rows, key = { _, it -> it.id }, contentType = { _, _ -> "chat" }) { index, row ->
                 var itemBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
                 val inPinned = index < pinnedCount
@@ -1101,6 +1129,9 @@ private fun NewChatDialog(graph: AppGraph, navigator: Navigator, channel: Boolea
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private const val ReleaseShare = 0.85f
+private const val PullParallaxStart = 0.45f
+private const val PullParallaxEnd = 0.25f
+private const val PullMinMs = 220L
 
 private suspend fun unconfirmedId(graph: AppGraph, session: TdApi.UnconfirmedSession): Long? {
     val sessions = graph.td.send(TdApi.GetActiveSessions()).sessions
