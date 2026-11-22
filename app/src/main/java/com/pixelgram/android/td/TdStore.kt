@@ -121,6 +121,14 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
 
     fun localName(userId: Long): String? = local?.getString("name_$userId", null)
 
+    fun originalName(userId: Long): String? = local?.getString("orig_$userId", null)
+
+    fun rememberOriginalName(userId: Long, name: String) {
+        if (originalName(userId) == null && name.isNotBlank()) local?.edit()?.putString("orig_$userId", name.trim())?.apply()
+    }
+
+    fun rawName(userId: Long): String? = users[userId]?.let { listOf(it.firstName, it.lastName).filter { p -> p.isNotBlank() }.joinToString(" ") }
+
     fun localPhoto(userId: Long): String? = local?.getString("photo_$userId", null)?.takeIf { java.io.File(it).isFile }
 
     fun setLocalName(userId: Long, name: String?) {

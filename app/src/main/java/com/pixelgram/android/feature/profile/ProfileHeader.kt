@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.togetherWith
@@ -77,6 +78,10 @@ fun ProfileHeader(
     expand: () -> Float = { 0f },
     loader: () -> Float = { 0f },
     refreshing: Boolean = false,
+    onTitleClick: (() -> Unit)? = null,
+    subtitleLeading: (@Composable () -> Unit)? = null,
+    belowSubtitle: (@Composable () -> Unit)? = null,
+    orbit: List<org.drinkless.tdlib.TdApi.UpgradedGift> = emptyList(),
 ) {
     val snapshot by graph.store.snapshot.collectAsState()
     val banners by graph.remote.banners.collectAsState()
@@ -146,6 +151,32 @@ fun ProfileHeader(
                     }
                 }
             }
+            if (orbit.isNotEmpty() && e < 0.4f) {
+                val angles = listOf(205f, 160f, 245f, -25f, 20f, -65f)
+                orbit.take(6).forEachIndexed { i, gift ->
+                    val angle = Math.toRadians(angles[i].toDouble())
+                    val radius = AvatarSize / 2 + 46.dp
+                    val dx = radius * kotlin.math.cos(angle).toFloat()
+                    val dy = radius * kotlin.math.sin(angle).toFloat()
+                    val glow = gift.backdrop?.colors?.let { com.pixelgram.android.feature.chat.giftColor(it.centerColor) } ?: MaterialTheme.colorScheme.primary
+                    val appear = androidx.compose.animation.core.animateFloatAsState(1f - e * 2.5f, label = "orbit")
+                    Box(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(x = dx, y = avatarTop + AvatarSize / 2 + dy - 22.dp)
+                            .size(44.dp)
+                            .graphicsLayer { alpha = appear.value.coerceIn(0f, 1f); scaleX = alpha; scaleY = alpha }
+                            .background(Brush.radialGradient(listOf(glow.copy(alpha = 0.55f), Color.Transparent)), androidx.compose.foundation.shape.CircleShape)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clickable { com.pixelgram.android.feature.chat.GiftSheets.current = com.pixelgram.android.feature.chat.GiftTarget.Unique(gift.name) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        gift.model?.sticker?.let { sticker ->
+                            com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(30.dp), video = false)
+                        }
+                    }
+                }
+            }
             if (e > 0f) {
                 Box(
                     Modifier.align(Alignment.TopCenter).offset(y = top).size(size).graphicsLayer { alpha = e }.background(
@@ -179,14 +210,28 @@ fun ProfileHeader(
                         label = "profile-title",
                         modifier = Modifier.weight(1f, fill = false),
                     ) { value ->
-                        Text(value, style = MaterialTheme.typography.headlineSmallEmphasized, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                        Text(
+                            value,
+                            style = MaterialTheme.typography.headlineSmallEmphasized,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = if (onTitleClick != null) Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onTitleClick).padding(horizontal = 6.dp) else Modifier,
+                        )
                     }
                     NameBadges(userId, verified, 28.dp, snapshot.users[userId]?.scam == true, snapshot.users[userId]?.fake == true, name = title, label = true, official = official)
                 }
                 if (!subtitle.isNullOrBlank()) {
-                    androidx.compose.animation.AnimatedContent(subtitle, label = "profile-subtitle") { value ->
-                        Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                        subtitleLeading?.invoke()
+                        androidx.compose.animation.AnimatedContent(subtitle, label = "profile-subtitle") { value ->
+                            Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
+                }
+                belowSubtitle?.let {
+                    Spacer(Modifier.height(10.dp))
+                    it()
                 }
                 Spacer(Modifier.height(16.dp))
             }

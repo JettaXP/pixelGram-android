@@ -1181,4 +1181,5 @@
     <string name="now_playing_username">Username</string>
     <string name="now_playing_key">Last.fm API key</string>
     <string name="now_playing_key_note">Last.fm needs a free API key:</string>
+    <string name="profile_balance">Balance</string>
 </resources>

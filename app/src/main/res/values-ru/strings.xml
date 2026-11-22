@@ -1220,4 +1220,5 @@
     <string name="now_playing_username">Имя пользователя</string>
     <string name="now_playing_key">API-ключ Last.fm</string>
     <string name="now_playing_key_note">Last.fm требует бесплатный API-ключ:</string>
+    <string name="profile_balance">Баланс</string>
 </resources>

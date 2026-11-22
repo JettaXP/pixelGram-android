@@ -131,6 +131,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     val chat = remember(chatId, snapshot) { if (chatId != 0L) graph.store.chat(chatId) else null }
     var full by remember { mutableStateOf<TdApi.UserFullInfo?>(null) }
     var showQr by remember { mutableStateOf(false) }
+    var ratingOpen by remember { mutableStateOf(false) }
     var groupQr by remember { mutableStateOf<String?>(null) }
     var collectible by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf(false) }
@@ -308,10 +309,37 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val status = user?.let { com.pixelgram.android.ui.components.statusLine(it) } ?: channelSubtitle
+            val serverName = if (userId != 0L) graph.store.originalName(userId) ?: (if (graph.store.localName(userId) != null) graph.store.rawName(userId) else null) else null
+            var showServerName by remember(userId) { mutableStateOf(false) }
+            val orbitGifts by androidx.compose.runtime.produceState(emptyList<TdApi.UpgradedGift>(), userId) {
+                if (userId == 0L) return@produceState
+                value = runCatching {
+                    graph.td.send(TdApi.GetReceivedGifts("", TdApi.MessageSenderUser(userId), 0, false, false, false, false, false, false, false, false, false, "", 20)).gifts
+                        .filter { it.isPinned }.mapNotNull { (it.gift as? TdApi.SentGiftUpgraded)?.gift }.take(6)
+                }.getOrDefault(emptyList())
+            }
             ProfileHeader(
                 graph = graph,
                 userId = if (userId != 0L) userId else chatId,
-                title = title,
+                title = if (showServerName && serverName != null) serverName else title,
+                onTitleClick = serverName?.takeIf { it != title }?.let { { showServerName = !showServerName } },
+                subtitleLeading = full?.rating?.takeIf { !self || it.level > 0 }?.let { r -> { LevelBadge(r.level) { ratingOpen = true } } },
+                belowSubtitle = full?.tonWalletCard?.takeIf { it.gramAmount > 0 || self }?.let { card ->
+                    {
+                        androidx.compose.material3.Surface(
+                            onClick = { com.pixelgram.android.nav.PendingNav.external = "https://tonviewer.com/${card.address}" },
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                Text(stringResource(R.string.profile_balance) + ": ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("💎 " + java.math.BigDecimal.valueOf(card.gramAmount, 9).stripTrailingZeros().toPlainString(), style = MaterialTheme.typography.labelLarge)
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                },
+                orbit = orbitGifts,
                 subtitle = status,
                 photoFileId = user?.bigPhotoFileId ?: chat?.photo?.big?.id ?: 0,
                 minithumb = user?.minithumb ?: chat?.photo?.minithumbnail?.data,
@@ -450,7 +478,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 }
             }
             full?.rating?.takeIf { !self || it.level > 0 }?.let { rating ->
-                RatingChip(rating, user?.firstName.orEmpty())
+                if (ratingOpen) RatingSheet(rating, user?.firstName.orEmpty()) { ratingOpen = false }
             }
             val npContext = LocalContext.current
             val badgeMap by graph.remote.badges.collectAsState()
@@ -881,6 +909,7 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
                 Button(enabled = first.isNotBlank(), shapes = ButtonDefaults.shapes(), onClick = {
                     close()
                     if (contactEdit) {
+                        graph.store.rememberOriginalName(userId, listOf(user.firstName, user.lastName).filter { it.isNotBlank() }.joinToString(" "))
                         scope.launch {
                             runCatching {
                                 graph.td.send(TdApi.AddContact().apply {
@@ -939,15 +968,9 @@ private fun ProfileMoreMenu(graph: AppGraph, navigator: Navigator, userId: Long,
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun RatingChip(rating: TdApi.UserRating, name: String) {
-    var open by remember { mutableStateOf(false) }
-    androidx.compose.material3.AssistChip(
-        onClick = { open = true },
-        label = { Text(stringResource(R.string.rating_level, rating.level)) },
-        leadingIcon = { Icon(Icons.Rounded.Shield, null, Modifier.size(18.dp)) },
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        modifier = Modifier.padding(top = 8.dp),
-    )
+private fun RatingSheet(rating: TdApi.UserRating, name: String, onDismiss: () -> Unit) {
+    var open by remember { mutableStateOf(true) }
+    LaunchedEffect(open) { if (!open) onDismiss() }
     if (open) {
         val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val sheetScope = rememberCoroutineScope()
