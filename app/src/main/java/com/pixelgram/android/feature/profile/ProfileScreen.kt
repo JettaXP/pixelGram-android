@@ -591,13 +591,13 @@ private fun RowScope.ProfileAction(
         MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "action-content",
     )
-    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         androidx.compose.material3.Button(
             onClick = onClick,
             shapes = ButtonDefaults.shapes(),
             colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
             contentPadding = PaddingValues(0.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(64.dp),
         ) {
             val spatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
             androidx.compose.animation.AnimatedContent(
@@ -608,10 +608,10 @@ private fun RowScope.ProfileAction(
                 },
                 label = "action-icon",
             ) { current ->
-                Icon(current, null, modifier = Modifier.graphicsLayer { rotationZ = rotation.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.1f) })
+                Icon(current, null, modifier = Modifier.size(26.dp).graphicsLayer { rotationZ = rotation.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.1f) })
             }
         }
-        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
@@ -998,7 +998,7 @@ private fun UsernameSheet(graph: AppGraph, name: String, ownerId: Long, onDismis
             if (item != null) Button(
                 onClick = { com.pixelgram.android.nav.PendingNav.external = item.url },
                 shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(64.dp),
             ) { Text(stringResource(R.string.username_learn_more)) }
             Spacer(Modifier.height(8.dp))
             androidx.compose.material3.FilledTonalButton(
@@ -1008,7 +1008,7 @@ private fun UsernameSheet(graph: AppGraph, name: String, ownerId: Long, onDismis
                     close()
                 },
                 shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(64.dp),
             ) { Text(stringResource(R.string.profile_copy_link)) }
         }
     }

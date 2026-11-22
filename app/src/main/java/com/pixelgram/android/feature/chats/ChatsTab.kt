@@ -421,25 +421,33 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                 return (1f - listState.firstVisibleItemScrollOffset.toFloat() / first.size).coerceIn(0f, 1f)
             }
 
+            fun toBoundary(): Float? {
+                val info = listState.layoutInfo.visibleItemsInfo
+                val first = info.firstOrNull() ?: return null
+                val archiveNext = info.firstOrNull { it.index == 1 } ?: return null
+                return (first.offset - archiveNext.offset + listState.firstVisibleItemScrollOffset).toFloat().coerceAtLeast(0f)
+            }
+
+            fun stopAtBoundary(available: androidx.compose.ui.geometry.Offset): androidx.compose.ui.geometry.Offset {
+                val distance = toBoundary() ?: return androidx.compose.ui.geometry.Offset.Zero
+                return if (available.y > distance) androidx.compose.ui.geometry.Offset(0f, available.y - distance) else androidx.compose.ui.geometry.Offset.Zero
+            }
+
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                 if (!hasArchive || archiveShown) return androidx.compose.ui.geometry.Offset.Zero
                 if (available.y <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val index = listState.firstVisibleItemIndex
+                val offset = listState.firstVisibleItemScrollOffset
                 if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
-                    return when (listState.firstVisibleItemIndex) {
-                        0 -> available
-                        1 -> {
-                            val remaining = listState.firstVisibleItemScrollOffset.toFloat()
-                            if (available.y > remaining) androidx.compose.ui.geometry.Offset(0f, available.y - remaining) else androidx.compose.ui.geometry.Offset.Zero
-                        }
-                        else -> androidx.compose.ui.geometry.Offset.Zero
-                    }
+                    return if (index == 0) available else stopAtBoundary(available)
                 }
-                val k = visible()
-                val revealing = listState.firstVisibleItemIndex == 0 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0)
-                if (!revealing) return androidx.compose.ui.geometry.Offset.Zero
+                val revealing = index == 0 || (index == 1 && offset == 0)
+                if (!revealing) return stopAtBoundary(available)
                 if (gate == 0) gate = if (stories != null && stories.hasStories && stories.progress < 0.99f) -1 else 1
                 if (gate < 0) return available
+                if (index == 0 && offset == 0) return available
                 if (pullStart == 0L) pullStart = System.currentTimeMillis()
+                val k = visible()
                 val factor = (PullParallaxStart - k * PullParallaxEnd).coerceIn(0.05f, 1f)
                 return androidx.compose.ui.geometry.Offset(0f, available.y * (1f - factor))
             }
