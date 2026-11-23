@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/logo.png" width="112" height="112" alt="pixelGram"></p>
+<p align="center"><img src="docs/logo.svg" width="112" height="112" alt="pixelGram"></p>
 
 <h1 align="center">pixelGram Android</h1>
 
