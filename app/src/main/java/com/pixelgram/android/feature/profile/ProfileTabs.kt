@@ -330,9 +330,9 @@ private fun MembersList(graph: AppGraph, supergroupId: Long, chatId: Long, onOpe
                         val chatTitle = graph.store.chat(chatId)?.title.orEmpty()
                         val mine = id == snapshot.meId
                         val canEdit = mine && (admin || graph.store.chat(chatId)?.permissions?.canEditTag == true)
-                        com.pixelgram.android.feature.chat.MemberTagLabel(t) {
+                        com.pixelgram.android.feature.chat.MemberTagLabel(t, onClick = if (canEdit) ({
                             com.pixelgram.android.feature.chat.TagSheets.current = com.pixelgram.android.feature.chat.TagRequest(chatId, id, user?.name.orEmpty(), chatTitle, t, canEdit)
-                        }
+                        }) else null)
                     }
                 },
             ) { Text(user?.name ?: "…", maxLines = 1, overflow = TextOverflow.Ellipsis) }
