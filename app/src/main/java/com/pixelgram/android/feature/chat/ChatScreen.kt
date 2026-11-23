@@ -537,6 +537,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                 val guestCaller = if (guest) snapshot.users[message.guestCallerId]?.name ?: graph.store.chat(message.guestCallerId)?.title.orEmpty() else ""
                                 MessageBubble(
                                     senderTag = tag,
+                                    onSenderClick = if (message.senderId != 0L) ({ navigator.open(if (message.senderId > 0) ProfileKey(message.senderId) else ProfileKey(0, message.senderId)) }) else null,
                                     onTagClick = tag?.let { t ->
                                         {
                                             val mine = message.senderId == snapshot.meId
@@ -573,7 +574,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                                     minithumb = sender?.minithumb,
                                                     size = 34.dp,
                                                     onNeedFile = { sender?.photoFileId?.let(graph.store::requestFileAsync) },
-                                                    modifier = Modifier.clickable { navigator.open(ProfileKey(message.senderId)) },
+                                                    modifier = Modifier.clickable { navigator.open(if (message.senderId > 0) ProfileKey(message.senderId) else ProfileKey(0, message.senderId)) },
                                                 )
                                             }
                                         }
@@ -930,6 +931,7 @@ private val ReplyLimit = 110.dp
 internal fun MessageBubble(
     senderTag: MemberTag? = null,
     onTagClick: (() -> Unit)? = null,
+    onSenderClick: (() -> Unit)? = null,
     onBubbleWidth: (Int) -> Unit = {},
     extras: (@Composable () -> Unit)? = null,
     message: UiMessage,
@@ -1104,7 +1106,7 @@ internal fun MessageBubble(
                             color = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.users[message.senderId]?.let { com.pixelgram.android.td.AccentColors.colors(it.accentColorId, com.pixelgram.android.ui.theme.LocalDarkTheme.current).first() } ?: com.pixelgram.android.ui.components.avatarColor(message.senderId),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier.weight(1f, fill = false).then(if (onSenderClick != null) Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onSenderClick) else Modifier),
                         )
                         if (senderTag != null) {
                             Spacer(Modifier.width(8.dp))
