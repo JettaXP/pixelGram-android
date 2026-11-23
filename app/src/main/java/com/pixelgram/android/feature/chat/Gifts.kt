@@ -122,7 +122,8 @@ private const val SymbolScale = 0.11f
 @Composable
 fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp), modelScale: Float = 0.62f, square: Boolean = true, still: Boolean = false) {
     val graph = LocalGraph.current
-    val snapshot by graph.store.snapshot.collectAsState()
+    val store = graph.store.snapshot.collectAsState()
+    val files by remember { androidx.compose.runtime.derivedStateOf { store.value.files } }
     val colors = gift.backdrop?.colors
     BoxWithConstraints(
         modifier
@@ -134,7 +135,7 @@ fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape
         val side = minOf(maxWidth, maxHeight)
         val thumb = gift.symbol?.sticker?.thumbnail?.file
         if (thumb != null) {
-            val path = snapshot.files[thumb.id]
+            val path = files[thumb.id]
             if (path == null) LaunchedEffect(thumb.id) { graph.store.requestFileAsync(thumb.id) }
             val image by produceState<ImageBitmap?>(null, path) {
                 value = path?.let { withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
@@ -157,7 +158,7 @@ fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape
             }
         }
         gift.model?.sticker?.let { sticker ->
-            StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.size(side * modelScale), still = still)
+            StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.size(side * modelScale), still = still)
         }
     }
 }

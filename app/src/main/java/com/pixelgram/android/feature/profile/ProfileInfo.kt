@@ -1,4 +1,5 @@
 package com.pixelgram.android.feature.profile
+import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.material3.toShape
 import androidx.compose.ui.draw.clip
@@ -387,19 +388,24 @@ fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit)
 private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val estimate by produceState<Pair<Long, RegDates.Kind>?>(null, userId) {
-        val earliest = runCatching { graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 100)).photos.minOfOrNull { it.addedDate } ?: 0 }.getOrDefault(0)
+        val earliest = kotlinx.coroutines.withTimeoutOrNull(1500) {
+            runCatching { graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 100)).photos.minOfOrNull { it.addedDate } ?: 0 }.getOrDefault(0)
+        } ?: 0
         value = withContext(Dispatchers.IO) { RegDates.estimate(context, userId, earliest) }
     }
-    val visible = remember { androidx.compose.animation.core.MutableTransitionState(false) }
-    val close = { visible.targetState = false }
+    val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+    var closing by remember { mutableStateOf(false) }
+    val close = { closing = true }
     LaunchedEffect(estimate) {
         if (estimate == null) return@LaunchedEffect
-        visible.targetState = true
+        appear.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 500f))
         delay(TipShowMs)
-        visible.targetState = false
+        closing = true
     }
-    LaunchedEffect(visible.currentState, visible.targetState) {
-        if (!visible.currentState && !visible.targetState && estimate != null) onDismiss()
+    LaunchedEffect(closing) {
+        if (!closing) return@LaunchedEffect
+        appear.animateTo(0f, androidx.compose.animation.core.tween(160))
+        onDismiss()
     }
     val result = estimate ?: return
     val month = monthIn(result.first)
@@ -425,21 +431,23 @@ private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boo
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
     Popup(alignment = Alignment.BottomEnd, offset = with(density) { IntOffset(0, 44.dp.roundToPx()) }, onDismissRequest = close) {
-        androidx.compose.animation.AnimatedVisibility(
-            visibleState = visible,
-            enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) +
-                androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec(), initialScale = 0.7f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)) +
-                androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) { -it / 4 },
-            exit = androidx.compose.animation.fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) +
-                androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)),
-        ) {
             Surface(
                 onClick = close,
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 shadowElevation = 6.dp,
-                modifier = Modifier.widthIn(max = 300.dp).padding(end = 8.dp),
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .padding(end = 8.dp)
+                    .graphicsLayer {
+                        val p = appear.value
+                        alpha = p.coerceIn(0f, 1f)
+                        scaleX = 0.7f + 0.3f * p
+                        scaleY = 0.7f + 0.3f * p
+                        translationY = -(1f - p) * size.height / 4f
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)
+                    },
             ) {
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -457,7 +465,6 @@ private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boo
                     }
                 }
             }
-        }
     }
 }
 

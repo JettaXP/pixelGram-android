@@ -244,8 +244,11 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
         }.getOrNull() ?: emptyList()
     }
     val list = gifts ?: return Loading()
-    val snapshot by graph.store.snapshot.collectAsState()
-    val own = (owner as? TdApi.MessageSenderUser)?.userId == snapshot.meId
+    val store = graph.store.snapshot.collectAsState()
+    val files by remember { androidx.compose.runtime.derivedStateOf { store.value.files } }
+    val users by remember { androidx.compose.runtime.derivedStateOf { store.value.users } }
+    val meId by remember { androidx.compose.runtime.derivedStateOf { store.value.meId } }
+    val own = (owner as? TdApi.MessageSenderUser)?.userId == meId
     val ordered = remember(list) { list.sortedByDescending { it.isPinned } }
     Grid(ordered.withIndex().toList()) { (index, gift) ->
         val shape = cellShape(index, ordered.size, 3)
@@ -257,26 +260,9 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
         ) {
             if (upgraded != null) {
                 com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f, still = !visible)
-                val ribbon = upgraded.backdrop?.colors?.let { com.pixelgram.android.feature.chat.giftColor(it.edgeColor) } ?: MaterialTheme.colorScheme.primary
-                Box(Modifier.align(Alignment.TopEnd).size(64.dp).clip(RoundedCornerShape(topEnd = 12.dp))) {
-                    Text(
-                        "#" + "%,d".format(upgraded.number),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        maxLines = 1,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .requiredWidth(96.dp)
-                            .offset(x = 14.dp, y = (-14).dp)
-                            .graphicsLayer { rotationZ = 45f }
-                            .background(androidx.compose.ui.graphics.lerp(ribbon, Color.Black, 0.25f))
-                            .padding(vertical = 2.dp),
-                    )
-                }
             } else {
                 val sticker = (gift.gift as? TdApi.SentGiftRegular)?.gift?.sticker
-                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, snapshot.files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false, still = !visible)
+                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false, still = !visible)
             }
             if (gift.isPinned) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
@@ -285,9 +271,9 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
             } else if (upgraded == null) {
                 val sender = (gift.senderId as? TdApi.MessageSenderUser)?.userId
                 if (sender != null) {
-                    val user = snapshot.users[sender]
+                    val user = users[sender]
                     Box(Modifier.align(Alignment.TopStart).padding(6.dp)) {
-                        Avatar(user?.name.orEmpty(), sender, user?.photoFileId?.let { snapshot.files[it] }, user?.minithumb, 22.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
+                        Avatar(user?.name.orEmpty(), sender, user?.photoFileId?.let { files[it] }, user?.minithumb, 22.dp, onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) })
                     }
                 }
             }
