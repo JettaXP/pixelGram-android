@@ -85,6 +85,7 @@ object PixelLinks {
 
 class Navigator(private val stack: MutableList<NavKey>) {
     fun open(key: NavKey) {
+        if (EtgBack.matches(key.toString(), EtgBack.hidden)) EtgBack.hidden = null
         stack.add(key)
     }
 
@@ -355,8 +356,11 @@ object EtgBack {
                 scrim = 1f - f
                 if (f >= 1f) break
             }
-            hidden = closingKey
+            val closed = closingKey
+            hidden = closed
             reset()
+            kotlinx.coroutines.delay(HiddenHoldMs)
+            if (hidden == closed) hidden = null
         }
     }
 
@@ -373,6 +377,7 @@ object EtgBack {
     fun verticalCurve(x: Float) = vertical.getInterpolation(x)
 
     private const val CommitMs = 375
+    private const val HiddenHoldMs = 600L
 }
 
 private class EtgBackDecorator : androidx.navigation3.runtime.NavEntryDecorator<NavKey>(

@@ -112,7 +112,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     val shellPrefs by graph.appearance.state.collectAsState()
     Box(Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
-        gesturesEnabled = shellPrefs.showDrawer || drawer.isOpen,
+        gesturesEnabled = (shellPrefs.showDrawer || drawer.isOpen) && !com.pixelgram.android.feature.chats.ChatSelection.active,
         drawerState = drawer,
         drawerContent = {
             DrawerContent(

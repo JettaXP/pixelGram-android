@@ -366,6 +366,7 @@ fun ChatsTab(
             state = pager,
             key = { tabs.getOrNull(it)?.id ?: -1 },
             beyondViewportPageCount = 0,
+            userScrollEnabled = !ChatSelection.active,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(stories).nestedScroll(tracker),
         ) { page ->
             val id = tabs.getOrNull(page)?.id ?: 0
@@ -395,6 +396,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     val selection = remember(listKey) { androidx.compose.runtime.mutableStateListOf<Long>() }
     val selecting = selection.isNotEmpty()
     androidx.compose.runtime.SideEffect { if (ChatSelection.owner == listKey || selecting) { ChatSelection.owner = listKey; ChatSelection.active = selecting } }
+    androidx.compose.runtime.DisposableEffect(listKey) { onDispose { if (ChatSelection.owner == listKey) ChatSelection.active = false } }
     androidx.activity.compose.BackHandler(selecting) { selection.clear() }
     LaunchedEffect(rows) { selection.retainAll(rows.map { it.id }.toSet()) }
     val hasArchive = archived.isNotEmpty()
