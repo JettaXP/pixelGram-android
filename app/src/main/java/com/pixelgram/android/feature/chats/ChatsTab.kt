@@ -194,7 +194,7 @@ fun ChatsTab(
         floatingActionButton = {
             val visible = !archive && !tracker.hidden && !ChatSelection.active
             var pencil by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-            var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+            var frame by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
             val gap = with(density) { CameraGap.roundToPx() }
             Box(
                 contentAlignment = Alignment.BottomEnd,
@@ -203,7 +203,7 @@ fun ChatsTab(
                         bottom = (com.pixelgram.android.ui.components.LocalBottomBarPadding.current -
                             androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() - FabLift).coerceAtLeast(0.dp),
                     )
-                    .onGloballyPositioned { if (!fabMenu) origin = it.positionInRoot() },
+                    .onGloballyPositioned { if (!fabMenu) frame = it.boundsInRoot() },
             ) {
                 androidx.compose.material3.FloatingActionButtonMenu(
                     expanded = fabMenu,
@@ -241,24 +241,24 @@ fun ChatsTab(
                     }
                 }
                 val anchor = pencil
+                val box = frame
                 androidx.compose.material3.SmallFloatingActionButton(
                     onClick = { com.pixelgram.android.feature.stories.StoryComposer.open = true },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.BottomEnd)
                         .layout { measurable, constraints ->
                             val placeable = measurable.measure(constraints)
                             layout(placeable.width, placeable.height) {
-                                if (anchor != null) {
-                                    val x = anchor.center.x - origin.x - placeable.width / 2f
-                                    val y = anchor.top - origin.y - gap - placeable.height
+                                if (anchor != null && box != null) {
+                                    val x = placeable.width / 2f - (box.right - anchor.center.x)
+                                    val y = -(box.bottom - anchor.top) - gap
                                     placeable.place(x.toInt(), y.toInt())
                                 }
                             }
                         }
-                        .graphicsLayer { alpha = if (fabMenu) 0f else 1f }
-                        .animateFloatingActionButton(visible && !fabMenu && anchor != null, Alignment.Center),
+                        .animateFloatingActionButton(visible && !fabMenu && anchor != null && box != null, Alignment.Center),
                 ) { Icon(Icons.Rounded.PhotoCamera, stringResource(R.string.stories_new)) }
             }
         },
