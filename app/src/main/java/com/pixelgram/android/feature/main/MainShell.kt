@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.main
 
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -107,6 +110,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     }
     val darkNow = com.pixelgram.android.ui.theme.LocalDarkTheme.current
     val shellPrefs by graph.appearance.state.collectAsState()
+    Box(Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         gesturesEnabled = shellPrefs.showDrawer || drawer.isOpen,
         drawerState = drawer,
@@ -240,6 +244,31 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                 }
             }
         }
+    }
+    val scrimShown = drawer.isOpen || drawer.targetValue == DrawerValue.Open
+    if (scrimShown) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(start = DrawerWidth)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        var moved = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            event.changes.forEach { change ->
+                                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                change.consume()
+                            }
+                            if (event.changes.none { it.pressed }) break
+                        }
+                        if (!moved) scope.launch { drawer.close() }
+                    }
+                },
+        )
+    }
     }
 }
 

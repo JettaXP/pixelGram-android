@@ -1,5 +1,8 @@
 package com.pixelgram.android.feature.profile
 
+import androidx.compose.material3.toShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
@@ -379,6 +382,7 @@ fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit)
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -386,12 +390,19 @@ private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boo
         val earliest = runCatching { graph.td.send(TdApi.GetUserProfilePhotos(userId, 0, 100)).photos.minOfOrNull { it.addedDate } ?: 0 }.getOrDefault(0)
         value = withContext(Dispatchers.IO) { RegDates.estimate(context, userId, earliest) }
     }
-    LaunchedEffect(Unit) {
-        delay(4000)
-        onDismiss()
+    val visible = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+    val close = { visible.targetState = false }
+    LaunchedEffect(estimate) {
+        if (estimate == null) return@LaunchedEffect
+        visible.targetState = true
+        delay(TipShowMs)
+        visible.targetState = false
+    }
+    LaunchedEffect(visible.currentState, visible.targetState) {
+        if (!visible.currentState && !visible.targetState && estimate != null) onDismiss()
     }
     val result = estimate ?: return
-    val month = java.text.SimpleDateFormat("LLLL yyyy", java.util.Locale.getDefault()).format(java.util.Date(result.first * 1000L))
+    val month = monthIn(result.first)
     val name = user?.firstName.orEmpty()
     val text = when {
         self -> stringResource(
@@ -413,14 +424,52 @@ private fun RegDateTip(graph: AppGraph, userId: Long, user: UserInfo?, self: Boo
         )
     }
     val density = androidx.compose.ui.platform.LocalDensity.current
-    Popup(alignment = Alignment.BottomEnd, offset = with(density) { IntOffset(0, 44.dp.roundToPx()) }, onDismissRequest = onDismiss) {
-        Surface(
-            onClick = onDismiss,
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 6.dp,
-            modifier = Modifier.widthIn(max = 280.dp),
-        ) { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) }
+    Popup(alignment = Alignment.BottomEnd, offset = with(density) { IntOffset(0, 44.dp.roundToPx()) }, onDismissRequest = close) {
+        androidx.compose.animation.AnimatedVisibility(
+            visibleState = visible,
+            enter = androidx.compose.animation.fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec(), initialScale = 0.7f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)) +
+                androidx.compose.animation.slideInVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) { -it / 4 },
+            exit = androidx.compose.animation.fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) +
+                androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)),
+        ) {
+            Surface(
+                onClick = close,
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shadowElevation = 6.dp,
+                modifier = Modifier.widthIn(max = 300.dp).padding(end = 8.dp),
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 10.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                ) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.size(40.dp).clip(androidx.compose.material3.MaterialShapes.Cookie9Sided.toShape()).background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.Cake, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(22.dp))
+                    }
+                    androidx.compose.foundation.layout.Column(Modifier.padding(start = 12.dp)) {
+                        Text(stringResource(R.string.profile_regdate), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(text, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
     }
 }
+
+private fun monthIn(seconds: Long): String {
+    val date = java.util.Date(seconds * 1000L)
+    val locale = java.util.Locale.getDefault()
+    if (locale.language == "ru") {
+        val calendar = java.util.Calendar.getInstance().apply { time = date }
+        return RuMonthsIn[calendar.get(java.util.Calendar.MONTH)] + " " + calendar.get(java.util.Calendar.YEAR)
+    }
+    return java.text.SimpleDateFormat("LLLL yyyy", locale).format(date)
+}
+
+private val RuMonthsIn = listOf("январе", "феврале", "марте", "апреле", "мае", "июне", "июле", "августе", "сентябре", "октябре", "ноябре", "декабре")
+private const val TipShowMs = 4000L

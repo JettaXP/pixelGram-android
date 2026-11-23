@@ -127,16 +127,15 @@ private fun Note(text: androidx.compose.ui.text.AnnotatedString, onClick: (() ->
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun InfoRow(icon: ImageVector, tone: Color, text: String, position: SegmentPosition, copyValue: String?, onClick: () -> Unit) {
+private fun InfoRow(icon: ImageVector, tone: Color, text: String, position: SegmentPosition, copyValue: String?, tapCopies: Boolean = false, onClick: () -> Unit) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Box {
         SettingsItem(
             title = text,
-            icon = icon,
             position = position,
-            onClick = onClick,
+            onClick = if (tapCopies) ({ menu = true }) else onClick,
             onLongClick = if (copyValue != null) ({
                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                 menu = true
@@ -205,7 +204,7 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
     Header(stringResource(R.string.account_your_info))
     SettingsGroup {
         val phone = me?.phone?.let { "+" + com.pixelgram.android.util.formatPhone(it) }.orEmpty()
-        InfoRow(Icons.Rounded.Call, Color(0xFF34C759), phone, SegmentPosition.Top, phone) { navigator.open(com.pixelgram.android.nav.SessionsKey) }
+        InfoRow(Icons.Rounded.Call, Color(0xFF34C759), phone, SegmentPosition.Top, phone, tapCopies = true) {}
         val username = me?.username
         InfoRow(Icons.Rounded.AlternateEmail, Color(0xFFF29A1F), username?.let { "@$it" } ?: stringResource(R.string.account_set_username), SegmentPosition.Middle, username?.let { "@$it" }) { editingUsername = true }
         val birth = full?.birthdate
@@ -219,8 +218,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
         SettingsItem(
             stringResource(R.string.account_scrobbling),
             SegmentPosition.Top,
-            icon = Icons.Rounded.PlayArrow,
-            iconShape = RoundedCornerShape(12.dp),
             onClick = { nowPlaying = true },
             trailing = { Text(serviceLabel(service), color = MaterialTheme.colorScheme.primary) },
         )
@@ -228,16 +225,12 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
         SettingsItem(
             stringResource(R.string.account_personal_channel),
             SegmentPosition.Middle,
-            icon = Icons.Rounded.Campaign,
-            iconShape = RoundedCornerShape(12.dp),
             onClick = { personal = true },
             trailing = { Text(if (personalId != 0L) graph.store.chat(personalId)?.title.orEmpty() else stringResource(R.string.account_add), color = MaterialTheme.colorScheme.primary) },
         )
         SettingsItem(
             stringResource(R.string.account_automation),
             SegmentPosition.Bottom,
-            icon = Icons.Rounded.AutoAwesome,
-            iconShape = RoundedCornerShape(12.dp),
             onClick = { navigator.open(com.pixelgram.android.nav.BusinessKey) },
         )
     }
