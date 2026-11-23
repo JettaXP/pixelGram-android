@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/logo.png" width="112" height="112" alt="pixelGram"></p>
 
-<h1 align="center">pixelGram for Android</h1>
+<h1 align="center">pixelGram Android</h1>
 
 <p align="center"><a href="README.ru.md">Русский</a></p>
 
