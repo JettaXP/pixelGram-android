@@ -369,6 +369,10 @@
     <string name="profile_remove_photo">Remove photo</string>
     <string name="profile_join">Join</string>
     <string name="profile_subscribe">Subscribe</string>
+    <string name="chat_join_failed">Couldn\'t join</string>
+    <string name="invite_request">Request to join</string>
+    <string name="invite_request_note">Admins will review your request.</string>
+    <string name="invite_preview">Preview</string>
     <string name="profile_description">Description</string>
     <string name="profile_link">Link</string>
     <string name="file_no_app">No app can open this file</string>

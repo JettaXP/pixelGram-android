@@ -368,6 +368,10 @@
     <string name="profile_remove_photo">Убрать фото</string>
     <string name="profile_join">Вступить</string>
     <string name="profile_subscribe">Подписаться</string>
+    <string name="chat_join_failed">Не удалось вступить</string>
+    <string name="invite_request">Подать заявку</string>
+    <string name="invite_request_note">Администраторы рассмотрят вашу заявку.</string>
+    <string name="invite_preview">Посмотреть</string>
     <string name="profile_description">Описание</string>
     <string name="profile_link">Ссылка</string>
     <string name="file_no_app">Нет приложения, чтобы открыть этот файл</string>

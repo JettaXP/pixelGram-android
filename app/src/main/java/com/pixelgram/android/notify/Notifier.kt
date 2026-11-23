@@ -69,6 +69,7 @@ class Notifier(private val context: Context, private val td: TdClient, private v
         if (AppVisibility.foreground && AppVisibility.openChat == message.chatId) return
         if (System.currentTimeMillis() / 1000 - message.date > StaleSeconds) return
         val chat = runCatching { td.send(TdApi.GetChat(message.chatId)) }.getOrNull() ?: store.chat(message.chatId) ?: return
+        if (chat.positions.isEmpty() && chat.type !is TdApi.ChatTypePrivate && chat.type !is TdApi.ChatTypeSecret) return
         val settings = chat.notificationSettings
         val muted = if (settings.useDefaultMuteFor) (scopeSettings(chat)?.muteFor ?: 0) > 0 else settings.muteFor > 0
         if (muted) {

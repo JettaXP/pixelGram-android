@@ -427,6 +427,24 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                         modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(vertical = 18.dp),
                     )
                 }
+            } else if (ui.needsJoin) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                    var joining by remember { mutableStateOf(false) }
+                    val failed = stringResource(R.string.chat_join_failed)
+                    val context = LocalContext.current
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            joining = true
+                            controller.join { error ->
+                                joining = false
+                                android.widget.Toast.makeText(context, error ?: failed, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = !joining,
+                        shapes = androidx.compose.material3.ButtonDefaults.shapes(),
+                        modifier = Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars).padding(horizontal = 16.dp, vertical = 10.dp).height(52.dp),
+                    ) { Text(stringResource(if (ui.channel) R.string.profile_subscribe else R.string.profile_join), style = MaterialTheme.typography.titleMedium) }
+                }
             } else if (!ui.canSend && !ui.channel) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
                     Row(

@@ -1,5 +1,6 @@
 package com.pixelgram.android.nav
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.rounded.Link
@@ -47,11 +48,11 @@ class LinkOpener(private val graph: AppGraph, private val navigator: Navigator, 
                 is TdApi.InternalLinkTypeStickerSet -> runCatching { graph.td.send(TdApi.SearchStickerSet(type.stickerSetName, false)) }.getOrNull()?.let { com.pixelgram.android.feature.chat.EmojiPreview.pack = it.id } ?: browser(full)
                 is TdApi.InternalLinkTypeChatInvite -> {
                     val info = runCatching { graph.td.send(TdApi.CheckChatInviteLink(type.inviteLink)) }.getOrNull()
-                    val chatId: Long? = info?.chatId?.takeIf { it != 0L } ?: runCatching {
-                        graph.td.send(TdApi.JoinChatByInviteLink(type.inviteLink))
-                        graph.td.send(TdApi.CheckChatInviteLink(type.inviteLink)).chatId
-                    }.getOrNull()?.takeIf { it != 0L }
-                    if (chatId != null) navigator.open(ChatKey(chatId)) else browser(full)
+                    when {
+                        info == null -> browser(full)
+                        info.chatId != 0L && info.accessibleFor == 0 -> navigator.open(ChatKey(info.chatId))
+                        else -> InviteJoin.pending = InviteRequest(type.inviteLink, info)
+                    }
                 }
                 is TdApi.InternalLinkTypeBotStart -> {
                     val chat = runCatching { graph.td.send(TdApi.SearchPublicChat(type.botUsername)) }.getOrNull()
@@ -152,6 +153,69 @@ fun LinkConfirmHost(onOpen: (String) -> Unit) {
                 context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText(null, url))
                 LinkConfirm.pending = null
             }) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.action_copy)) }
+        },
+    )
+}
+
+class InviteRequest(val link: String, val info: TdApi.ChatInviteLinkInfo)
+
+object InviteJoin {
+    var pending by androidx.compose.runtime.mutableStateOf<InviteRequest?>(null)
+}
+
+@Composable
+fun InviteJoinHost(graph: AppGraph, navigator: Navigator) {
+    val request = InviteJoin.pending ?: return
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var busy by androidx.compose.runtime.remember(request) { androidx.compose.runtime.mutableStateOf(false) }
+    val info = request.info
+    val channel = (info.type as? TdApi.InviteLinkChatTypeChannel) != null
+    val close = { InviteJoin.pending = null }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = close,
+        title = { androidx.compose.material3.Text(info.title) },
+        text = {
+            androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Text(
+                    androidx.compose.ui.res.pluralStringResource(if (channel) com.pixelgram.android.R.plurals.chat_subscribers else com.pixelgram.android.R.plurals.chat_members, info.memberCount, info.memberCount),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (info.description.isNotBlank()) androidx.compose.material3.Text(info.description, maxLines = 6)
+                if (info.createsJoinRequest) androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.invite_request_note), color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = !busy, onClick = {
+                busy = true
+                scope.launch {
+                    val joined = runCatching { graph.td.send(TdApi.JoinChatByInviteLink(request.link)) }
+                    busy = false
+                    close()
+                    val result = joined.getOrNull()
+                    when {
+                        result is TdApi.ChatJoinResultSuccess -> navigator.open(ChatKey(result.chatId))
+                        result is TdApi.ChatJoinResultRequestSent -> android.widget.Toast.makeText(context, context.getString(com.pixelgram.android.R.string.invite_request_note), android.widget.Toast.LENGTH_SHORT).show()
+                        result != null -> Unit
+                        else -> android.widget.Toast.makeText(context, joined.exceptionOrNull()?.message ?: context.getString(com.pixelgram.android.R.string.chat_join_failed), android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }) {
+                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(when {
+                    info.createsJoinRequest -> com.pixelgram.android.R.string.invite_request
+                    channel -> com.pixelgram.android.R.string.profile_subscribe
+                    else -> com.pixelgram.android.R.string.profile_join
+                }))
+            }
+        },
+        dismissButton = {
+            androidx.compose.foundation.layout.Row {
+                if (info.chatId != 0L) androidx.compose.material3.TextButton(onClick = {
+                    close()
+                    navigator.open(ChatKey(info.chatId))
+                }) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.invite_preview)) }
+                androidx.compose.material3.TextButton(onClick = close) { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(com.pixelgram.android.R.string.action_cancel)) }
+            }
         },
     )
 }

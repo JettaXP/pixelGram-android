@@ -63,6 +63,7 @@ data class ChatUi(
     val typing: List<Long> = emptyList(),
     val replies: Map<Long, UiMessage> = emptyMap(),
     val canSend: Boolean = true,
+    val needsJoin: Boolean = false,
     val permissions: TdApi.ChatPermissions? = null,
     val restrictedUntil: Int = 0,
     val members: Int = 0,
@@ -129,8 +130,11 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
                     is TdApi.ChatMemberStatusRestricted -> status.permissions
                     else -> if (type.isChannel) null else chat.permissions
                 }
+                val outside = status is TdApi.ChatMemberStatusLeft || (status is TdApi.ChatMemberStatusRestricted && !status.isMember)
+                val discussion = !type.isChannel && full?.linkedChatId?.let { it != 0L } == true && group?.joinToSendMessages == false
                 ui.value = ui.value.copy(
                     canSend = canPost,
+                    needsJoin = outside && !discussion,
                     permissions = permissions,
                     restrictedUntil = (status as? TdApi.ChatMemberStatusRestricted)?.restrictedUntilDate ?: 0,
                     linkedChatId = if (type.isChannel) full?.linkedChatId ?: 0 else 0,
@@ -139,6 +143,18 @@ class ChatController(private val graph: AppGraph, val chatId: Long, val topicId:
         }
         loadPinned()
         loadMore()
+    }
+
+    fun join(onFailure: (String?) -> Unit = {}) {
+        scope.launch {
+            runCatching { graph.td.send(TdApi.JoinChat(chatId)) }
+                .onSuccess {
+                    val channel = ui.value.channel
+                    val allowed = graph.store.chat(chatId)?.permissions?.canSendBasicMessages ?: true
+                    ui.value = ui.value.copy(needsJoin = false, canSend = !channel && allowed)
+                }
+                .onFailure { onFailure(it.message) }
+        }
     }
 
     private fun loadPinned() {
