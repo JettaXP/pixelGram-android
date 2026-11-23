@@ -38,6 +38,9 @@ import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.requiredHeight
@@ -715,7 +718,20 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
         },
         trailingContent = {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(chatListTime(row.date), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    if (row.outbox != 0 && row.kind != ChatKind.Saved) Icon(
+                        when (row.outbox) {
+                            4 -> Icons.Rounded.ErrorOutline
+                            3 -> Icons.Rounded.Schedule
+                            2 -> Icons.Rounded.DoneAll
+                            else -> Icons.Rounded.Done
+                        },
+                        null,
+                        Modifier.size(16.dp),
+                        tint = if (row.outbox == 4) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
+                    Text(chatListTime(row.date), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 when {
                     row.mentions > 0 -> Badge(containerColor = MaterialTheme.colorScheme.primary) { Text("@") }
                     row.unread > 0 -> Badge(

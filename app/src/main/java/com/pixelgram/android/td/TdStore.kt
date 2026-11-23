@@ -34,6 +34,7 @@ data class ChatRow(
     val online: Boolean,
     val order: Long,
     val lastMessageId: Long = 0,
+    val outbox: Int = 0,
     val list: String = LIST_MAIN,
     val typing: Boolean = false,
     val deleted: Boolean = false,
@@ -325,6 +326,13 @@ class TdStore(private val td: TdClient, private val scope: CoroutineScope, conte
             online = user?.status is TdApi.UserStatusOnline,
             order = position.order,
             lastMessageId = last?.id ?: 0,
+            outbox = when {
+                last == null || !last.isOutgoing || last.isChannelPost -> 0
+                last.sendingState is TdApi.MessageSendingStateFailed -> 4
+                last.sendingState != null -> 3
+                last.id <= chat.lastReadOutboxMessageId || chat.id == meId -> 2
+                else -> 1
+            },
             list = position.list.key(),
             typing = typing[chat.id]?.isNotEmpty() == true,
             deleted = user?.type is TdApi.UserTypeDeleted,
