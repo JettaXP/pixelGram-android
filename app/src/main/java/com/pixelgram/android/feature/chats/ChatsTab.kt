@@ -406,14 +406,19 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     }
     LaunchedEffect(archiveShown) {
         if (archiveShown) {
-            listState.scrollToItem(0)
-            pull = 0f
             androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex }.collect { index -> if (index >= 1) archiveShown = false }
         }
     }
     if (stories != null) androidx.compose.runtime.SideEffect {
         stories.atTop = { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
         stories.archivePulling = { pull > 0f }
+    }
+    val storiesRef = androidx.compose.runtime.rememberUpdatedState(stories)
+    if (stories != null) androidx.compose.runtime.DisposableEffect(stories) {
+        onDispose {
+            stories.atTop = { false }
+            stories.archivePulling = { false }
+        }
     }
     val pullScope = rememberCoroutineScope()
     val pullConnection = remember(hasArchive, hintPx) {
@@ -430,7 +435,8 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                 }
                 if (available.y > 0f) {
                     if (!atTop()) return androidx.compose.ui.geometry.Offset.Zero
-                    if (stories != null && stories.hasStories && stories.progress < 0.99f) return available
+                    val story = storiesRef.value
+                    if (story != null && story.hasStories && story.progress < 0.99f) return available
                     settle?.cancel()
                     if (pullStart == 0L) pullStart = System.currentTimeMillis()
                     val k = (pull / hintPx).coerceIn(0f, 1f)
@@ -464,6 +470,8 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
                 pullStart = 0L
                 if (pull >= hintPx * ReleaseShare && held) {
                     archiveShown = true
+                    pull = 0f
+                    listState.requestScrollToItem(0)
                 } else {
                     settle = pullScope.launch {
                         androidx.compose.animation.core.animate(pull, 0f, animationSpec = androidx.compose.animation.core.tween(320, easing = androidx.compose.animation.core.CubicBezierEasing(0.23f, 1f, 0.32f, 1f))) { value, _ -> pull = value }
@@ -500,10 +508,18 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
         }
     } else Box(Modifier.fillMaxSize()) {
         androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-        if (hasArchive && pull > 0f) {
-            val pullDp = with(androidx.compose.ui.platform.LocalDensity.current) { pull.toDp() }
-            Box(Modifier.fillMaxWidth().height(pullDp).clipToBounds()) {
-                ArchivePullHint((pull / hintPx).coerceIn(0f, 1f), Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = 6.dp))
+        if (hasArchive) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .layout { measurable, constraints ->
+                        val height = pull.toInt().coerceAtLeast(0)
+                        val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+                        layout(placeable.width, height) { placeable.place(0, height - placeable.height) }
+                    },
+            ) {
+                ArchivePullHint({ (pull / hintPx).coerceIn(0f, 1f) }, Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp))
             }
         }
         LazyColumn(
@@ -1246,11 +1262,16 @@ private fun LoginAlert(graph: AppGraph) {
 }
 
 @Composable
-private fun ArchivePullHint(pulled: Float, modifier: Modifier) {
+private fun ArchivePullHint(pulled: () -> Float, modifier: Modifier) {
     var latched by remember { mutableStateOf(false) }
-    if (!latched && pulled >= ReleaseShare) latched = true
-    if (latched && pulled < ReleaseShare - 0.1f) latched = false
-    val release = latched
+    val release by remember {
+        derivedStateOf {
+            val value = pulled()
+            if (!latched && value >= ReleaseShare) latched = true
+            if (latched && value < ReleaseShare - 0.1f) latched = false
+            latched
+        }
+    }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(release) { if (release) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick) }
     val container by androidx.compose.animation.animateColorAsState(if (release) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest, label = "pull-bg")
@@ -1266,7 +1287,7 @@ private fun ArchivePullHint(pulled: Float, modifier: Modifier) {
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .graphicsLayer { translationY = travel * (pulled / ReleaseShare).coerceIn(0f, 1f) }
+                    .graphicsLayer { translationY = travel * (pulled() / ReleaseShare).coerceIn(0f, 1f) }
                     .size(28.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(content),
