@@ -2621,28 +2621,26 @@ private fun MessageMenu(
                     }
                     val canDelete = props?.let { it.canBeDeletedOnlyForSelf || it.canBeDeletedForAllUsers } ?: false
                     Column(Modifier.width(MenuWidth), verticalArrangement = Arrangement.spacedBy(MenuGap)) {
-                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
-                            var details by remember { mutableStateOf(false) }
-                            androidx.compose.animation.AnimatedContent(details, label = "menu-details") { open ->
-                                if (open) {
+                        var details by remember { mutableStateOf(false) }
+                        androidx.compose.animation.AnimatedContent(details, label = "menu-details") { open ->
+                            if (open) {
+                                Surface(shape = RoundedCornerShape(MenuOuter), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
                                     MessageDetails(controller.chatId, message) { details = false }
-                                } else {
-                                    Column(Modifier.padding(bottom = 6.dp)) {
+                                }
+                            } else {
+                                MenuGroup(primary.size + 1) { segment ->
+                                    Surface(shape = segment(0), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         MenuHeader(controller.chatId, message) { details = true }
-                                        primary.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
                                     }
+                                    primary.forEachIndexed { i, (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, segment(i + 1), action) }
                                 }
                             }
                         }
-                        if (secondary.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
-                            Column(Modifier.padding(vertical = 6.dp)) {
-                                secondary.forEach { (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, action) }
-                            }
+                        if (secondary.isNotEmpty()) MenuGroup(secondary.size) { segment ->
+                            secondary.forEachIndexed { i, (icon, label, action) -> MenuEntry(icon, label, MaterialTheme.colorScheme.onSurface, segment(i), action) }
                         }
-                        if (canDelete) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
-                            Column(Modifier.padding(vertical = 6.dp)) {
-                                MenuEntry(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error) { close(onDelete) }
-                            }
+                        if (canDelete) MenuGroup(1) { segment ->
+                            MenuEntry(Icons.Rounded.Delete, stringResource(R.string.action_delete), MaterialTheme.colorScheme.error, segment(0)) { close(onDelete) }
                         }
                     }
                 }
@@ -2683,16 +2681,32 @@ private fun MessageMenu(
 }
 
 @Composable
-private fun MenuEntry(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
+private fun MenuGroup(count: Int, content: @Composable (segment: (Int) -> androidx.compose.ui.graphics.Shape) -> Unit) {
+    Surface(shape = RoundedCornerShape(MenuOuter), color = Color.Transparent, shadowElevation = 6.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(MenuSegmentGap)) {
+            content { i ->
+                RoundedCornerShape(
+                    topStart = if (i == 0) MenuOuter else MenuInner,
+                    topEnd = if (i == 0) MenuOuter else MenuInner,
+                    bottomStart = if (i == count - 1) MenuOuter else MenuInner,
+                    bottomEnd = if (i == count - 1) MenuOuter else MenuInner,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuEntry(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, shape: androidx.compose.ui.graphics.Shape, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         Text(label, color = tint, style = MaterialTheme.typography.bodyMedium)
@@ -2715,6 +2729,9 @@ private fun SelectTextDialog(message: UiMessage, onDismiss: () -> Unit) {
 
 private val MenuWidth = 196.dp
 private val MenuGap = 8.dp
+private val MenuSegmentGap = 2.dp
+private val MenuOuter = 20.dp
+private val MenuInner = 4.dp
 private const val QuickReactMs = 300L
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
