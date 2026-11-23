@@ -1131,7 +1131,7 @@
     <string name="passcode_fingerprint">Разблокировать отпечатком</string>
     <string name="passcode_unlock_title">Разблокировка pixelGram</string>
     <string name="passcode_use_pin">Ввести код</string>
-    <string name="passcode_about">Блокировать приложение код-паролем. Блокируется по кнопке замка в меню или через минуту в фоне.</string>
+    <string name="passcode_about">Блокировать приложение код-паролем. Нажмите на замок рядом с поиском, чтобы заблокировать сразу.</string>
     <string name="passcode_enable">Код-пароль</string>
     <string name="passcode_change">Сменить код-пароль</string>
     <string name="passcode_lock_now">Заблокировать</string>
@@ -1422,4 +1422,18 @@
     <string name="pixel_avatar_kind_own">Своя форма для этого типа</string>
     <string name="pixel_avatar_kind_all_sub">Используется везде, где нет своей формы</string>
     <string name="pixel_avatar_kind_reset">Использовать форму всех чатов</string>
+    <string name="passcode_auto_lock">Автоблокировка</string>
+    <string name="passcode_auto_off">Только при запуске</string>
+    <plurals name="passcode_minutes">
+        <item quantity="one">через %d минуту</item>
+        <item quantity="few">через %d минуты</item>
+        <item quantity="many">через %d минут</item>
+        <item quantity="other">через %d минуты</item>
+    </plurals>
+    <plurals name="passcode_hours">
+        <item quantity="one">через %d час</item>
+        <item quantity="few">через %d часа</item>
+        <item quantity="many">через %d часов</item>
+        <item quantity="other">через %d часа</item>
+    </plurals>
 </resources>

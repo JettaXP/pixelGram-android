@@ -1092,7 +1092,7 @@
     <string name="passcode_fingerprint">Unlock with fingerprint</string>
     <string name="passcode_unlock_title">Unlock pixelGram</string>
     <string name="passcode_use_pin">Use passcode</string>
-    <string name="passcode_about">Lock the app with a passcode. It locks when you tap the lock in the menu or after a minute in the background.</string>
+    <string name="passcode_about">Lock the app with a passcode. Tap the lock next to search to lock it right away.</string>
     <string name="passcode_enable">Passcode lock</string>
     <string name="passcode_change">Change passcode</string>
     <string name="passcode_lock_now">Lock now</string>
@@ -1377,4 +1377,14 @@
     <string name="pixel_avatar_kind_own">Own shape for this type</string>
     <string name="pixel_avatar_kind_all_sub">Used everywhere without its own shape</string>
     <string name="pixel_avatar_kind_reset">Use the shape for all chats</string>
+    <string name="passcode_auto_lock">Auto-lock</string>
+    <string name="passcode_auto_off">On app start only</string>
+    <plurals name="passcode_minutes">
+        <item quantity="one">in %d minute</item>
+        <item quantity="other">in %d minutes</item>
+    </plurals>
+    <plurals name="passcode_hours">
+        <item quantity="one">in %d hour</item>
+        <item quantity="other">in %d hours</item>
+    </plurals>
 </resources>

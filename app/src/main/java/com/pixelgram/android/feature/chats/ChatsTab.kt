@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Done
@@ -307,6 +308,11 @@ fun ChatsTab(
                         }
                     },
                     actions = {
+                        val lockContext = androidx.compose.ui.platform.LocalContext.current
+                        val lockOn = remember(com.pixelgram.android.feature.security.PasscodeLock.revision) { com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext) }
+                        if (lockOn && !archive) {
+                            IconButton(onClick = { com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockContext) }) { Icon(Icons.Rounded.LockOpen, stringResource(R.string.passcode_lock_now)) }
+                        }
                         IconButton(onClick = { navigator.open(com.pixelgram.android.nav.SearchKey) }) { Icon(Icons.Rounded.Search, stringResource(R.string.search_chats)) }
                     },
                     navigationIcon = {

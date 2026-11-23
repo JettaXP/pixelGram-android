@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -76,6 +78,8 @@ import kotlinx.coroutines.launch
 object PasscodeLock {
     private const val Prefs = "pixel_passcode"
     var locked by mutableStateOf(false)
+    var revision by mutableStateOf(0)
+    val AutoLockOptions = listOf(0, 60, 300, 3600, 18000)
     private var stoppedAt = 0L
 
     private fun prefs(context: Context) = context.getSharedPreferences(Prefs, Context.MODE_PRIVATE)
@@ -83,6 +87,10 @@ object PasscodeLock {
     fun enabled(context: Context) = prefs(context).getString("hash", null) != null
 
     fun biometric(context: Context) = prefs(context).getBoolean("biometric", false)
+
+    fun autoLock(context: Context) = prefs(context).getInt("autoLock", 60)
+
+    fun setAutoLock(context: Context, seconds: Int) = prefs(context).edit().putInt("autoLock", seconds).apply()
 
     fun setBiometric(context: Context, value: Boolean) = prefs(context).edit().putBoolean("biometric", value).apply()
 
@@ -94,11 +102,13 @@ object PasscodeLock {
     fun set(context: Context, pin: String) {
         val salt = java.util.UUID.randomUUID().toString()
         prefs(context).edit().putString("salt", salt).putString("hash", hash(salt, pin)).apply()
+        revision++
     }
 
     fun clear(context: Context) {
         prefs(context).edit().clear().apply()
         locked = false
+        revision++
     }
 
     fun check(context: Context, pin: String): Boolean {
@@ -113,14 +123,13 @@ object PasscodeLock {
 
     fun onStart(context: Context) {
         if (!enabled(context)) return
-        if (stoppedAt == 0L || System.currentTimeMillis() - stoppedAt > AutoLockMs) locked = true
+        val auto = autoLock(context)
+        if (stoppedAt == 0L || (auto > 0 && System.currentTimeMillis() - stoppedAt > auto * 1000L)) locked = true
     }
 
     fun onStop() {
         stoppedAt = System.currentTimeMillis()
     }
-
-    private const val AutoLockMs = 60_000L
 }
 
 private val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
@@ -276,6 +285,37 @@ fun PasscodeSettingsDialog(onDismiss: () -> Unit) {
     var enabled by remember { mutableStateOf(PasscodeLock.enabled(context)) }
     var bio by remember { mutableStateOf(PasscodeLock.biometric(context)) }
     var setting by remember { mutableStateOf(false) }
+    var auto by remember { mutableStateOf(PasscodeLock.autoLock(context)) }
+    var pickingAuto by remember { mutableStateOf(false) }
+    if (pickingAuto) {
+        AlertDialog(
+            onDismissRequest = { pickingAuto = false },
+            title = { Text(stringResource(R.string.passcode_auto_lock)) },
+            text = {
+                Column {
+                    PasscodeLock.AutoLockOptions.forEach { option ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    auto = option
+                                    PasscodeLock.setAutoLock(context, option)
+                                    pickingAuto = false
+                                }
+                                .padding(vertical = 4.dp),
+                        ) {
+                            RadioButton(selected = auto == option, onClick = null, modifier = Modifier.padding(12.dp))
+                            Text(autoLockLabel(option), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pickingAuto = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+        return
+    }
     if (setting) {
         Dialog(onDismissRequest = { setting = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             var first by remember { mutableStateOf<String?>(null) }
@@ -329,17 +369,27 @@ fun PasscodeSettingsDialog(onDismiss: () -> Unit) {
                             enabled = false
                             bio = false
                         }
-                    }, segmentPosition(0, if (enabled) 3 else 1))
+                    }, segmentPosition(0, if (enabled) 4 else 1))
                     if (enabled) {
-                        SettingsItem(stringResource(R.string.passcode_change), segmentPosition(1, 3), onClick = { setting = true })
+                        SettingsItem(stringResource(R.string.passcode_change), segmentPosition(1, 4), onClick = { setting = true })
+                        SettingsItem(stringResource(R.string.passcode_auto_lock), segmentPosition(2, 4), trailing = {
+                            Text(autoLockLabel(auto), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }, onClick = { pickingAuto = true })
                         SettingsSwitch(stringResource(R.string.passcode_fingerprint), bio, { v ->
                             bio = v
                             PasscodeLock.setBiometric(context, v)
-                        }, segmentPosition(2, 3), enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                        }, segmentPosition(3, 4), enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
                     }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } },
     )
+}
+
+@Composable
+private fun autoLockLabel(seconds: Int): String = when {
+    seconds == 0 -> stringResource(R.string.passcode_auto_off)
+    seconds < 3600 -> androidx.compose.ui.res.pluralStringResource(R.plurals.passcode_minutes, seconds / 60, seconds / 60)
+    else -> androidx.compose.ui.res.pluralStringResource(R.plurals.passcode_hours, seconds / 3600, seconds / 3600)
 }
