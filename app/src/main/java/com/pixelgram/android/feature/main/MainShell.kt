@@ -62,6 +62,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,6 +111,15 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     BackHandler(enabled = !drawer.isOpen && (tab != MainTab.Chats || list == LIST_ARCHIVE)) {
         if (list == LIST_ARCHIVE) list = LIST_MAIN else tab = MainTab.Chats
     }
+    val shellDensity = LocalDensity.current
+    val drawerMoving by remember {
+        derivedStateOf {
+            val off = drawer.currentOffset
+            val closed = -with(shellDensity) { DrawerWidth.toPx() }
+            drawer.isOpen || drawer.targetValue == DrawerValue.Open || drawer.isAnimationRunning || (!off.isNaN() && off > closed + 1f)
+        }
+    }
+    SideEffect { com.pixelgram.android.feature.chats.ChatSelection.drawer = drawerMoving }
     val darkNow = com.pixelgram.android.ui.theme.LocalDarkTheme.current
     val shellPrefs by graph.appearance.state.collectAsState()
     Box(Modifier.fillMaxSize()) {

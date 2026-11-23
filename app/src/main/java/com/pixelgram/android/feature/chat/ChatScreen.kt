@@ -1226,7 +1226,7 @@ internal fun MessageBubble(
                     }
                     (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
                     if (message.reactions.isNotEmpty()) {
-                        ReactionFlow(Modifier.padding(start = 6.dp, end = 8.dp, bottom = 5.dp, top = 1.dp)) {
+                        ReactionFlow(Modifier.layoutId(StretchWidth).padding(start = 6.dp, end = 8.dp, bottom = 5.dp, top = 1.dp)) {
                             message.reactions.forEach { reaction -> androidx.compose.runtime.key(reaction.emoji) {
                                 val chosen = reaction.chosen
                                 val appear = remember { androidx.compose.animation.core.Animatable(if (message.reactions.size == 1 && chosen) 0f else 1f) }

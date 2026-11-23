@@ -366,7 +366,7 @@ fun ChatsTab(
             state = pager,
             key = { tabs.getOrNull(it)?.id ?: -1 },
             beyondViewportPageCount = 0,
-            userScrollEnabled = !ChatSelection.active,
+            userScrollEnabled = !ChatSelection.active && !ChatSelection.drawer,
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).nestedScroll(stories).nestedScroll(tracker),
         ) { page ->
             val id = tabs.getOrNull(page)?.id ?: 0
@@ -1356,4 +1356,5 @@ private fun ArchiveRow(archived: List<ChatRow>, modifier: Modifier, onClick: () 
 object ChatSelection {
     var active by mutableStateOf(false)
     var owner: String? = null
+    var drawer by mutableStateOf(false)
 }
