@@ -1,5 +1,7 @@
 package com.pixelgram.android.feature.chats
 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -186,7 +188,7 @@ fun ChatsTab(
     newChat?.let { channel -> NewChatDialog(graph, navigator, channel) { newChat = null } }
     Scaffold(
         floatingActionButton = {
-            val visible = !archive && !tracker.hidden
+            val visible = !archive && !tracker.hidden && !ChatSelection.active
             var pencil by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
             var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
             val gap = with(density) { CameraGap.roundToPx() }
@@ -389,6 +391,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val selection = remember(listKey) { androidx.compose.runtime.mutableStateListOf<Long>() }
     val selecting = selection.isNotEmpty()
+    androidx.compose.runtime.SideEffect { if (ChatSelection.owner == listKey || selecting) { ChatSelection.owner = listKey; ChatSelection.active = selecting } }
     androidx.activity.compose.BackHandler(selecting) { selection.clear() }
     LaunchedEffect(rows) { selection.retainAll(rows.map { it.id }.toSet()) }
     val hasArchive = archived.isNotEmpty()
@@ -625,15 +628,20 @@ private fun androidx.compose.foundation.layout.BoxScope.ChatSelectionBars(graph:
         exit = androidx.compose.animation.slideOutVertically(MaterialTheme.motionScheme.fastSpatialSpec()) { it } + androidx.compose.animation.fadeOut(),
         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + com.pixelgram.android.ui.components.LocalBottomBarPadding.current),
     ) {
-        androidx.compose.material3.HorizontalFloatingToolbar(expanded = true) {
-            androidx.compose.material3.TextButton(onClick = {
+        androidx.compose.material3.HorizontalFloatingToolbar(
+            expanded = true,
+            colors = androidx.compose.material3.FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+            modifier = Modifier.shadow(6.dp, androidx.compose.foundation.shape.CircleShape),
+        ) {
+            val toolbarText = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = androidx.compose.material3.LocalContentColor.current)
+            androidx.compose.material3.TextButton(colors = toolbarText, onClick = {
                 run(rows.filter { it.lastMessageId != 0L }.map { TdApi.ViewMessages(it.id, longArrayOf(it.lastMessageId), null, true) } + rows.map { TdApi.ToggleChatIsMarkedAsUnread(it.id, false) })
             }) {
                 Icon(Icons.Rounded.DoneAll, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.chat_mark_read))
             }
-            androidx.compose.material3.TextButton(onClick = {
+            androidx.compose.material3.TextButton(colors = toolbarText, onClick = {
                 run(rows.filter { it.kind != ChatKind.Saved }.map { TdApi.AddChatToList(it.id, if (archived) TdApi.ChatListMain() else TdApi.ChatListArchive()) })
             }) {
                 Icon(Icons.Rounded.Archive, null, Modifier.size(20.dp))
@@ -840,7 +848,9 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         softWrap = false,
         maxLines = 1,
         overflow = TextOverflow.Clip,
-        modifier = modifier,
+        modifier = modifier
+            .height(with(androidx.compose.ui.platform.LocalDensity.current) { style.lineHeight.toDp() })
+            .wrapContentHeight(Alignment.CenterVertically, unbounded = true),
     )
 }
 
@@ -1323,4 +1333,9 @@ private fun ArchiveRow(archived: List<ChatRow>, modifier: Modifier, onClick: () 
             }
         },
     ) { Text(stringResource(R.string.drawer_archive), style = MaterialTheme.typography.titleMedium) }
+}
+
+object ChatSelection {
+    var active by mutableStateOf(false)
+    var owner: String? = null
 }

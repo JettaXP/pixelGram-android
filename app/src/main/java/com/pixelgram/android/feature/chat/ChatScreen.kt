@@ -1001,6 +1001,7 @@ internal fun MessageBubble(
                     val doubleWindow = viewConfiguration.doubleTapTimeoutMillis + 60L
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        if (SpoilerTouch.downAt == down.uptimeMillis) return@awaitEachGesture
                         val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
                         val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
                         val pointAt = { x: Float, y: Float -> androidx.compose.ui.geometry.Rect(rowBounds.left + x, rowBounds.top + y, rowBounds.left + x, rowBounds.top + y) }
@@ -3002,7 +3003,20 @@ private fun PlainText(
         androidx.compose.ui.graphics.Path().apply { spoilerLayout?.let { l -> ranges.forEach { addPath(spoilerPill(l, it.first, it.last + 1, density)) } } }
     }
     val trackLayout: (androidx.compose.ui.text.TextLayoutResult) -> Unit = { spoilerLayout = it; report(it) }
-    Box(modifier.clickable(enabled = !revealed, indication = null, interactionSource = null) { revealed = true }) {
+    Box(
+        modifier.pointerInput(revealed) {
+            if (revealed) return@pointerInput
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                SpoilerTouch.downAt = down.uptimeMillis
+                val up = waitForUpOrCancellation()
+                if (up != null) {
+                    up.consume()
+                    revealed = true
+                }
+            }
+        },
+    ) {
         when {
             revealed && radius == 0.dp -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Shown), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = reportAll, modifier = wave)
             !blurSupported -> com.pixelgram.android.ui.components.OverlayEmojiText(formatted(text, entities, link, content, SpoilerMode.Block), inline, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = report)
@@ -3029,6 +3043,10 @@ private fun PlainText(
             }
         }
     }
+}
+
+object SpoilerTouch {
+    var downAt = -1L
 }
 
 @Composable
