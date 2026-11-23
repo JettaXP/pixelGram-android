@@ -996,7 +996,7 @@ internal fun MessageBubble(
                 .background(selectionTint)
                 .onGloballyPositioned { rowBounds = it.boundsInWindow() }
             .pointerInput(Unit) {
-                    val doubleWindow = 220L
+                    val doubleWindow = viewConfiguration.doubleTapTimeoutMillis + 60L
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val inside = bounds.contains(androidx.compose.ui.geometry.Offset(rowBounds.left + down.position.x, rowBounds.top + down.position.y))
@@ -1129,6 +1129,7 @@ internal fun MessageBubble(
                                 Text(compactCount(message.views, prefs.exactNumbers), style = MaterialTheme.typography.labelSmall, color = tint, modifier = Modifier.padding(end = 4.dp))
                             }
                             if (message.edited) Text(stringResource(R.string.message_edited), style = MaterialTheme.typography.labelSmall, color = tint)
+                            Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = tint)
                             if (message.outgoing) {
                                 Icon(
                                     when {
@@ -1142,7 +1143,6 @@ internal fun MessageBubble(
                                     tint = if (message.failed) MaterialTheme.colorScheme.error else tint,
                                 )
                             }
-                            Text(messageTime(message.date, prefs.messageSeconds), style = MaterialTheme.typography.labelSmall, color = tint)
                         }
                     }
                     val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }

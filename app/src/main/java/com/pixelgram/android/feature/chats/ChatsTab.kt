@@ -411,7 +411,7 @@ private fun ChatListPage(graph: AppGraph, navigator: Navigator, listKey: String,
     }
     if (stories != null) androidx.compose.runtime.SideEffect {
         stories.atTop = { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
-        stories.archivePulling = { pull > 0f }
+        stories.archivePulling = { pull > 0f || (archiveShown && listState.firstVisibleItemIndex == 0) }
     }
     val storiesRef = androidx.compose.runtime.rememberUpdatedState(stories)
     if (stories != null) androidx.compose.runtime.DisposableEffect(stories) {
