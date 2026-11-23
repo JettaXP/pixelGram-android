@@ -785,6 +785,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 }
 
 private const val PressDelayMs = 90L
+private const val LateInputMs = 80L
 
 @Composable
 private fun BubbleWithExtras(extras: (@Composable () -> Unit)?, end: Boolean, bubble: @Composable () -> Unit) {
@@ -1075,6 +1076,7 @@ internal fun MessageBubble(
                             return@awaitEachGesture
                         }
                         val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                            ?: withTimeoutOrNull(LateInputMs) { awaitFirstDown(requireUnconsumed = false) }?.takeIf { it.uptimeMillis - up.uptimeMillis <= doubleWindow }
                         if (second != null) {
                             second.consume()
                             waitForUpOrCancellation()?.consume()

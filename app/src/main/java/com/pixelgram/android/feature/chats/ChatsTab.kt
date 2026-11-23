@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -813,16 +814,18 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
     val thumbs: List<AlbumThumb> = album?.thumbs?.take(3) ?: if (preview != null && (preview.thumb != null || preview.thumbFileId != 0)) listOf(AlbumThumb(preview.thumb, preview.thumbFileId, preview.playable)) else emptyList()
     val hasThumb = thumbs.isNotEmpty()
     val forward = preview?.forwarded == true
+    val fileIcon = !hasThumb && preview?.kind == PreviewKind.File
     val prefix = buildString {
         if (row.outgoing && row.kind != ChatKind.Saved) append(stringResource(R.string.preview_you)).append(": ")
         else if (preview?.sender != null) append(preview.sender).append(": ")
         if (forward) append("\u21AA ")
+        if (fileIcon) append("\u25A4 ")
         if (hasThumb) {
             repeat(thumbs.size) { append("\u2B1B") }
             append(" ")
         }
         val label = albumLabel ?: kindLabel
-        if (label != null && !(hasThumb && preview?.text.orEmpty().isNotBlank())) {
+        if (label != null && !((hasThumb || fileIcon) && preview?.text.orEmpty().isNotBlank())) {
             append(label)
             if (preview?.text.orEmpty().isNotBlank()) append(", ")
         }
@@ -846,6 +849,12 @@ private fun PreviewText(row: ChatRow, modifier: Modifier) {
         val at = body.indexOf('\u21AA')
         if (at >= 0) slots += com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
             Icon(Icons.AutoMirrored.Rounded.Redo, null, Modifier.size(side), tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+    if (fileIcon) {
+        val at = body.indexOf('\u25A4')
+        if (at >= 0) slots += com.pixelgram.android.ui.components.OverlaySlot(at, at + 1) { side ->
+            Icon(Icons.Rounded.InsertDriveFile, null, Modifier.size(side), tint = MaterialTheme.colorScheme.primary)
         }
     }
     if (hasThumb) {
