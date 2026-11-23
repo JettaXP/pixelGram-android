@@ -636,8 +636,13 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                         toggleSelected(message)
                                     },
                                     onSelectDrag = { y -> dragY = y },
-                                    selected = selected.any { it.id == message.id },
+                                    selected = selected.any { it.id == message.id } && message.parts.size < 2,
                                     selecting = selected.isNotEmpty(),
+                                    selectedParts = selected.flatMap { s -> if (s.parts.isNotEmpty()) s.parts.map { it.id } else listOf(s.id) }.toSet(),
+                                    onTogglePart = { part ->
+                                        selected = selected.filterNot { it.id == message.id && it.parts.isNotEmpty() }
+                                        toggleSelected(part)
+                                    },
                                     onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
                                     onReact = { emoji -> controller.react(message, emoji) },
                                     onPlayAudio = { audio ->
@@ -947,6 +952,8 @@ private val ReplyLimit = 110.dp
 
 @Composable
 internal fun MessageBubble(
+    selectedParts: Set<Long> = emptySet(),
+    onTogglePart: ((UiMessage) -> Unit)? = null,
     senderTag: MemberTag? = null,
     onTagClick: (() -> Unit)? = null,
     onSenderClick: (() -> Unit)? = null,
@@ -1169,7 +1176,7 @@ internal fun MessageBubble(
                     val photos = if (message.parts.isNotEmpty()) message.parts else listOf(message).filter { it.mediaFileId != 0 && it.content is TdApi.MessagePhoto }
                     val mediaOnly = photos.isNotEmpty() && message.text.isBlank() && message.reactions.isEmpty()
                     if (photos.isNotEmpty()) Box {
-                        PhotoGrid(photos, files, onNeedFile, onOpenPhoto)
+                        PhotoGrid(photos, files, onNeedFile, onOpenPhoto, if (selecting && photos.size > 1) onTogglePart else null, selectedParts)
                         if (mediaOnly) {
                             Surface(shape = RoundedCornerShape(10.dp), color = Color.Black.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
                                 Box(Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) { meta(Color.White) }
@@ -1539,7 +1546,7 @@ private fun ReplyQuote(reply: UiMessage, sender: String, files: Map<Int, String>
 }
 
 @Composable
-private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onOpen: (List<UiMessage>, Int) -> Unit) {
+private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFile: (Int) -> Unit, onOpen: (List<UiMessage>, Int) -> Unit, onPick: ((UiMessage) -> Unit)? = null, picked: Set<Long> = emptySet()) {
     val rows = when (photos.size) {
         1 -> listOf(photos)
         2 -> listOf(photos)
@@ -1564,24 +1571,38 @@ private fun PhotoGrid(photos: List<UiMessage>, files: Map<Int, String>, onNeedFi
                     val right = i == row.lastIndex
                     val big = 16.dp
                     val small = 4.dp
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(path?.let(::File) ?: photo.mediaThumb).crossfade(true).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(if (single) ratio else if (row.size == 1) 1.6f else 1f)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = if (top && left) big else small,
-                                    topEnd = if (top && right) big else small,
-                                    bottomStart = if (bottom && left) big else small,
-                                    bottomEnd = if (bottom && right) big else small,
-                                ),
-                            )
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            .clickable { onOpen(photos, start + i) },
-                    )
+                    val isPicked = photo.id in picked
+                    val inset by androidx.compose.animation.core.animateDpAsState(if (isPicked) 8.dp else 0.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "pick")
+                    Box(Modifier.weight(1f).aspectRatio(if (single) ratio else if (row.size == 1) 1.6f else 1f)) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current).data(path?.let(::File) ?: photo.mediaThumb).crossfade(true).build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(inset)
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = if (top && left) big else small,
+                                        topEnd = if (top && right) big else small,
+                                        bottomStart = if (bottom && left) big else small,
+                                        bottomEnd = if (bottom && right) big else small,
+                                    ),
+                                )
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .clickable { if (onPick != null) onPick(photo) else onOpen(photos, start + i) },
+                        )
+                        if (onPick != null) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).padding(6.dp).size(24.dp).clip(CircleShape)
+                                    .background(if (isPicked) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.25f))
+                                    .border(2.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (isPicked) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
                 }
             }
         }

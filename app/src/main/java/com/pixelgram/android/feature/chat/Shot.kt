@@ -157,6 +157,17 @@ fun MessageShotDialog(messages: List<UiMessage>, group: Boolean, onSend: (String
                                 onOpenPhoto = { _, _ -> },
                                 reply = null,
                                 replySender = null,
+                                reactor = { userId, size ->
+                                    val user = snapshot.users[userId]
+                                    Avatar(
+                                        title = user?.name.orEmpty(),
+                                        seed = userId,
+                                        path = user?.localPhoto ?: user?.photoFileId?.let { snapshot.files[it] },
+                                        minithumb = user?.minithumb,
+                                        size = size,
+                                        onNeedFile = { user?.photoFileId?.let(graph.store::requestFileAsync) },
+                                    )
+                                },
                             )
                         }
                     }
@@ -258,7 +269,7 @@ private fun ShotSwitch(label: String, checked: Boolean, index: Int, onChange: (B
         onClick = { onChange(!checked) },
         shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, 4),
         colors = com.pixelgram.android.ui.components.segmentedColors(),
-        trailingContent = { androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange) },
+        trailingContent = { com.pixelgram.android.ui.components.PixelSwitch(checked = checked, onCheckedChange = onChange) },
     ) { Text(label) }
 }
 
