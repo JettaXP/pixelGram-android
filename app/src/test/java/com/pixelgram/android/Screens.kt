@@ -514,6 +514,10 @@ object DemoData {
                 isOutgoing = i % 3 == 0
                 date = now - i * 3600
                 content = TdApi.MessageText(TdApi.FormattedText(texts[i], emptyArray()), null, null)
+                if (i == 1) {
+                    content = TdApi.MessageDocument(TdApi.Document("TikTok You 5.2-userbeta (47.9.3).apk", "application/vnd.android.package-archive", null, null, TdApi.File().apply { this.id = 9001; remote = TdApi.RemoteFile() ; local = TdApi.LocalFile() }), TdApi.FormattedText("", emptyArray()))
+                    forwardInfo = TdApi.MessageForwardInfo(TdApi.MessageOriginUser(2), now, null, "")
+                }
             }
             td.emit(TdApi.UpdateChatLastMessage(id, message, arrayOf(TdApi.ChatPosition(TdApi.ChatListMain(), 1000L - i, i == 0, null))))
         }

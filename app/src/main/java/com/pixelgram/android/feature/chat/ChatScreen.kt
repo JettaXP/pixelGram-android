@@ -246,16 +246,52 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     var shooting by remember { mutableStateOf<List<UiMessage>?>(null) }
     val appearance by graph.appearance.state.collectAsState()
     val listState = rememberLazyListState()
+    val anchor = androidx.compose.runtime.saveable.rememberSaveable(chatId, topicId) { longArrayOf(0L, 0L) }
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow {
+            val first = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key is Long }
+            if (first == null) null else Triple(first.key as Long, first.index, first.offset)
+        }.collect { item ->
+            if (item == null) return@collect
+            if (listState.firstVisibleItemIndex <= 1) {
+                anchor[0] = 0L
+                anchor[1] = 0L
+            } else {
+                anchor[0] = item.first
+                anchor[1] = listState.firstVisibleItemScrollOffset.toLong()
+            }
+        }
+    }
+    val restoreTo = remember { anchor[0].takeIf { it != 0L }?.let { it to anchor[1].toInt() } }
+    LaunchedEffect(restoreTo) {
+        val (id, offset) = restoreTo ?: return@LaunchedEffect
+        if (controller.state.value.messages.none { it.id == id }) controller.reveal(id)
+        val shift = if (appearance.typingBubble) 1 else 0
+        kotlinx.coroutines.withTimeoutOrNull(JumpWaitMs) {
+            while (true) {
+                val index = controller.state.value.messages.indexOfFirst { it.id == id }
+                if (index >= 0 && listState.layoutInfo.totalItemsCount > index + shift) {
+                    listState.scrollToItem(index + shift, offset)
+                    break
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
     val jumpScope = rememberCoroutineScope()
     var highlighted by remember { mutableStateOf<Long?>(null) }
     val jumpTo: (Long) -> Unit = { id ->
         jumpScope.launch {
             fun position() = ui.messages.indexOfFirst { it.id == id || it.parts.any { p -> p.id == id } }
             if (position() < 0) controller.reveal(id)
-            kotlinx.coroutines.delay(50)
-            val index = controller.state.value.messages.indexOfFirst { it.id == id || it.parts.any { p -> p.id == id } }
+            fun target() = controller.state.value.messages.indexOfFirst { it.id == id || it.parts.any { p -> p.id == id } }
+            val shift = if (appearance.typingBubble) 1 else 0
+            kotlinx.coroutines.withTimeoutOrNull(JumpWaitMs) {
+                while (target() < 0 || listState.layoutInfo.totalItemsCount <= target() + shift) androidx.compose.runtime.withFrameNanos { }
+            }
+            val index = target()
             if (index >= 0) {
-                val shift = if (appearance.typingBubble) 1 else 0
+                if (kotlin.math.abs(listState.firstVisibleItemIndex - index) > 30) listState.scrollToItem(index + shift, -listState.layoutInfo.viewportSize.height / 3)
                 listState.animateScrollToItem(index + shift, -listState.layoutInfo.viewportSize.height / 3)
                 highlighted = controller.state.value.messages[index].id
                 kotlinx.coroutines.delay(HighlightMs)
@@ -708,16 +744,19 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
             chat?.businessBotManageBar?.let { bar -> BusinessBotBar(graph, chatId, bar) }
             if (ui.pins.isNotEmpty()) {
                 var pinIndex by remember(ui.pins) { mutableStateOf(0) }
+                val pinHold = remember { longArrayOf(0L) }
                 val latestPins by androidx.compose.runtime.rememberUpdatedState(ui.pins)
                 LaunchedEffect(Unit) {
                     androidx.compose.runtime.snapshotFlow {
                         val pins = latestPins
                         val visible = listState.layoutInfo.visibleItemsInfo.firstNotNullOfOrNull { it.key as? Long }
-                        if (pins.isEmpty() || visible == null) null else pins.indexOfFirst { it.id <= visible }.let { if (it < 0) pins.lastIndex else it }
-                    }.collect { found -> if (found != null) pinIndex = found }
+                        val found = if (pins.isEmpty() || visible == null) null else pins.indexOfFirst { pin -> pin.id <= visible || pin.parts.any { it.id <= visible } }.let { if (it < 0) pins.lastIndex else it }
+                        visible to found
+                    }.collect { (_, found) -> if (found != null && android.os.SystemClock.uptimeMillis() > pinHold[0]) pinIndex = found }
                 }
                 val index = pinIndex.coerceIn(0, ui.pins.lastIndex)
                 PinnedBar(ui.pins, index) {
+                    pinHold[0] = android.os.SystemClock.uptimeMillis() + PinJumpHoldMs
                     jumpTo(ui.pins[index].id)
                     pinIndex = (index + 1) % ui.pins.size
                 }
@@ -789,6 +828,8 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 }
 
 private const val PressDelayMs = 90L
+private const val PinJumpHoldMs = 1500L
+private const val JumpWaitMs = 2000L
 private const val LateInputMs = 80L
 
 @Composable

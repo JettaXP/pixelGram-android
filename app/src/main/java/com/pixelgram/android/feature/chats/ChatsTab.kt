@@ -758,7 +758,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
             }
         },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.height(24.dp).wrapContentHeight(Alignment.CenterVertically, unbounded = true), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = when {
                     row.kind == ChatKind.Saved -> stringResource(R.string.drawer_saved)
@@ -770,7 +770,7 @@ fun ChatListItem(row: ChatRow, index: Int, count: Int, onClick: () -> Unit, onNe
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            NameBadges(row.userId, row.verified, 18.dp, row.scam, row.fake, official = row.official)
+            if (row.kind != ChatKind.Saved) NameBadges(row.userId, row.verified, 18.dp, row.scam, row.fake, official = row.official)
             if (row.muted) Icon(Icons.Rounded.VolumeOff, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
         }
     }

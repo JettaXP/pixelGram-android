@@ -43,7 +43,8 @@ class LinkOpener(private val graph: AppGraph, private val navigator: Navigator, 
                 is TdApi.InternalLinkTypeUserPhoneNumber -> runCatching { graph.td.send(TdApi.SearchUserByPhoneNumber(type.phoneNumber, true)) }.getOrNull()?.let { navigator.open(ProfileKey(it.id)) } ?: browser(full)
                 is TdApi.InternalLinkTypeMessage -> runCatching { graph.td.send(TdApi.GetMessageLinkInfo(type.url)) }.getOrNull()?.takeIf { it.chatId != 0L }?.let { info ->
                     navigator.open(ChatKey(info.chatId))
-                    info.message?.let { PendingNav.jump = info.chatId to it.id }
+                    val fallback = Regex("/(\\d+)(?:\\?.*)?$").find(type.url.substringBefore('#'))?.groupValues?.get(1)?.toLongOrNull()?.let { it shl 20 }
+                    (info.message?.id ?: fallback)?.let { PendingNav.jump = info.chatId to it }
                 } ?: browser(full)
                 is TdApi.InternalLinkTypeStickerSet -> runCatching { graph.td.send(TdApi.SearchStickerSet(type.stickerSetName, false)) }.getOrNull()?.let { com.pixelgram.android.feature.chat.EmojiPreview.pack = it.id } ?: browser(full)
                 is TdApi.InternalLinkTypeChatInvite -> {
