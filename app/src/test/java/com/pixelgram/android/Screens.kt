@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.doubleClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.settings.ThemeMode
@@ -219,6 +220,13 @@ class Screens {
         node.performTouchInput { click(center) }
         val seen = (1..18).map { rule.mainClock.advanceTimeBy(50); rule.onAllNodes(androidx.compose.ui.test.hasText("Select")).fetchSemanticsNodes().size }
         check(seen.last() > 0) { "message menu did not open on tap: " + seen.joinToString(",") }
+    }
+
+    @Test fun messageDoubleTap() = chatScene("message_double_tap") {
+        val node = rule.onAllNodes(androidx.compose.ui.test.hasText("Agree", substring = true)).onLast()
+        node.performTouchInput { doubleClick(center) }
+        val seen = (1..18).map { rule.mainClock.advanceTimeBy(50); rule.onAllNodes(androidx.compose.ui.test.hasText("Select")).fetchSemanticsNodes().size }
+        check(seen.all { it == 0 }) { "menu opened on double tap: " + seen.joinToString(",") }
     }
 
     @Test fun messageSelection() = chatScene("message_selection") {

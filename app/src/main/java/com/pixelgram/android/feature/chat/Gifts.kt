@@ -120,7 +120,7 @@ private const val PatternAlpha = 0.35f
 private const val SymbolScale = 0.11f
 
 @Composable
-fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp), modelScale: Float = 0.62f, square: Boolean = true, still: Boolean = false) {
+fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp), modelScale: Float = 0.62f, square: Boolean = true, still: Boolean = false, maxPx: Int = Int.MAX_VALUE) {
     val graph = LocalGraph.current
     val store = graph.store.snapshot.collectAsState()
     val files by remember { androidx.compose.runtime.derivedStateOf { store.value.files } }
@@ -158,7 +158,7 @@ fun UniqueGiftArt(gift: TdApi.UpgradedGift, modifier: Modifier = Modifier, shape
             }
         }
         gift.model?.sticker?.let { sticker ->
-            StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.size(side * modelScale), still = still)
+            StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.size(side * modelScale), still = still, maxPx = maxPx)
         }
     }
 }

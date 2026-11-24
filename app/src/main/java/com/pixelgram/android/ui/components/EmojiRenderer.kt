@@ -150,9 +150,9 @@ object EmojiRenderer {
     private fun bucket(px: Int): Int = Sizes.firstOrNull { it >= px } ?: Sizes.last()
 
     @Composable
-    fun Frame(path: String, modifier: Modifier, tint: Color?) {
+    fun Frame(path: String, modifier: Modifier, tint: Color?, maxPx: Int = Int.MAX_VALUE) {
         var size by remember { mutableStateOf(IntSize.Zero) }
-        val px = if (size.width > 0) bucket(maxOf(size.width, size.height)) else 0
+        val px = if (size.width > 0) bucket(minOf(maxOf(size.width, size.height), maxPx)) else 0
         var entry by remember { mutableStateOf<Entry?>(null) }
         if (px > 0) {
             DisposableEffect(path, px) {

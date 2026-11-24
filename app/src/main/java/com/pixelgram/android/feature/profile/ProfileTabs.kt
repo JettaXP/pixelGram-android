@@ -259,10 +259,10 @@ private fun GiftsGrid(graph: AppGraph, owner: TdApi.MessageSender) {
             contentAlignment = Alignment.Center,
         ) {
             if (upgraded != null) {
-                com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f, still = !visible)
+                com.pixelgram.android.feature.chat.UniqueGiftArt(upgraded, Modifier.fillMaxSize(), shape = shape, modelScale = 0.66f, still = !visible, maxPx = GiftCellPx)
             } else {
                 val sticker = (gift.gift as? TdApi.SentGiftRegular)?.gift?.sticker
-                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false, still = !visible)
+                if (sticker != null) com.pixelgram.android.feature.chat.StickerView(sticker, files, { graph.store.requestFileAsync(it) }, Modifier.fillMaxSize(0.7f), video = false, still = !visible, maxPx = GiftCellPx)
             }
             if (gift.isPinned) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
@@ -443,3 +443,5 @@ internal fun SavedMediaTab(graph: AppGraph, navigator: Navigator, chatId: Long, 
         else -> MessageList(graph, navigator, 0L, chatId, ProfileTab.Voice)
     }
 }
+
+private const val GiftCellPx = 160

@@ -1436,4 +1436,10 @@
         <item quantity="many">через %d часов</item>
         <item quantity="other">через %d часа</item>
     </plurals>
+    <string name="greeting_title">Здесь пока нет сообщений…</string>
+    <string name="greeting_text">Отправьте сообщение или нажмите на приветствие ниже.</string>
+    <string name="greeting_start_page">%1$s добавил(а) это сообщение для всех пустых чатов.</string>
+    <string name="greeting_how">Как?</string>
+    <string name="greeting_how_title">Стартовая страница</string>
+    <string name="greeting_how_text">Пользователи Telegram Premium могут задать свой заголовок, текст и стикер, которые видят люди перед началом переписки.</string>
 </resources>

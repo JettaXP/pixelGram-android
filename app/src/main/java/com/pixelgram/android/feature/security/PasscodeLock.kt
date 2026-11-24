@@ -303,7 +303,7 @@ private fun PinShapes(length: Int, color: Color, modifier: Modifier) {
 private val PinShapeRes = listOf(R.drawable.pin_shape_1, R.drawable.pin_shape_2, R.drawable.pin_shape_3, R.drawable.pin_shape_4, R.drawable.pin_shape_5, R.drawable.pin_shape_6)
 private val PinShapeSize = 30.dp
 private val DigitSize = 32.sp
-private val DigitFont = androidx.compose.ui.text.font.FontFamily(android.graphics.Typeface.create("google-sans-text", android.graphics.Typeface.NORMAL))
+private val DigitFont = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(R.font.nunito_black, androidx.compose.ui.text.font.FontWeight.Black))
 private val PinShapeGap = 6.dp
 private const val AppearShapeMs = 160
 private const val DisappearMs = 160

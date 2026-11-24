@@ -1387,4 +1387,10 @@
         <item quantity="one">in %d hour</item>
         <item quantity="other">in %d hours</item>
     </plurals>
+    <string name="greeting_title">No messages here yet…</string>
+    <string name="greeting_text">Send a message or tap the greeting below.</string>
+    <string name="greeting_start_page">%1$s added the message below for all empty chats.</string>
+    <string name="greeting_how">How?</string>
+    <string name="greeting_how_title">Start page</string>
+    <string name="greeting_how_text">Telegram Premium users can set a custom title, message and sticker that people see before they start a chat.</string>
 </resources>

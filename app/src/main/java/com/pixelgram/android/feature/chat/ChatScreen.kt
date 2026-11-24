@@ -662,6 +662,10 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                     }
                 }
             }
+            val greetUser = snapshot.users[privateUserId]
+            if (privateUserId != 0L && !saved && greetUser?.bot != true && !ui.loading && ui.messages.isEmpty() && topicId == 0) {
+                EmptyChatGreeting(graph, privateUserId, greetUser?.name.orEmpty(), { sticker -> controller.sendContent(stickerInput(sticker)) }, Modifier.align(Alignment.Center).padding(16.dp))
+            }
             var topBarsHeight by remember { mutableStateOf(0) }
             val dates = remember(ui.messages) { ui.messages.associate { it.id to it.date } }
             val topDate by remember(dates) {
@@ -1123,7 +1127,7 @@ internal fun MessageBubble(
                         onBubbleWidth(it.size.width)
                     }
                     .clip(shape)
-                    .indication(interaction, androidx.compose.material3.ripple()),
+                    ,
             ) {
                 WidestColumn(Modifier.padding(4.dp)) {
                     if (senderName != null) {

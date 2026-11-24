@@ -557,7 +557,7 @@ internal fun EmojiTapEffect(
 private const val MaxTapEffects = 4
 
 @Composable
-internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier, video: Boolean = true, still: Boolean = false) {
+internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeedFile: (Int) -> Unit, modifier: Modifier, video: Boolean = true, still: Boolean = false, maxPx: Int = Int.MAX_VALUE) {
     val path = localPath(sticker.sticker, files)
     if (path == null) LaunchedEffect(sticker.sticker.id) { onNeedFile(sticker.sticker.id) }
     val thumb = localPath(sticker.thumbnail?.file, files)
@@ -565,7 +565,7 @@ internal fun StickerView(sticker: TdApi.Sticker, files: Map<Int, String>, onNeed
         when {
             still && thumb != null -> AsyncImage(model = File(thumb), contentDescription = sticker.emoji, modifier = Modifier.fillMaxSize())
             still && sticker.format !is TdApi.StickerFormatWebp -> LaunchedEffect(sticker.thumbnail?.file?.id) { sticker.thumbnail?.file?.id?.let(onNeedFile) }
-            path != null && sticker.format is TdApi.StickerFormatTgs -> com.pixelgram.android.ui.components.EmojiRenderer.Frame(path, Modifier.fillMaxSize(), null)
+            path != null && sticker.format is TdApi.StickerFormatTgs -> com.pixelgram.android.ui.components.EmojiRenderer.Frame(path, Modifier.fillMaxSize(), null, maxPx)
             path != null && sticker.format is TdApi.StickerFormatWebm && !video -> {
                 if (thumb != null) AsyncImage(model = File(thumb), contentDescription = sticker.emoji, modifier = Modifier.fillMaxSize())
                 else LaunchedEffect(sticker.thumbnail?.file?.id) { sticker.thumbnail?.file?.id?.let(onNeedFile) }
