@@ -17,7 +17,7 @@
                 <objectAnimator
                     android:duration="283"
                     android:propertyName="pathData"
-                    android:startOffset="767"
+                    android:startOffset="67"
                     android:valueFrom="M-0.44 -12.06 C13.5,-14.63 13.5,-14.63 10.9,-0.69 C13.5,13.25 13.5,13.25 -0.44,10.53 C-14.38,13.25 -14.38,13.25 -11.86,-0.69 C-14.38,-14.63 -14.38,-14.63 -0.44,-12.06c "
                     android:valueTo="M-0.44 -8.69 C3.98,-8.69 7.56,-5.11 7.56,-0.69 C7.56,3.73 3.98,7.31 -0.44,7.31 C-4.86,7.31 -8.44,3.73 -8.44,-0.69 C-8.44,-5.11 -4.86,-8.69 -0.44,-8.69c "
                     android:valueType="pathType">
@@ -34,7 +34,7 @@
                 <objectAnimator
                     android:duration="0"
                     android:propertyName="scaleY"
-                    android:startOffset="767"
+                    android:startOffset="67"
                     android:valueFrom="0"
                     android:valueTo="1"
                     android:valueType="floatType" />
@@ -69,7 +69,7 @@
                 <objectAnimator
                     android:duration="283"
                     android:propertyName="scaleX"
-                    android:startOffset="767"
+                    android:startOffset="67"
                     android:valueFrom="1"
                     android:valueTo="0.3"
                     android:valueType="floatType">
@@ -80,7 +80,7 @@
                 <objectAnimator
                     android:duration="283"
                     android:propertyName="scaleY"
-                    android:startOffset="767"
+                    android:startOffset="67"
                     android:valueFrom="1"
                     android:valueTo="0.3"
                     android:valueType="floatType">
