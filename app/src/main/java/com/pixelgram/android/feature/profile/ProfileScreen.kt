@@ -532,7 +532,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                     phoneDetails = phoneDetails,
                     hidePhone = appearance.hidePhone,
                     bioText = bioText,
-                    onUsername = { collectible = it },
+                    onUsername = { if (self) navigator.open(com.pixelgram.android.nav.UsernameKey) else collectible = it },
                     onQr = { showQr = true },
                     onNoteChanged = { scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } },
                 )

@@ -1,5 +1,6 @@
 package com.pixelgram.android.feature.chat
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -85,8 +86,10 @@ fun VoiceButton(
     val scale by animateFloatAsState(if (recorder.active && !recorder.locked) 1.35f else 1f, label = "mic-scale")
     val pulse by animateFloatAsState(1f + recorder.level * 0.7f, tween(90), label = "mic-level")
     val recording = recorder.active && !recorder.locked
+    val lockFade by animateFloatAsState(if (recorder.locked) 0f else 1f, tween(LockFadeMs), label = "lock-fade")
+    val overlay = recorder.active && (!recorder.locked || lockFade > 0.01f)
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
-        if (recording) {
+        if (overlay) {
             androidx.compose.ui.window.Popup(
                 alignment = Alignment.Center,
                 offset = IntOffset(recorder.drag.roundToInt(), 0),
@@ -97,7 +100,13 @@ fun VoiceButton(
                         shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         shadowElevation = 4.dp,
-                        modifier = Modifier.offset { IntOffset(-recorder.drag.roundToInt(), (-LockOffset.toPx() * 1.4f + lift.coerceIn(-lockAt, 0f) * 0.5f).roundToInt()) },
+                        modifier = Modifier
+                            .offset { IntOffset(-recorder.drag.roundToInt(), (-LockOffset.toPx() * 1.4f + lift.coerceIn(-lockAt, 0f) * 0.5f).roundToInt()) }
+                            .graphicsLayer {
+                                alpha = lockFade
+                                scaleX = 0.8f + 0.2f * lockFade
+                                scaleY = 0.8f + 0.2f * lockFade
+                            },
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)) {
                             Icon(Icons.Rounded.Lock, null, Modifier.size(20.dp))
@@ -107,11 +116,13 @@ fun VoiceButton(
                     Box(Modifier.size(size).graphicsLayer {
                         scaleX = scale * pulse
                         scaleY = scale * pulse
+                        alpha = if (recorder.locked) 0f else 1f
                     }.clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)))
                     Box(
                         Modifier.size(size).graphicsLayer {
                             scaleX = scale
                             scaleY = scale
+                            alpha = if (recorder.locked) 0f else 1f
                         }.clip(CircleShape).background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -219,7 +230,11 @@ fun RecordingBar(recorder: MediaRecorderUi) {
     val centis = (recorder.elapsed % 1000) / 10
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .pointerInput(Unit) { detectTapGestures { } }
+            .padding(horizontal = 16.dp),
     ) {
         Box(Modifier.size(10.dp).graphicsLayer { alpha = blink.value }.clip(CircleShape).background(Color(0xFFE53935)))
         Spacer(Modifier.width(10.dp))
@@ -242,3 +257,4 @@ private val CancelDistance = 120.dp
 private val LockDistance = 90.dp
 private val LockOffset = 92.dp
 private const val TapMs = 300L
+private const val LockFadeMs = 220

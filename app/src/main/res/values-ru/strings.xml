@@ -1465,4 +1465,18 @@
         <item quantity="many">Оплатить %d сообщений</item>
         <item quantity="other">Оплатить %d сообщения</item>
     </plurals>
+    <string name="username_title">Имя пользователя</string>
+    <string name="username_set">Задать имя пользователя</string>
+    <string name="username_invalid">Недопустимое имя пользователя.</string>
+    <string name="username_digit">Имя пользователя не может начинаться с цифры.</string>
+    <string name="username_underscore_start">Имя пользователя не может начинаться с подчёркивания.</string>
+    <string name="username_underscore_end">Имя пользователя не может заканчиваться подчёркиванием.</string>
+    <string name="username_short">Имя пользователя должно содержать не менее 5 символов.</string>
+    <string name="username_checking">Проверка имени…</string>
+    <string name="username_free">Имя %1$s доступно.</string>
+    <string name="username_taken">Это имя уже занято.</string>
+    <string name="username_sale">Это имя продаётся на Fragment.</string>
+    <string name="username_limit">У вас слишком много публичных ссылок.</string>
+    <string name="username_about">Вы можете выбрать публичное имя в **Telegram**. В этом случае другие люди смогут найти Вас по такому имени и связаться, не зная Вашего телефона.</string>
+    <string name="username_rules">Можно использовать **a–z**, **0–9** и подчёркивания. Минимальная длина — **5** символов.</string>
 </resources>

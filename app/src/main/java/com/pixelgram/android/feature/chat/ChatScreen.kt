@@ -828,6 +828,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 }
 
 private const val PressDelayMs = 90L
+private val EatStart = 12.dp
 private const val PinJumpHoldMs = 1500L
 private const val JumpWaitMs = 2000L
 private const val LateInputMs = 80L
@@ -2059,10 +2060,19 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                 Surface(
                     shape = if (telegramStyle) CircleShape else RoundedCornerShape(28.dp),
                     color = if (telegramStyle) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    modifier = Modifier.weight(1f).heightIn(min = if (telegramStyle) 48.dp else 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec()),
+                    modifier = Modifier.weight(1f).heightIn(min = if (telegramStyle) 48.dp else 56.dp).animateContentSize(MaterialTheme.motionScheme.fastSpatialSpec())
+                        .graphicsLayer {
+                            val eaten = if (voice.active && !voice.locked) (-voice.drag - EatStart.toPx()).coerceAtLeast(0f) else 0f
+                            if (eaten > 0f) {
+                                clip = true
+                                shape = androidx.compose.foundation.shape.GenericShape { box, _ ->
+                                    val right = (box.width - eaten).coerceAtLeast(0f)
+                                    addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, right, box.height, androidx.compose.ui.geometry.CornerRadius(box.height / 2f)))
+                                }
+                            }
+                        },
                 ) {
                     Box {
-                    if (voice.active) RecordingBar(voice)
                     Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.graphicsLayer { alpha = if (voice.active) 0f else 1f }) {
                         val graphHere = com.pixelgram.android.LocalGraph.current
                         val menuButton by androidx.compose.runtime.produceState<TdApi.BotMenuButton?>(null, controller.chatId) {
@@ -2230,6 +2240,7 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             slot(slots.extra)
                         }
                     }
+                    if (voice.active) RecordingBar(voice)
                     }
                 }
                 val ready = text.isNotBlank() || forward != null

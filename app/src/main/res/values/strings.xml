@@ -1412,4 +1412,18 @@
         <item quantity="one">Pay for %d Message</item>
         <item quantity="other">Pay for %d Messages</item>
     </plurals>
+    <string name="username_title">Username</string>
+    <string name="username_set">Set username</string>
+    <string name="username_invalid">This username is invalid.</string>
+    <string name="username_digit">Usernames can\'t start with a number.</string>
+    <string name="username_underscore_start">Usernames can\'t start with an underscore.</string>
+    <string name="username_underscore_end">Usernames can\'t end with an underscore.</string>
+    <string name="username_short">Usernames must have at least 5 characters.</string>
+    <string name="username_checking">Checking username…</string>
+    <string name="username_free">%1$s is available.</string>
+    <string name="username_taken">This username is already taken.</string>
+    <string name="username_sale">This username is for sale on Fragment.</string>
+    <string name="username_limit">You have too many public links.</string>
+    <string name="username_about">You can choose a username on **Telegram**. If you do, people will be able to find you by this username and contact you without needing your phone number.</string>
+    <string name="username_rules">You can use **a–z**, **0–9** and underscores. Minimum length is **5** characters.</string>
 </resources>

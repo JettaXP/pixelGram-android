@@ -206,7 +206,7 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
         val phone = me?.phone?.let { "+" + com.pixelgram.android.util.formatPhone(it) }.orEmpty()
         InfoRow(Icons.Rounded.Call, Color(0xFF34C759), phone, SegmentPosition.Top, phone, tapCopies = true) {}
         val username = me?.username
-        InfoRow(Icons.Rounded.AlternateEmail, Color(0xFFF29A1F), username?.let { "@$it" } ?: stringResource(R.string.account_set_username), SegmentPosition.Middle, username?.let { "@$it" }) { editingUsername = true }
+        InfoRow(Icons.Rounded.AlternateEmail, Color(0xFFF29A1F), username?.let { "@$it" } ?: stringResource(R.string.account_set_username), SegmentPosition.Middle, username?.let { "@$it" }) { navigator.open(com.pixelgram.android.nav.UsernameKey) }
         val birth = full?.birthdate
         InfoRow(Icons.Rounded.Cake, Color(0xFF2F95F2), birth?.let { formatBirth(it) } ?: stringResource(R.string.account_add_birthday), SegmentPosition.Bottom, null) { editingBirthday = true }
     }
