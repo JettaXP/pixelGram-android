@@ -153,7 +153,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 val balance by androidx.compose.runtime.produceState<org.drinkless.tdlib.TdApi.StarAmount?>(null) { value = com.pixelgram.android.feature.premium.starBalance(graph) }
                 SettingsItem(
                     title = stringResource(R.string.premium_title),
-                    icon = androidx.compose.material.icons.Icons.Rounded.Star,
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.tg_premium),
                     iconBackground = com.pixelgram.android.feature.premium.PremiumGradient[1],
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Top,
@@ -162,7 +162,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 )
                 SettingsItem(
                     title = stringResource(R.string.stars_title),
-                    icon = androidx.compose.material.icons.Icons.Rounded.Star,
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.tg_stars),
                     iconBackground = com.pixelgram.android.feature.premium.StarGold[1],
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Middle,
@@ -171,7 +171,7 @@ fun SettingsTab(graph: AppGraph, navigator: Navigator, onOpenDrawer: (() -> Unit
                 ) { balance?.let { Text(com.pixelgram.android.feature.premium.stars(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 SettingsItem(
                     title = stringResource(R.string.business_title),
-                    icon = com.pixelgram.android.feature.premium.BusinessIcon,
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.tg_business),
                     iconBackground = androidx.compose.ui.graphics.Color(0xFFE5484D),
                     iconTint = androidx.compose.ui.graphics.Color.White,
                     position = SegmentPosition.Bottom,

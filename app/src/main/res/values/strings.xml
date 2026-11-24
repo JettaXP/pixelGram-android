@@ -1400,4 +1400,16 @@
     <string name="hours_closed_day">closed</string>
     <string name="hours_all_day">open 24 hours</string>
     <string name="profile_location">Location</string>
+    <string name="paid_message_hint">Message for</string>
+    <string name="paid_confirm_title">Confirm Payment</string>
+    <string name="paid_balance">Your balance is</string>
+    <string name="paid_dont_ask">Don\'t ask me again</string>
+    <plurals name="paid_confirm_text">
+        <item quantity="one">%1$s charges %2$d Stars per message. Would you like to pay %3$d Stars to send one message?</item>
+        <item quantity="other">%1$s charges %2$d Stars per message. Would you like to pay %3$d Stars to send %4$d messages?</item>
+    </plurals>
+    <plurals name="paid_confirm_button">
+        <item quantity="one">Pay for %d Message</item>
+        <item quantity="other">Pay for %d Messages</item>
+    </plurals>
 </resources>

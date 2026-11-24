@@ -91,6 +91,9 @@ class TdClient(private val context: Context, private val scope: CoroutineScope, 
 
     @Suppress("UNCHECKED_CAST")
     suspend fun <T : TdApi.Object> send(function: TdApi.Function<T>): T {
+        if (!PaidMessages.prepare(context, function) { runCatching { raw(it) }.getOrNull() }) {
+            throw TdException(TdApi.Error(400, "DECLINED_BY_USER"))
+        }
         if (SensitiveRequests.isSensitive(function) && SensitiveRequests.enabled(context) && !SensitiveRequests.confirm(function)) {
             throw TdException(TdApi.Error(400, "DECLINED_BY_USER"))
         }

@@ -1766,6 +1766,10 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
     var forwardPick by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(RichDraft()) }
     val text = draft.text
+    val paidGraph = com.pixelgram.android.LocalGraph.current
+    val paidPrices by com.pixelgram.android.td.PaidMessages.known.collectAsState()
+    val price = if (editing == null) paidPrices[controller.chatId] ?: 0L else 0L
+    LaunchedEffect(controller.chatId) { com.pixelgram.android.td.PaidMessages.price(controller.chatId) { runCatching { paidGraph.td.send(it) }.getOrNull() } }
     var selectionMenu by remember { mutableStateOf<SelectionMenu?>(null) }
     var linking by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
@@ -2147,7 +2151,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             modifier = Modifier.weight(1f).heightIn(max = 176.dp).verticalScroll(fieldScroll).padding(vertical = if (telegramStyle) 12.dp else 16.dp).then(Modifier.bringIntoViewRequester(caretRequester)).focusRequester(focus).onFocusChanged { fieldFocused = it.isFocused },
                             decorationBox = { inner ->
                                 Box {
-                                    if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (text.isEmpty() && price > 0L) Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(stringResource(R.string.paid_message_hint) + " ", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tg_star_small), null, Modifier.size(18.dp))
+                                        Text(" $price", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                    } else if (text.isEmpty()) Text(stringResource(R.string.chat_message_hint), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     val placeholder = (inlineBot?.user?.type as? TdApi.UserTypeBot)?.inlineQueryPlaceholder
                                     val hintLayout = fieldLayout
                                     if (inlineBot != null && inlineBot.query.isEmpty() && !placeholder.isNullOrBlank() && hintLayout != null && text.isNotEmpty()) {
@@ -2263,7 +2271,11 @@ private fun Composer(replyTo: UiMessage?, editing: UiMessage?, controller: ChatC
                             }) else null,
                         ) { sendDraft(null) },
                     ) {
-                        if (telegramStyle && editing == null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                        if (price > 0L) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(androidx.compose.ui.res.painterResource(R.drawable.tg_stars), null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                            Text(price.toString(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
+                        }
+                        else if (telegramStyle && editing == null) Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_pixelgram), stringResource(R.string.action_send), Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimary)
                         else Icon(if (editing != null) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send, stringResource(R.string.action_send), tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }

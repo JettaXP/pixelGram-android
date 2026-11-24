@@ -1449,4 +1449,20 @@
     <string name="hours_closed_day">закрыто</string>
     <string name="hours_all_day">круглосуточно</string>
     <string name="profile_location">Местоположение</string>
+    <string name="paid_message_hint">Сообщение за</string>
+    <string name="paid_confirm_title">Подтверждение оплаты</string>
+    <string name="paid_balance">Ваш баланс:</string>
+    <string name="paid_dont_ask">Больше не спрашивать</string>
+    <plurals name="paid_confirm_text">
+        <item quantity="one">%1$s берёт %2$d звёзд за сообщение. Оплатить %3$d звёзд за %4$d сообщение?</item>
+        <item quantity="few">%1$s берёт %2$d звёзд за сообщение. Оплатить %3$d звёзд за %4$d сообщения?</item>
+        <item quantity="many">%1$s берёт %2$d звёзд за сообщение. Оплатить %3$d звёзд за %4$d сообщений?</item>
+        <item quantity="other">%1$s берёт %2$d звёзд за сообщение. Оплатить %3$d звёзд за %4$d сообщения?</item>
+    </plurals>
+    <plurals name="paid_confirm_button">
+        <item quantity="one">Оплатить %d сообщение</item>
+        <item quantity="few">Оплатить %d сообщения</item>
+        <item quantity="many">Оплатить %d сообщений</item>
+        <item quantity="other">Оплатить %d сообщения</item>
+    </plurals>
 </resources>

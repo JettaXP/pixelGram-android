@@ -1,4 +1,5 @@
 package com.pixelgram.android.feature.premium
+import androidx.compose.ui.res.vectorResource
 
 import android.content.Context
 import android.content.Intent
@@ -195,7 +196,7 @@ fun PremiumScreen(graph: AppGraph, navigator: Navigator, business: Boolean = fal
             Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(PremiumGradient[1].copy(alpha = 0.45f), Color.Transparent)))) {
                 IconButton(onClick = { navigator.back() }, modifier = Modifier.statusBarsPadding().padding(4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 56.dp, bottom = 16.dp, start = 24.dp, end = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    GradientMark(if (business) Icons.Rounded.Storefront else Icons.Rounded.Star, PremiumGradient, 112.dp)
+                    GradientMark(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(if (business) R.drawable.tg_business else R.drawable.tg_premium), PremiumGradient, 112.dp)
                     Spacer(Modifier.height(20.dp))
                     Text(stringResource(if (business) R.string.business_title else R.string.premium_title), style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
                     Text(
@@ -366,13 +367,13 @@ fun StarsScreen(graph: AppGraph, navigator: Navigator) {
             Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(StarGold[0].copy(alpha = 0.3f), Color.Transparent)))) {
                 IconButton(onClick = { navigator.back() }, modifier = Modifier.statusBarsPadding().padding(4.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
                 Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 56.dp, start = 24.dp, end = 24.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    GradientMark(Icons.Rounded.Star, StarGold, 112.dp)
+                    GradientMark(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.tg_stars), StarGold, 112.dp)
                     Spacer(Modifier.height(20.dp))
                     Text(stringResource(R.string.stars_title), style = MaterialTheme.typography.headlineMediumEmphasized)
                     Text(stringResource(R.string.stars_lead), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                     Spacer(Modifier.height(24.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Rounded.Star, null, tint = StarGold[0], modifier = Modifier.size(36.dp))
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tg_star_small), null, modifier = Modifier.size(36.dp))
                         Text(stars(data?.starAmount), style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold))
                     }
                     Text(stringResource(R.string.stars_balance), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -514,7 +515,7 @@ private fun TxAmount(tx: TdApi.StarTransaction, style: androidx.compose.ui.text.
     val incoming = tx.incoming()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text((if (incoming) "+" else "") + stars(tx.starAmount), style = style, color = if (incoming) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error)
-        Icon(Icons.Rounded.Star, null, tint = StarGold[0], modifier = Modifier.size(star))
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tg_star_small), null, modifier = Modifier.size(star))
     }
 }
 
@@ -558,7 +559,7 @@ private fun TransactionSheet(graph: AppGraph, tx: TdApi.StarTransaction, onDismi
             when {
                 sticker != null -> TxSticker(graph, sticker, 140.dp)
                 other != null -> PeerAvatar(graph, other, 96.dp)
-                else -> GradientMark(Icons.Rounded.Star, StarGold, 96.dp)
+                else -> GradientMark(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.tg_stars), StarGold, 96.dp)
             }
             Text(txProduct(tx.type) ?: label, style = MaterialTheme.typography.headlineSmallEmphasized, textAlign = TextAlign.Center)
             TxAmount(tx, MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), 28.dp)
@@ -640,7 +641,7 @@ private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit
                         onDismiss()
                     }.padding(16.dp),
                 ) {
-                    Icon(Icons.Rounded.Star, null, tint = StarGold[0])
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tg_star_small), null, modifier = Modifier.size(24.dp))
                     Text(stringResource(R.string.stars_count, 50), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     Icon(Icons.Rounded.Diamond, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     Text(stringResource(R.string.stars_fragment_only), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -652,7 +653,7 @@ private fun TopUpSheet(graph: AppGraph, username: String?, onDismiss: () -> Unit
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { chosen = option }.padding(16.dp),
                 ) {
-                    Icon(Icons.Rounded.Star, null, tint = StarGold[0])
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.tg_star_small), null, modifier = Modifier.size(24.dp))
                     Text(stringResource(R.string.stars_count, option.starCount), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     Text(price(option.amount, option.currency), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -739,7 +740,7 @@ fun PaymentHost() {
                 loaded == null -> LoadingIndicator(Modifier.padding(24.dp))
                 else -> {
                     val type = loaded.type
-                    GradientMark(if (type is TdApi.PaymentFormTypeStars) Icons.Rounded.Star else Icons.Rounded.CreditCard, if (type is TdApi.PaymentFormTypeStars) StarGold else PremiumGradient, 72.dp)
+                    GradientMark(if (type is TdApi.PaymentFormTypeStars) androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.tg_stars) else Icons.Rounded.CreditCard, if (type is TdApi.PaymentFormTypeStars) StarGold else PremiumGradient, 72.dp)
                     Text(loaded.productInfo.title, style = MaterialTheme.typography.titleLargeEmphasized, textAlign = TextAlign.Center)
                     if (loaded.productInfo.description.text.isNotBlank()) {
                         Text(loaded.productInfo.description.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -867,4 +868,4 @@ fun EmojiStatusHost(onPremium: () -> Unit) {
         }
     }
 }
-val BusinessIcon get() = androidx.compose.material.icons.Icons.Rounded.Storefront
+val BusinessIcon @Composable get() = androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.tg_business)
