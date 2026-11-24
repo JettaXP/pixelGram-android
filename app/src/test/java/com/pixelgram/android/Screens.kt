@@ -149,6 +149,33 @@ class Screens {
         }
     }
 
+    @Test fun pinPad() {
+        rule.mainClock.autoAdvance = false
+        val lengthState = androidx.compose.runtime.mutableStateOf(0)
+        rule.setContent {
+            val appearance by graph().appearance.state.collectAsState()
+            PixelTheme(appearance) {
+                com.pixelgram.android.feature.security.PinPad("Enter passcode", null, false, lengthState.value, true, {}, {}, {}, {})
+            }
+        }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens").apply { mkdirs() }
+        fun save(name: String) = File(dir, "$name.png").outputStream().use { rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+        rule.mainClock.advanceTimeBy(200)
+        save("pin_appear")
+        repeat(20) { rule.mainClock.advanceTimeBy(50) }
+        repeat(5) {
+            lengthState.value++
+            rule.mainClock.advanceTimeBy(120)
+        }
+        repeat(4) { rule.mainClock.advanceTimeBy(50) }
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+        rule.mainClock.advanceTimeBy(50)
+        save("pin_entered")
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        rule.mainClock.advanceTimeBy(50)
+        save("pin_dots")
+    }
+
     @Test fun luhn() {
         check(com.pixelgram.android.feature.premium.Card.luhn("4242424242424242"))
         check(com.pixelgram.android.feature.premium.Card.luhn("2200700000000004") || true)

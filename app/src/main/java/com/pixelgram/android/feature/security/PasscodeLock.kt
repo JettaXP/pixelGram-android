@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +74,7 @@ import com.pixelgram.android.ui.components.SettingsGroup
 import com.pixelgram.android.ui.components.SettingsItem
 import com.pixelgram.android.ui.components.SettingsSwitch
 import com.pixelgram.android.ui.components.segmentPosition
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object PasscodeLock {
@@ -177,31 +179,38 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
             shake.animateTo(0f, spring(dampingRatio = 0.2f, stiffness = 1200f), initialVelocity = 3000f)
         }
     }
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { appear.animateTo(1f, tween(AppearMs.toInt(), easing = LinearEasing)) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val entry = with(density) { 120.dp.toPx() }
+    val entryStep = with(density) { 10.dp.toPx() }
+    val header = Modifier.graphicsLayer {
+        val p = StandardDecelerate.transform(appear.value)
+        alpha = p
+        translationY = entry * (1f - p)
+    }
+    fun rowModifier(row: Int) = Modifier.graphicsLayer {
+        val p = StandardDecelerate.transform(appear.value)
+        alpha = LegacyDecelerate.transform(((appear.value - 0.075f * row) / (1f - 0.075f * 4)).coerceIn(0f, 1f))
+        translationY = (entry + entryStep * row) * (1f - p)
+    }
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).statusBarsPadding().navigationBarsPadding()) {
         val key = minOf((maxWidth - 64.dp) / 3, (maxHeight - 320.dp) / 4, 96.dp)
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Rounded.Lock, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(16.dp))
-            Text(title, style = MaterialTheme.typography.headlineSmall)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-            Spacer(Modifier.height(28.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.height(24.dp).graphicsLayer { translationX = shake.value / 30f },
-            ) {
-                repeat(length) {
-                    androidx.compose.animation.AnimatedVisibility(true, enter = scaleIn(spring(dampingRatio = 0.5f, stiffness = 800f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
-                        Box(Modifier.size(14.dp).clip(CircleShape).background(if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary))
-                    }
-                }
+            Column(header, horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Rounded.Lock, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(16.dp))
+                Text(title, style = MaterialTheme.typography.headlineSmall)
+                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                Spacer(Modifier.height(24.dp))
+                PinShapes(length, if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, Modifier.padding(horizontal = 24.dp).graphicsLayer { translationX = shake.value / 30f })
             }
             Spacer(Modifier.weight(1f))
             val rows = listOf("123", "456", "789")
             Column(verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                rows.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                rows.forEachIndexed { index, row ->
+                    Row(rowModifier(index), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         row.forEach { digit ->
                             NumPadKey(key, { onDigit(digit) }) { color, scale ->
                                 Text(digit.toString(), color = color, fontSize = (key.value * 0.4f).sp, fontWeight = FontWeight.Normal, modifier = Modifier.graphicsLayer { scaleX = scale })
@@ -209,7 +218,7 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(rowModifier(3), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     NumPadKey(key, onDelete, action = true) { color, _ -> Icon(Icons.AutoMirrored.Rounded.Backspace, stringResource(R.string.passcode_delete), tint = color) }
                     NumPadKey(key, { onDigit('0') }) { color, scale ->
                         Text("0", color = color, fontSize = (key.value * 0.4f).sp, modifier = Modifier.graphicsLayer { scaleX = scale })
@@ -218,7 +227,7 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.height(64.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.height(64.dp).then(rowModifier(4)), contentAlignment = Alignment.Center) {
                 if (biometric) {
                     TextButton(onClick = onBiometric) {
                         Icon(Icons.Rounded.Fingerprint, null, Modifier.size(28.dp))
@@ -231,6 +240,76 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
         }
     }
 }
+
+private class PinShape(val id: Long, val res: Int) {
+    val scale = Animatable(1f)
+    var removing = false
+}
+
+@Composable
+private fun PinShapes(length: Int, color: Color, modifier: Modifier) {
+    val order = remember { PinShapeRes.shuffled() }
+    val items = remember { androidx.compose.runtime.mutableStateListOf<PinShape>() }
+    val ids = remember { longArrayOf(0L) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(length) {
+        val alive = items.filter { !it.removing }
+        if (length > alive.size) {
+            for (position in alive.size until length) items += PinShape(ids[0]++, order[position % order.size])
+        } else if (length < alive.size) {
+            val drop = alive.drop(length).reversed()
+            val stagger = if (length == 0) minOf(ResetMaxDelayMs / drop.size, ResetStaggerMs) else 0L
+            drop.forEachIndexed { i, item ->
+                item.removing = true
+                scope.launch {
+                    delay(stagger * i)
+                    item.scale.animateTo(0f, tween(DisappearMs, easing = LinearEasing))
+                    items.remove(item)
+                }
+            }
+        }
+    }
+    BoxWithConstraints(modifier.fillMaxWidth().height(PinShapeSize), contentAlignment = Alignment.Center) {
+        val step = PinShapeSize + PinShapeGap
+        val total = step * items.size - PinShapeGap
+        val shift = if (total > maxWidth) (maxWidth - total) / 2 else 0.dp
+        items.forEachIndexed { index, item ->
+            androidx.compose.runtime.key(item.id) {
+                val target = (step * index - total / 2 + PinShapeSize / 2 + shift).value
+                val x = remember { Animatable(target) }
+                LaunchedEffect(target) { x.animateTo(target, tween(AppearShapeMs, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) }
+                val argb = color.toArgb()
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { context ->
+                        android.widget.ImageView(context).apply {
+                            val drawable = context.getDrawable(item.res)?.mutate()
+                            setImageDrawable(drawable)
+                            imageTintList = android.content.res.ColorStateList.valueOf(argb)
+                            (drawable as? android.graphics.drawable.AnimatedVectorDrawable)?.start()
+                        }
+                    },
+                    update = { it.imageTintList = android.content.res.ColorStateList.valueOf(argb) },
+                    modifier = Modifier.size(PinShapeSize).graphicsLayer {
+                        translationX = x.value.dp.toPx()
+                        scaleX = item.scale.value
+                        scaleY = item.scale.value
+                    },
+                )
+            }
+        }
+    }
+}
+
+private val PinShapeRes = listOf(R.drawable.pin_shape_1, R.drawable.pin_shape_2, R.drawable.pin_shape_3, R.drawable.pin_shape_4, R.drawable.pin_shape_5, R.drawable.pin_shape_6)
+private val PinShapeSize = 30.dp
+private val PinShapeGap = 6.dp
+private const val AppearShapeMs = 160
+private const val DisappearMs = 160
+private const val ResetStaggerMs = 40L
+private const val ResetMaxDelayMs = 200L
+private const val AppearMs = 650L
+private val StandardDecelerate = CubicBezierEasing(0f, 0f, 0f, 1f)
+private val LegacyDecelerate = CubicBezierEasing(0f, 0f, 0.2f, 1f)
 
 fun showBiometric(context: Context, onSuccess: () -> Unit) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
@@ -253,7 +332,19 @@ fun PasscodeLockHost() {
             var entered by remember { mutableStateOf("") }
             var error by remember { mutableStateOf(false) }
             val bio = PasscodeLock.biometric(context)
-            val unlock = { PasscodeLock.locked = false }
+            val leave = remember { Animatable(0f) }
+            val leaveScope = rememberCoroutineScope()
+            val unlock: () -> Unit = {
+                leaveScope.launch {
+                    leave.animateTo(1f, tween(200, easing = CubicBezierEasing(0.4f, 0f, 1f, 1f)))
+                    PasscodeLock.locked = false
+                }
+            }
+            val lift = with(androidx.compose.ui.platform.LocalDensity.current) { 50.dp.toPx() }
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                alpha = 1f - leave.value
+                translationY = -lift * leave.value
+            }) {
             LaunchedEffect(Unit) { if (bio) showBiometric(context) { unlock() } }
             val submit = {
                 if (PasscodeLock.check(context, entered)) unlock() else {
@@ -275,6 +366,7 @@ fun PasscodeLockHost() {
                 onEnter = { submit() },
                 onBiometric = { showBiometric(context) { unlock() } },
             )
+            }
         }
     }
 }
