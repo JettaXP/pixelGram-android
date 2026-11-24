@@ -1393,4 +1393,11 @@
     <string name="greeting_how">How?</string>
     <string name="greeting_how_title">Start page</string>
     <string name="greeting_how_text">Telegram Premium users can set a custom title, message and sticker that people see before they start a chat.</string>
+    <string name="profile_business_hours">Business hours</string>
+    <string name="hours_open">Open</string>
+    <string name="hours_closed">Closed</string>
+    <string name="hours_always">open 24/7</string>
+    <string name="hours_closed_day">closed</string>
+    <string name="hours_all_day">open 24 hours</string>
+    <string name="profile_location">Location</string>
 </resources>

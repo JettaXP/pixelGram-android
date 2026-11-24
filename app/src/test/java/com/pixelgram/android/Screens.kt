@@ -177,6 +177,17 @@ class Screens {
         save("pin_dots")
     }
 
+    @Test fun businessHours() {
+        val h = com.pixelgram.android.feature.profile.BusinessHours
+        val always = h.normalize(TdApi.BusinessOpeningHours("UTC", arrayOf(TdApi.BusinessOpeningHoursInterval(0, 7 * 1440))))
+        check(h.always(always))
+        val week = h.normalize(TdApi.BusinessOpeningHours("UTC", arrayOf(TdApi.BusinessOpeningHoursInterval(540, 1080), TdApi.BusinessOpeningHoursInterval(6 * 1440 + 1320, 7 * 1440 + 120))))
+        check(!h.always(week))
+        check(h.dayText(week, 0, "closed", "all") == "00:00 – 02:00, 09:00 – 18:00") { h.dayText(week, 0, "closed", "all") }
+        check(h.dayText(week, 3, "closed", "all") == "closed")
+        check(h.dayText(week, 6, "closed", "all") == "22:00 – 00:00") { h.dayText(week, 6, "closed", "all") }
+    }
+
     @Test fun luhn() {
         check(com.pixelgram.android.feature.premium.Card.luhn("4242424242424242"))
         check(com.pixelgram.android.feature.premium.Card.luhn("2200700000000004") || true)

@@ -1442,4 +1442,11 @@
     <string name="greeting_how">Как?</string>
     <string name="greeting_how_title">Стартовая страница</string>
     <string name="greeting_how_text">Пользователи Telegram Premium могут задать свой заголовок, текст и стикер, которые видят люди перед началом переписки.</string>
+    <string name="profile_business_hours">Часы работы</string>
+    <string name="hours_open">Открыто</string>
+    <string name="hours_closed">Закрыто</string>
+    <string name="hours_always">круглосуточно</string>
+    <string name="hours_closed_day">закрыто</string>
+    <string name="hours_all_day">круглосуточно</string>
+    <string name="profile_location">Местоположение</string>
 </resources>

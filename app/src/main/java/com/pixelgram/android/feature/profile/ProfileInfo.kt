@@ -1,4 +1,9 @@
 package com.pixelgram.android.feature.profile
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.material3.toShape
@@ -195,6 +200,8 @@ fun UserInfoRows(
         add("id")
         if (birthday != null) add("birthday")
         if (note.isNotBlank()) add("note")
+        if (full?.businessInfo?.location != null) add("location")
+        if (full?.businessInfo?.openingHours?.openingHours?.isNotEmpty() == true) add("hours")
     }
     SettingsGroup {
         rows.forEachIndexed { index, row ->
@@ -319,6 +326,20 @@ fun UserInfoRows(
                 ) { click, long ->
                     SettingsItem(birthdayText(context, birthday!!), position, stringResource(R.string.profile_birthday), Icons.Rounded.Cake, pill = true, onClick = click, onLongClick = long)
                 }
+                "location" -> {
+                    val place = full!!.businessInfo!!.location!!
+                    MenuRow(
+                        listOf(MenuEntry(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy)) { copy(place.address) }),
+                        onClick = {
+                            val point = place.location
+                            val uri = if (point != null) "geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}(${android.net.Uri.encode(place.address)})" else "geo:0,0?q=${android.net.Uri.encode(place.address)}"
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        },
+                    ) { click, long ->
+                        SettingsItem(place.address, position, stringResource(R.string.profile_location), androidx.compose.material.icons.Icons.Rounded.LocationOn, pill = true, onClick = click, onLongClick = long)
+                    }
+                }
+                "hours" -> BusinessHoursRow(full!!.businessInfo!!.openingHours!!, position)
                 "note" -> MenuRow(
                     listOf(
                         MenuEntry(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy)) { copy(note) },
@@ -480,3 +501,100 @@ private fun monthIn(seconds: Long): String {
 
 private val RuMonthsIn = listOf("январе", "феврале", "марте", "апреле", "мае", "июне", "июле", "августе", "сентябре", "октябре", "ноябре", "декабре")
 private const val TipShowMs = 4000L
+
+@Composable
+private fun BusinessHoursRow(hours: TdApi.BusinessOpeningHours, position: com.pixelgram.android.ui.components.SegmentPosition) {
+    val intervals = remember(hours) { BusinessHours.normalize(hours) }
+    val always = remember(intervals) { BusinessHours.always(intervals) }
+    val zone = remember(hours.timeZoneId) { runCatching { java.time.ZoneId.of(hours.timeZoneId) }.getOrDefault(java.time.ZoneId.systemDefault()) }
+    val open = remember(intervals, zone) {
+        val now = java.time.ZonedDateTime.now(zone)
+        val minute = (now.dayOfWeek.value - 1) * BusinessHours.Day + now.hour * 60 + now.minute
+        always || intervals.any { minute >= it.first && minute < it.last }
+    }
+    var expanded by remember { mutableStateOf(false) }
+    val rotation by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, MaterialTheme.motionScheme.defaultSpatialSpec(), label = "hours")
+    val green = Color(0xFF7CC444)
+    val locale = java.util.Locale.getDefault()
+    val today = java.time.ZonedDateTime.now(zone).dayOfWeek.value - 1
+    val closed = stringResource(R.string.hours_closed_day)
+    val allDay = stringResource(R.string.hours_all_day)
+    SettingsItem(
+        stringResource(if (open) R.string.hours_open else R.string.hours_closed),
+        position,
+        null,
+        androidx.compose.material.icons.Icons.Rounded.Schedule,
+        pill = true,
+        onClick = if (always) null else ({ expanded = !expanded }),
+        headlineContent = {
+            androidx.compose.foundation.layout.Column {
+                Text(stringResource(if (open) R.string.hours_open else R.string.hours_closed), color = if (open) green else MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.profile_business_hours), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.animation.AnimatedVisibility(
+                    expanded && !always,
+                    enter = androidx.compose.animation.expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + androidx.compose.animation.fadeOut(),
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        Modifier.fillMaxWidth().padding(top = 10.dp),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+                    ) {
+                        repeat(7) { day ->
+                            val name = java.time.DayOfWeek.of(day + 1).getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, locale).replaceFirstChar { it.titlecase(locale) }
+                            val value = BusinessHours.dayText(intervals, day, closed, allDay)
+                            val style = if (day == today) MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) else MaterialTheme.typography.bodyMedium
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
+                                Text(name, style = style, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                                Text(value, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        trailing = {
+            if (always) {
+                Text(stringResource(R.string.hours_always), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 8.dp))
+            } else {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.ExpandMore, null, Modifier.graphicsLayer { rotationZ = rotation })
+            }
+        },
+    )
+}
+
+object BusinessHours {
+    const val Day = 24 * 60
+    private const val Week = 7 * Day
+
+    fun normalize(hours: TdApi.BusinessOpeningHours): List<IntRange> {
+        val raw = hours.openingHours.flatMap { interval ->
+            val start = interval.startMinute
+            val end = interval.endMinute
+            if (end > Week) listOf(start until Week, 0 until (end - Week)) else listOf(start until end)
+        }.filter { !it.isEmpty() }.sortedBy { it.first }
+        val merged = ArrayList<IntRange>()
+        raw.forEach { range ->
+            val last = merged.lastOrNull()
+            if (last != null && range.first <= last.last + 1) merged[merged.size - 1] = last.first..maxOf(last.last, range.last)
+            else merged += range
+        }
+        return merged.map { it.first until it.last + 1 }
+    }
+
+    fun always(intervals: List<IntRange>): Boolean = intervals.size == 1 && intervals[0].first <= 0 && intervals[0].last + 1 >= Week
+
+    fun dayText(intervals: List<IntRange>, day: Int, closed: String, allDay: String): String {
+        val from = day * Day
+        val to = from + Day
+        val parts = intervals.mapNotNull { r ->
+            val a = maxOf(r.first, from)
+            val b = minOf(r.last + 1, to)
+            if (a < b) (a - from) to (b - from) else null
+        }
+        if (parts.isEmpty()) return closed
+        if (parts.size == 1 && parts[0].first == 0 && parts[0].second == Day) return allDay
+        return parts.joinToString(", ") { (a, b) -> "${clock(a)} – ${clock(b)}" }
+    }
+
+    private fun clock(minute: Int): String = "%02d:%02d".format((minute / 60) % 24, minute % 60)
+}
