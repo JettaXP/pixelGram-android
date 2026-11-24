@@ -4,6 +4,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -121,6 +122,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
     }
     SideEffect { com.pixelgram.android.feature.chats.ChatSelection.drawer = drawerMoving }
     val darkNow = com.pixelgram.android.ui.theme.LocalDarkTheme.current
+    val lockMenuContext = androidx.compose.ui.platform.LocalContext.current
     val shellPrefs by graph.appearance.state.collectAsState()
     Box(Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
@@ -143,6 +145,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                         DrawerItem.Theme -> graph.appearance.update {
                             it.copy(themeMode = if (darkNow) ThemeMode.Light else ThemeMode.Dark)
                         }
+                        DrawerItem.Lock -> com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockMenuContext)
                     }
                 },
             )
@@ -408,10 +411,10 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
             }
         }
         val dark = com.pixelgram.android.ui.theme.LocalDarkTheme.current
-        val entries = appearance.drawerOrder.filter { it in appearance.drawerItems }
         val lockContext = androidx.compose.ui.platform.LocalContext.current
-        val lockShown = com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext)
-        val total = entries.size + if (lockShown) 1 else 0
+        val lockOn = remember(com.pixelgram.android.feature.security.PasscodeLock.revision) { com.pixelgram.android.feature.security.PasscodeLock.enabled(lockContext) }
+        val entries = appearance.drawerOrder.filter { it in appearance.drawerItems && (it != DrawerItem.Lock || lockOn) }
+        val total = entries.size
         Column(
             Modifier.padding(horizontal = 12.dp).animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
             verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
@@ -424,6 +427,7 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                     DrawerItem.Pixel -> null to stringResource(R.string.pixel_settings)
                     DrawerItem.Settings -> Icons.Outlined.Settings to stringResource(R.string.tab_settings)
                     DrawerItem.Theme -> (if (dark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode) to stringResource(if (dark) R.string.drawer_day else R.string.drawer_night)
+                    DrawerItem.Lock -> Icons.Outlined.Lock to stringResource(R.string.passcode_lock_now)
                 }
                 androidx.compose.runtime.key(item) {
                     androidx.compose.material3.SegmentedListItem(
@@ -435,14 +439,6 @@ private fun DrawerContent(graph: AppGraph, onItem: (DrawerItem) -> Unit) {
                         },
                     ) { Text(label) }
                 }
-            }
-            if (lockShown) {
-                androidx.compose.material3.SegmentedListItem(
-                    onClick = { com.pixelgram.android.feature.security.PasscodeLock.lockNow(lockContext) },
-                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(entries.size, total),
-                    colors = com.pixelgram.android.ui.components.segmentedColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                    leadingContent = { Icon(androidx.compose.material.icons.Icons.Rounded.Lock, null) },
-                ) { Text(stringResource(R.string.passcode_lock_now)) }
             }
         }
     }

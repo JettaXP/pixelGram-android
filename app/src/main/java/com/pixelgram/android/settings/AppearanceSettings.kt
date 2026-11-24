@@ -23,7 +23,7 @@ enum class ThemeMode { System, Light, Dark }
 
 enum class NavBarStyle { Expressive, Classic }
 
-enum class DrawerEntry { Saved, Archive, Contacts, Pixel, Settings, Theme }
+enum class DrawerEntry { Saved, Archive, Contacts, Pixel, Settings, Theme, Lock }
 
 enum class IconPack { Material, Telegram, Solar, Remix }
 
@@ -195,7 +195,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         navOrder = (p[Keys.NavOrder] ?: p[Keys.NavTabs])?.split(',')?.mapNotNull { name -> com.pixelgram.android.feature.main.MainTab.entries.firstOrNull { it.name == name } }
             ?.let { saved -> saved + com.pixelgram.android.feature.main.MainTab.entries.filterNot { it in saved } } ?: com.pixelgram.android.feature.main.MainTab.entries,
         drawerItems = p[Keys.DrawerItems]?.split(',')?.mapNotNull { name -> DrawerEntry.entries.firstOrNull { it.name == name } }
-            ?.let { if (DrawerEntry.Settings in it) it else it + DrawerEntry.Settings } ?: DrawerEntry.entries,
+            ?.let { if (DrawerEntry.Settings in it) it else it + DrawerEntry.Settings }
+            ?.let { items -> if (p[Keys.DrawerOrder]?.split(',')?.contains(DrawerEntry.Lock.name) == true || DrawerEntry.Lock in items) items else items + DrawerEntry.Lock } ?: DrawerEntry.entries,
         drawerOrder = p[Keys.DrawerOrder]?.split(',')?.mapNotNull { name -> DrawerEntry.entries.firstOrNull { it.name == name } }
             ?.let { saved -> saved + DrawerEntry.entries.filterNot { it in saved } } ?: DrawerEntry.entries,
         messageSeconds = p[Keys.K_messageSeconds] ?: false,

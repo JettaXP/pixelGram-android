@@ -809,6 +809,7 @@ private val DrawerEntry.label: Int
         DrawerEntry.Pixel -> R.string.pixel_settings
         DrawerEntry.Settings -> R.string.tab_settings
         DrawerEntry.Theme -> R.string.drawer_theme
+        DrawerEntry.Lock -> R.string.passcode_lock_now
     }
 
 private val MainTab.label: Int

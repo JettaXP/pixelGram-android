@@ -182,6 +182,10 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     androidx.compose.runtime.LaunchedEffect(PendingNav.link) {
         PendingNav.link?.let { link ->
             PendingNav.link = null
+            if (com.pixelgram.android.feature.pixel.SupportProject.LinkPattern.matches(link.trim())) {
+                com.pixelgram.android.feature.pixel.SupportProject.open = true
+                return@let
+            }
             (if (SettingsLinks.matches(link)) SettingsLinks.resolve(linkContext, link) else PixelLinks.key(link))?.let { navigator.open(it) }
         }
     }
