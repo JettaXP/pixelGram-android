@@ -213,7 +213,7 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
                     Row(rowModifier(index), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         row.forEach { digit ->
                             NumPadKey(key, { onDigit(digit) }) { color, scale ->
-                                Text(digit.toString(), color = color, fontSize = (key.value * 0.4f).sp, fontWeight = FontWeight.Normal, modifier = Modifier.graphicsLayer { scaleX = scale })
+                                Text(digit.toString(), color = color, fontSize = DigitSize, fontFamily = DigitFont, modifier = Modifier.graphicsLayer { scaleX = scale })
                             }
                         }
                     }
@@ -221,7 +221,7 @@ fun PinPad(title: String, subtitle: String?, error: Boolean, length: Int, biomet
                 Row(rowModifier(3), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     NumPadKey(key, onDelete, action = true) { color, _ -> Icon(Icons.AutoMirrored.Rounded.Backspace, stringResource(R.string.passcode_delete), tint = color) }
                     NumPadKey(key, { onDigit('0') }) { color, scale ->
-                        Text("0", color = color, fontSize = (key.value * 0.4f).sp, modifier = Modifier.graphicsLayer { scaleX = scale })
+                        Text("0", color = color, fontSize = DigitSize, fontFamily = DigitFont, modifier = Modifier.graphicsLayer { scaleX = scale })
                     }
                     NumPadKey(key, onEnter, action = true) { color, _ -> Icon(Icons.AutoMirrored.Rounded.KeyboardReturn, stringResource(R.string.action_done), tint = color) }
                 }
@@ -302,6 +302,8 @@ private fun PinShapes(length: Int, color: Color, modifier: Modifier) {
 
 private val PinShapeRes = listOf(R.drawable.pin_shape_1, R.drawable.pin_shape_2, R.drawable.pin_shape_3, R.drawable.pin_shape_4, R.drawable.pin_shape_5, R.drawable.pin_shape_6)
 private val PinShapeSize = 30.dp
+private val DigitSize = 32.sp
+private val DigitFont = androidx.compose.ui.text.font.FontFamily(android.graphics.Typeface.create("google-sans-text", android.graphics.Typeface.NORMAL))
 private val PinShapeGap = 6.dp
 private const val AppearShapeMs = 160
 private const val DisappearMs = 160
