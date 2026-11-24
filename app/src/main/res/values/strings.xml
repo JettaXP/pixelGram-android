@@ -1426,4 +1426,14 @@
     <string name="username_limit">You have too many public links.</string>
     <string name="username_about">You can choose a username on **Telegram**. If you do, people will be able to find you by this username and contact you without needing your phone number.</string>
     <string name="username_rules">You can use **a–z**, **0–9** and underscores. Minimum length is **5** characters.</string>
+    <string name="viewer_settings">Playback settings</string>
+    <string name="viewer_speed">Speed</string>
+    <string name="viewer_loop">Loop</string>
+    <string name="viewer_save">Save to Gallery</string>
+    <string name="viewer_saved">Saved to Gallery</string>
+    <string name="viewer_wait">Still downloading, try again in a moment</string>
+    <string name="viewer_open_in">Open in…</string>
+    <string name="viewer_show_in_chat">Show in chat</string>
+    <string name="viewer_today_at">today at %1$s</string>
+    <string name="viewer_date_at">%1$s at %2$s</string>
 </resources>

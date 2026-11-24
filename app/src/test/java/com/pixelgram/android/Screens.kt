@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.swipeDown
 import androidx.test.core.app.ApplicationProvider
 import com.pixelgram.android.nav.AppNavigation
 import com.pixelgram.android.settings.ThemeMode
@@ -238,6 +239,10 @@ class Screens {
         node.performTouchInput { doubleClick(center) }
         val seen = (1..18).map { rule.mainClock.advanceTimeBy(50); rule.onAllNodes(androidx.compose.ui.test.hasText("Select")).fetchSemanticsNodes().size }
         check(seen.all { it == 0 }) { "menu opened on double tap: " + seen.joinToString(",") }
+    }
+
+    @Test fun chatReactions() = chatScene("chat_reactions") {
+        repeat(3) { rule.onRoot().performTouchInput { swipeDown(startY = centerY - 400f, endY = centerY + 500f) } }
     }
 
     @Test fun messageSelection() = chatScene("message_selection") {

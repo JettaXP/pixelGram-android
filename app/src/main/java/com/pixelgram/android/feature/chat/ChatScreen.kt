@@ -767,6 +767,15 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
     viewer?.let { (list, index) ->
         PhotoViewer(list, index, snapshot.files, graph.store::requestFileAsync) { viewer = null }
     }
+    VideoViewerHost(
+        title = { m -> if (m.outgoing) snapshot.users[snapshot.meId]?.name.orEmpty() else senderName(snapshot, m.senderId, chat).ifBlank { ui.title } },
+        actions = VideoActions(
+            onReply = { m -> controller.reply(m) },
+            onForward = { m -> forwarding = m },
+            onDelete = { m -> deleting = listOf(m) },
+            onShowInChat = { m -> jumpTo(m.id) },
+        ),
+    )
     }
     menuFor?.let { message ->
         MessageMenu(
@@ -1117,7 +1126,7 @@ internal fun MessageBubble(
                             return@awaitEachGesture
                         }
                         up.consume()
-                        if (latestSelecting || !inside) {
+                        if (latestSelecting) {
                             latestTap(pointAt(up.position.x, up.position.y))
                             return@awaitEachGesture
                         }
@@ -1274,7 +1283,7 @@ internal fun MessageBubble(
                     }
                     (message.content as? TdApi.MessageText)?.linkPreview?.let { preview -> LinkPreviewCard(preview, files, onNeedFile, onContainer) }
                     if (message.reactions.isNotEmpty()) {
-                        ReactionFlow(Modifier.layoutId(StretchWidth).padding(start = 6.dp, end = 8.dp, bottom = 5.dp, top = 1.dp)) {
+                        ReactionFlow(Modifier.layoutId(StretchWidth).padding(start = 8.dp, end = 8.dp, bottom = 6.dp, top = 2.dp)) {
                             message.reactions.forEach { reaction -> androidx.compose.runtime.key(reaction.emoji) {
                                 val chosen = reaction.chosen
                                 val appear = remember { androidx.compose.animation.core.Animatable(if (message.reactions.size == 1 && chosen) 0f else 1f) }
@@ -1291,6 +1300,7 @@ internal fun MessageBubble(
                                 val radius by androidx.compose.animation.core.animateDpAsState(if (chosen) 16.dp else 10.dp, MaterialTheme.motionScheme.fastSpatialSpec(), label = "rr")
                                 val chipColor by androidx.compose.animation.animateColorAsState(if (chosen) MaterialTheme.colorScheme.primary else onContainer.copy(alpha = 0.1f), MaterialTheme.motionScheme.fastEffectsSpec(), label = "rc")
                                 val chipContent by androidx.compose.animation.animateColorAsState(if (chosen) MaterialTheme.colorScheme.onPrimary else onContainer, MaterialTheme.motionScheme.fastEffectsSpec(), label = "rt")
+                                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalMinimumInteractiveComponentSize provides 0.dp) {
                                 Surface(
                                     onClick = { onReact(reaction.emoji) },
                                     shape = RoundedCornerShape(radius),
@@ -1320,6 +1330,7 @@ internal fun MessageBubble(
                                             com.pixelgram.android.ui.components.AnimatedCounter(reaction.count, MaterialTheme.typography.labelMedium)
                                         }
                                     }
+                                }
                                 }
                             } }
                             meta(onContainer.copy(alpha = 0.7f))
@@ -3010,7 +3021,7 @@ private fun ReactionFlow(modifier: Modifier = Modifier, content: @Composable () 
         if (inline) {
             width = maxOf(widest, lastWidth + metaGap + meta.width).coerceAtLeast(constraints.minWidth)
             height = y + maxOf(lineHeight, meta.height)
-            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + (maxOf(lineHeight, meta.height) - meta.height) * 3 / 4)
+            metaPos = androidx.compose.ui.unit.IntOffset(width - meta.width, y + maxOf(lineHeight, meta.height) - meta.height)
         } else {
             width = maxOf(widest, lastWidth, meta.width).coerceAtLeast(constraints.minWidth)
             height = y + lineHeight + gap + meta.height

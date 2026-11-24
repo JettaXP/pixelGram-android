@@ -1479,4 +1479,14 @@
     <string name="username_limit">У вас слишком много публичных ссылок.</string>
     <string name="username_about">Вы можете выбрать публичное имя в **Telegram**. В этом случае другие люди смогут найти Вас по такому имени и связаться, не зная Вашего телефона.</string>
     <string name="username_rules">Можно использовать **a–z**, **0–9** и подчёркивания. Минимальная длина — **5** символов.</string>
+    <string name="viewer_settings">Настройки воспроизведения</string>
+    <string name="viewer_speed">Скорость</string>
+    <string name="viewer_loop">Повтор</string>
+    <string name="viewer_save">Сохранить в галерею</string>
+    <string name="viewer_saved">Сохранено в галерею</string>
+    <string name="viewer_wait">Видео ещё загружается, попробуйте чуть позже</string>
+    <string name="viewer_open_in">Открыть в…</string>
+    <string name="viewer_show_in_chat">Показать в чате</string>
+    <string name="viewer_today_at">сегодня в %1$s</string>
+    <string name="viewer_date_at">%1$s в %2$s</string>
 </resources>

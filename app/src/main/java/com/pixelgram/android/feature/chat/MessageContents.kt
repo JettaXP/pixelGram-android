@@ -111,7 +111,7 @@ internal fun RichContent(
     meta: (@Composable () -> Unit)? = null,
 ) {
     when (val c = message.content) {
-        is TdApi.MessageVideo -> VideoBubble(c.video, files, onNeedFile)
+        is TdApi.MessageVideo -> VideoBubble(message, c.video, files, onNeedFile)
         is TdApi.MessageVoiceNote -> VoiceRow(c.voiceNote, files, onNeedFile, content, meta)
         is TdApi.MessageVideoNote -> VideoNoteView(c.videoNote, files, onNeedFile)
         is TdApi.MessageSticker -> StickerContent(c.sticker, files, onNeedFile)
@@ -167,8 +167,7 @@ private fun InfoCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun VideoBubble(video: TdApi.Video, files: Map<Int, String>, onNeedFile: (Int) -> Unit) {
-    var open by remember { mutableStateOf(false) }
+private fun VideoBubble(message: UiMessage, video: TdApi.Video, files: Map<Int, String>, onNeedFile: (Int) -> Unit) {
     val thumb = localPath(video.thumbnail?.file, files)
     video.thumbnail?.file?.takeIf { thumb == null }?.let { LaunchedEffect(it.id) { onNeedFile(it.id) } }
     val ratio = if (video.width > 0 && video.height > 0) (video.width.toFloat() / video.height).coerceIn(0.6f, 1.9f) else 1.6f
@@ -180,10 +179,7 @@ private fun VideoBubble(video: TdApi.Video, files: Map<Int, String>, onNeedFile:
             .aspectRatio(ratio)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .clickable {
-                onNeedFile(video.video.id)
-                open = true
-            },
+            .clickable { VideoViewer.message = message },
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(model = thumb?.let(::File) ?: video.minithumbnail?.data, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -192,21 +188,6 @@ private fun VideoBubble(video: TdApi.Video, files: Map<Int, String>, onNeedFile:
         }
         Surface(shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.45f), contentColor = Color.White, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
             Text(duration(video.duration), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-        }
-    }
-    if (open) {
-        val path = localPath(video.video, files)
-        Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                if (path == null) {
-                    LoadingIndicator(color = Color.White)
-                } else {
-                    VideoPlayer(path, muted = false, loop = false, controls = true, modifier = Modifier.fillMaxWidth().aspectRatio(ratio))
-                }
-                androidx.compose.material3.IconButton(onClick = { open = false }, modifier = Modifier.align(Alignment.TopStart).padding(top = 32.dp, start = 8.dp)) {
-                    Icon(Icons.Rounded.Close, stringResource(R.string.action_close), tint = Color.White)
-                }
-            }
         }
     }
 }
