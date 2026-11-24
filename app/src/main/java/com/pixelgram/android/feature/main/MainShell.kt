@@ -228,6 +228,7 @@ fun MainShell(graph: AppGraph, navigator: Navigator) {
                     state = pager,
                     key = { order[it].name },
                     beyondViewportPageCount = 0,
+                    userScrollEnabled = !(openDrawer != null && tab == MainTab.Chats && pager.settledPage == order.indexOf(MainTab.Chats)) && !drawerMoving,
                     modifier = Modifier.fillMaxSize().padding(bottom = if (floating) 0.dp else barHeight),
                 ) { page ->
                     val current = order[page]
