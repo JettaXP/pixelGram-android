@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,17 +59,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import com.pixelgram.android.ui.components.WheelItem
+import com.pixelgram.android.ui.components.WheelPicker
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,54 +81,11 @@ import androidx.compose.ui.window.PopupProperties
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.R
 import com.pixelgram.android.ui.components.Icon
-import kotlinx.coroutines.flow.distinctUntilChanged
 import org.drinkless.tdlib.TdApi
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
-@Composable
-private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
-    val state = rememberLazyListState(initial)
-    val fling = rememberSnapFlingBehavior(state)
-    LaunchedEffect(state) {
-        snapshotFlow { state.firstVisibleItemIndex + if (state.firstVisibleItemScrollOffset > state.layoutInfo.visibleItemsInfo.firstOrNull()?.size?.div(2) ?: 0) 1 else 0 }
-            .distinctUntilChanged()
-            .collect { onSelect(it.coerceIn(0, items.lastIndex)) }
-    }
-    val itemPx = with(androidx.compose.ui.platform.LocalDensity.current) { WheelItem.toPx() }
-    val center by remember { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / itemPx } }
-    LazyColumn(
-        state = state,
-        flingBehavior = fling,
-        contentPadding = PaddingValues(vertical = WheelItem * 2),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.height(WheelItem * 5),
-    ) {
-        items(items.size) { index ->
-            val delta = index - center
-            val distance = kotlin.math.abs(delta).toInt()
-            val exit = ((kotlin.math.abs(delta) - 0.5f) / 1.5f).coerceIn(0f, 1f)
-            Box(Modifier.height(WheelItem).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                var fit by remember(index) { mutableStateOf(1f) }
-                Text(
-                    items[index],
-                    fontSize = ((if (distance == 0) 22f else 19f) * fit).sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
-                    maxLines = 1,
-                    softWrap = false,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer { alpha = 1f - exit * exit }
-                        .blur((exit * 10).dp, BlurredEdgeTreatment.Unbounded),
-                    onTextLayout = { if (it.hasVisualOverflow && fit > 0.6f) fit *= 0.9f },
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -425,8 +380,6 @@ fun ScheduledMessagesScreen(controller: ChatController, onDismiss: () -> Unit) {
         )
     }
 }
-
-private val WheelItem = 48.dp
 
 private val RepeatOptions = listOf(
     0 to R.string.repeat_never,

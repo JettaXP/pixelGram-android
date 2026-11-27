@@ -1,6 +1,5 @@
 package com.pixelgram.android.feature.settings
 
-import android.widget.NumberPicker
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,16 +23,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.pixelgram.android.R
+import com.pixelgram.android.ui.components.WheelItem
+import com.pixelgram.android.ui.components.WheelPicker
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 import java.util.Calendar
@@ -75,21 +72,17 @@ fun BirthdaySheet(
                 modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 12.dp),
             )
             Box(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.fillMaxWidth().height(200.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
+                    Modifier.align(Alignment.Center).fillMaxWidth().height(WheelItem)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
                 ) {
-                    Wheel(min = 1, value = shownDay, max = maxDay, displayed = null) { day = it }
-                    Wheel(min = 0, value = month - 1, max = months.size - 1, displayed = months) { month = it + 1 }
-                    Wheel(min = 0, value = year, max = years.size - 1, displayed = years) { year = it }
+                    Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.primary))
+                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.primary))
                 }
-                Column(Modifier.matchParentSize().padding(horizontal = 20.dp)) {
-                    Spacer(Modifier.weight(1f))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.primary))
-                    Spacer(Modifier.height(40.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.primary))
-                    Spacer(Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    WheelPicker((1..maxDay).map { it.toString() }, shownDay - 1, Modifier.weight(1f)) { day = it + 1 }
+                    WheelPicker(months.toList(), month - 1, Modifier.weight(1.7f)) { month = it + 1 }
+                    WheelPicker(years.toList(), year, Modifier.weight(1f)) { year = it }
                 }
             }
             Row(
@@ -111,41 +104,4 @@ fun BirthdaySheet(
             }
         }
     }
-}
-
-@Composable
-private fun Wheel(
-    min: Int,
-    value: Int,
-    max: Int,
-    displayed: Array<String>?,
-    onValue: (Int) -> Unit,
-) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val textSize = with(LocalDensity.current) { MaterialTheme.typography.titleMedium.fontSize.toPx() }
-    val latest = rememberUpdatedState(onValue)
-    AndroidView(
-        modifier = Modifier.height(200.dp),
-        factory = { context ->
-            NumberPicker(context).apply {
-                descendantFocusability = NumberPicker.FOCUS_BLOCK_DESCENDANTS
-                wrapSelectorWheel = false
-                setSelectionDividerHeight(0)
-                minValue = min
-                maxValue = max
-                displayed?.let { displayedValues = it }
-                this.value = value
-                setTextSize(textSize)
-                setTextColor(textColor)
-                setOnValueChangedListener { _, _, new -> latest.value(new) }
-            }
-        },
-        update = { picker ->
-            picker.setTextColor(textColor)
-            if (picker.minValue != min) picker.minValue = min
-            if (picker.maxValue != max) picker.maxValue = max
-            displayed?.let { picker.displayedValues = it }
-            if (picker.value != value) picker.value = value
-        },
-    )
 }
