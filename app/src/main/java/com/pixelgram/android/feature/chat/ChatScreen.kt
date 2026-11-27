@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Code
@@ -781,6 +782,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
         ),
     )
     }
+    MessageTranslationHost()
     menuFor?.let { message ->
         MessageMenu(
             message = message,
@@ -2610,6 +2612,41 @@ private val QuickReactions = listOf("❤", "👍", "👎", "🔥", "🥰", "👏
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+private object MessageTranslation {
+    var message by androidx.compose.runtime.mutableStateOf<UiMessage?>(null)
+    var text by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var failed by androidx.compose.runtime.mutableStateOf(false)
+
+    fun ask(message: UiMessage, controller: ChatController, context: android.content.Context) {
+        val language = when (context.resources.configuration.locales[0].language) {
+            "ru", "he", "en" -> context.resources.configuration.locales[0].language
+            else -> "en"
+        }
+        this.message = message
+        this.text = null
+        this.failed = false
+        controller.translate(message, language) { result ->
+            if (result == null) failed = true else text = result
+        }
+    }
+}
+
+@Composable
+private fun MessageTranslationHost() {
+    val message = MessageTranslation.message ?: return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { MessageTranslation.message = null },
+        title = { Text(stringResource(R.string.action_translate)) },
+        text = {
+            if (MessageTranslation.failed) Text(stringResource(R.string.translation_failed))
+            else Text(MessageTranslation.text ?: stringResource(R.string.translation_loading))
+        },
+        confirmButton = {
+            TextButton(onClick = { MessageTranslation.message = null }) { Text(stringResource(R.string.action_close)) }
+        },
+    )
+}
+
 private fun MessageMenu(
     message: UiMessage,
     anchor: androidx.compose.ui.geometry.Rect,
@@ -2696,7 +2733,10 @@ private fun MessageMenu(
                     val props = menuProps
                     val primary = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
                         if (props?.canBeReplied != false) add(Triple(Icons.AutoMirrored.Rounded.Reply, context.getString(R.string.action_reply)) { close { controller.reply(message) } })
-                        if (message.text.isNotBlank()) add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
+                        if (message.text.isNotBlank()) {
+                            add(Triple(Icons.Rounded.ContentCopy, context.getString(R.string.action_copy)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(message.text)) } })
+                            add(Triple(Icons.Rounded.Translate, context.getString(R.string.action_translate)) { close { MessageTranslation.ask(message, controller, context) } })
+                        }
                         link?.let { url -> add(Triple(Icons.Rounded.Link, context.getString(R.string.action_copy_link)) { close { clipboard.setText(androidx.compose.ui.text.AnnotatedString(url)) } }) }
                     }
                     val secondary = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {

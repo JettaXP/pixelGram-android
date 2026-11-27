@@ -1392,6 +1392,8 @@
         <item quantity="other">%d заявки</item>
     </plurals>
     <string name="action_translate">Перевести</string>
+    <string name="translation_loading">Перевод…</string>
+    <string name="translation_failed">Не удалось перевести</string>
     <string name="profile_copy_link">Копировать ссылку</string>
     <string name="profile_open_in">Открыть в…</string>
     <string name="profile_regdate">Дата регистрации</string>

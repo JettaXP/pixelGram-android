@@ -78,6 +78,12 @@ data class ChatUi(
 class ChatController(private val graph: AppGraph, val chatId: Long, val topicId: Int = 0) {
     private val topic: TdApi.MessageTopic? = if (topicId != 0) TdApi.MessageTopicForum(topicId) else null
 
+    fun translate(message: UiMessage, language: String, done: (String?) -> Unit) {
+        scope.launch {
+            done(runCatching { graph.td.send(TdApi.TranslateMessageText(message.chatId, message.id, language, "")) }.getOrNull()?.let { (it as? TdApi.FormattedText)?.text })
+        }
+    }
+
     private fun inTopic(message: TdApi.Message): Boolean = topicId == 0 || (message.topicId as? TdApi.MessageTopicForum)?.forumTopicId == topicId
     private val scope = CoroutineScope(graph.scope.coroutineContext + Job())
     private val worker = Dispatchers.Default.limitedParallelism(1)

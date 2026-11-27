@@ -1347,6 +1347,8 @@
         <item quantity="other">%d requests</item>
     </plurals>
     <string name="action_translate">Translate</string>
+    <string name="translation_loading">Translating…</string>
+    <string name="translation_failed">Translation failed</string>
     <string name="profile_copy_link">Copy link</string>
     <string name="profile_open_in">Open in…</string>
     <string name="profile_regdate">Registration date</string>
