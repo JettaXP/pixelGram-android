@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -97,7 +98,8 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
             .distinctUntilChanged()
             .collect { onSelect(it.coerceIn(0, items.lastIndex)) }
     }
-    val center by remember { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex + if (state.firstVisibleItemScrollOffset > 60) 1 else 0 } }
+    val itemPx = with(androidx.compose.ui.platform.LocalDensity.current) { WheelItem.toPx() }
+    val center by remember { androidx.compose.runtime.derivedStateOf { state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / itemPx } }
     LazyColumn(
         state = state,
         flingBehavior = fling,
@@ -106,13 +108,19 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
         modifier = modifier.height(WheelItem * 5),
     ) {
         items(items.size) { index ->
-            val distance = kotlin.math.abs(index - center)
+            val delta = index - center
+            val distance = kotlin.math.abs(delta).toInt()
             Box(Modifier.height(WheelItem).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     items[index],
                     fontSize = if (distance == 0) 22.sp else 19.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
                     maxLines = 1,
+                    modifier = Modifier.graphicsLayer {
+                        val exit = ((-delta) - 1f).coerceIn(0f, 1f)
+                        alpha = 1f - exit * exit
+                        renderEffect = if (exit > 0f) androidx.compose.ui.graphics.BlurEffect(exit * 10.dp.toPx(), exit * 10.dp.toPx()).asRenderEffect() else null
+                    },
                 )
             }
         }

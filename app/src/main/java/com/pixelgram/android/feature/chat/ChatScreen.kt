@@ -679,7 +679,11 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
                                         selected = selected.filterNot { it.id == message.id && it.parts.isNotEmpty() }
                                         toggleSelected(part)
                                     },
-                                    onDoubleTap = { controller.react(message, appearance.doubleTapEmoji) },
+                                    onDoubleTap = {
+                                        menuFor = null
+                                        menuAnchor = androidx.compose.ui.geometry.Rect.Zero
+                                        controller.react(message, appearance.doubleTapEmoji)
+                                    },
                                     onReact = { emoji -> controller.react(message, emoji) },
                                     onPlayAudio = { audio ->
                                         val all = ui.messages.reversed().mapNotNull { (it.content as? TdApi.MessageAudio)?.audio }
@@ -1126,20 +1130,17 @@ internal fun MessageBubble(
                             return@awaitEachGesture
                         }
                         up.consume()
-                        if (latestSelecting) {
-                            latestTap(pointAt(up.position.x, up.position.y))
-                            return@awaitEachGesture
-                        }
-                        val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
-                            ?: withTimeoutOrNull(LateInputMs) { awaitFirstDown(requireUnconsumed = false) }?.takeIf { it.uptimeMillis - up.uptimeMillis <= doubleWindow }
-                        if (second != null) {
-                            second.consume()
-                            waitForUpOrCancellation()?.consume()
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                            latestDoubleTap()
-                            return@awaitEachGesture
-                        }
                         latestTap(pointAt(up.position.x, up.position.y))
+                        if (!latestSelecting) {
+                            val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
+                                ?: withTimeoutOrNull(LateInputMs) { awaitFirstDown(requireUnconsumed = false) }?.takeIf { it.uptimeMillis - up.uptimeMillis <= doubleWindow }
+                            if (second != null) {
+                                second.consume()
+                                waitForUpOrCancellation()?.consume()
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                latestDoubleTap()
+                            }
+                        }
                     }
                 }
                 .padding(top = if (joinsAbove) 2.dp else 6.dp),
