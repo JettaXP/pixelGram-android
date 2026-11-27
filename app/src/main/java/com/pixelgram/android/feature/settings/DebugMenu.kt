@@ -18,7 +18,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.pixelgram.android.LocalGraph
 import com.pixelgram.android.R
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.TdApi
 
 object DebugFlags {
@@ -40,7 +42,9 @@ fun DebugMenu(onDismiss: () -> Unit) {
     val done = stringResource(R.string.privacy_done)
     fun run(block: suspend () -> Unit) {
         graph.scope.launch {
-            runCatching { block() }.onSuccess { toast(done) }.onFailure { toast(it.message ?: "Error") }
+            runCatching { block() }
+                .onSuccess { withContext(Dispatchers.Main) { toast(done) } }
+                .onFailure { withContext(Dispatchers.Main) { toast(it.message ?: "Error") } }
         }
         onDismiss()
     }
