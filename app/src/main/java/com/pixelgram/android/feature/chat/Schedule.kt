@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -110,16 +111,21 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
         items(items.size) { index ->
             val delta = index - center
             val distance = kotlin.math.abs(delta).toInt()
-            val exit = ((-delta) - 1f).coerceIn(0f, 1f)
+            val exit = ((kotlin.math.abs(delta) - 0.5f) / 1.5f).coerceIn(0f, 1f)
             Box(Modifier.height(WheelItem).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                var fit by remember(index) { mutableStateOf(1f) }
                 Text(
                     items[index],
-                    fontSize = if (distance == 0) 22.sp else 19.sp,
+                    fontSize = ((if (distance == 0) 22f else 19f) * fit).sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
                     maxLines = 1,
+                    softWrap = false,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
+                        .fillMaxWidth()
                         .graphicsLayer { alpha = 1f - exit * exit }
-                        .blur((exit * 10).dp),
+                        .blur((exit * 10).dp, BlurredEdgeTreatment.Unbounded),
+                    onTextLayout = { if (it.hasVisualOverflow && fit > 0.6f) fit *= 0.9f },
                 )
             }
         }

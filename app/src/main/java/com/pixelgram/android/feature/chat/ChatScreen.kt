@@ -841,6 +841,7 @@ fun ChatScreen(graph: AppGraph, chatId: Long, navigator: Navigator, topicId: Int
 }
 
 private const val PressDelayMs = 90L
+private const val MenuOpenDelayMs = 180L
 private val EatStart = 12.dp
 private const val PinJumpHoldMs = 1500L
 private const val JumpWaitMs = 2000L
@@ -1130,16 +1131,26 @@ internal fun MessageBubble(
                             return@awaitEachGesture
                         }
                         up.consume()
+                        if (latestSelecting) {
+                            latestTap(pointAt(up.position.x, up.position.y))
+                            return@awaitEachGesture
+                        }
+                        val second = withTimeoutOrNull(MenuOpenDelayMs) { awaitFirstDown(requireUnconsumed = false) }
+                        if (second != null) {
+                            second.consume()
+                            waitForUpOrCancellation()?.consume()
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            latestDoubleTap()
+                            return@awaitEachGesture
+                        }
                         latestTap(pointAt(up.position.x, up.position.y))
-                        if (!latestSelecting) {
-                            val second = withTimeoutOrNull(doubleWindow) { awaitFirstDown(requireUnconsumed = false) }
-                                ?: withTimeoutOrNull(LateInputMs) { awaitFirstDown(requireUnconsumed = false) }?.takeIf { it.uptimeMillis - up.uptimeMillis <= doubleWindow }
-                            if (second != null) {
-                                second.consume()
-                                waitForUpOrCancellation()?.consume()
-                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                                latestDoubleTap()
-                            }
+                        val late = withTimeoutOrNull(doubleWindow - MenuOpenDelayMs) { awaitFirstDown(requireUnconsumed = false) }
+                            ?: withTimeoutOrNull(LateInputMs) { awaitFirstDown(requireUnconsumed = false) }?.takeIf { it.uptimeMillis - up.uptimeMillis <= doubleWindow }
+                        if (late != null) {
+                            late.consume()
+                            waitForUpOrCancellation()?.consume()
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            latestDoubleTap()
                         }
                     }
                 }
