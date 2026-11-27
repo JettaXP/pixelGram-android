@@ -63,9 +63,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -116,11 +116,9 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
                     fontSize = if (distance == 0) 22.sp else 19.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
                     maxLines = 1,
-                    modifier = Modifier.graphicsLayer {
-                        val exit = ((-delta) - 1f).coerceIn(0f, 1f)
-                        alpha = 1f - exit * exit
-                        renderEffect = if (exit > 0f) androidx.compose.ui.graphics.BlurEffect(exit * 10.dp.toPx(), exit * 10.dp.toPx()).asRenderEffect() else null
-                    },
+                    modifier = Modifier
+                        .graphicsLayer { alpha = 1f - ((-delta) - 1f).coerceIn(0f, 1f).let { it * it } }
+                        .blur(((-delta) - 1f).coerceIn(0f, 1f) * 10.dp),
                 )
             }
         }
