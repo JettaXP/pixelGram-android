@@ -2610,8 +2610,6 @@ private fun LinkDialog(onDismiss: () -> Unit, onDone: (String) -> Unit) {
 
 private val QuickReactions = listOf("❤", "👍", "👎", "🔥", "🥰", "👏", "😁", "🤔", "😢")
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-@Composable
 private object MessageTranslation {
     var message by androidx.compose.runtime.mutableStateOf<UiMessage?>(null)
     var text by androidx.compose.runtime.mutableStateOf<String?>(null)
@@ -2642,11 +2640,13 @@ private fun MessageTranslationHost() {
             else Text(MessageTranslation.text ?: stringResource(R.string.translation_loading))
         },
         confirmButton = {
-            TextButton(onClick = { MessageTranslation.message = null }) { Text(stringResource(R.string.action_close)) }
+            androidx.compose.material3.TextButton(onClick = { MessageTranslation.message = null }) { Text(stringResource(R.string.action_close)) }
         },
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 private fun MessageMenu(
     message: UiMessage,
     anchor: androidx.compose.ui.geometry.Rect,
