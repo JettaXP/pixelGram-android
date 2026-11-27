@@ -1,6 +1,10 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -17,6 +21,10 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import com.pixelgram.android.ui.components.Icon
@@ -25,8 +33,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -111,19 +122,53 @@ private fun KeyRow(content: @Composable androidx.compose.foundation.layout.RowSc
     )
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DigitKey(digit: Char, modifier: Modifier, onClick: () -> Unit) {
-    FilledTonalButton(
-        onClick = onClick,
-        shapes = ButtonDefaults.shapes(),
-        colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        modifier = modifier.height(KeyHeight),
+    var pressed by remember { mutableStateOf(false) }
+    val corner by animateDpAsState(
+        if (pressed) 20.dp else 32.dp,
+        MaterialTheme.motionScheme.fastSpatialSpec(),
+        label = "key-corner",
+    )
+    Surface(
+        shape = RoundedCornerShape(corner),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier
+            .height(KeyHeight)
+            .clip(RoundedCornerShape(corner))
+            .pointerInput(digit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    pressed = true
+                    var inside = true
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: run {
+                            pressed = false
+                            return@awaitEachGesture
+                        }
+                        val inBounds = change.position.x in 0f..size.width.toFloat() && change.position.y in 0f..size.height.toFloat()
+                        if (inside && !inBounds) {
+                            inside = false
+                            pressed = false
+                        }
+                        if (inside) change.consume()
+                        if (!change.pressed) {
+                            pressed = false
+                            if (inside) {
+                                change.consume()
+                                onClick()
+                            }
+                            return@awaitEachGesture
+                        }
+                    }
+                }
+            },
     ) {
-        Text(digit.toString(), style = MaterialTheme.typography.headlineMediumEmphasized)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(digit.toString(), style = MaterialTheme.typography.headlineMediumEmphasized)
+        }
     }
 }
 
