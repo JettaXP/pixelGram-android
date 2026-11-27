@@ -17,6 +17,7 @@ import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.compose.ui.graphics.toArgb
 import com.pixelgram.android.MainActivity
 import com.pixelgram.android.PixelApp
 import com.pixelgram.android.R
@@ -93,7 +94,7 @@ class Notifier(private val context: Context, private val td: TdClient, private v
     private fun show(chat: TdApi.Chat, lines: List<Line>) {
         val group = chat.type !is TdApi.ChatTypePrivate && chat.type !is TdApi.ChatTypeSecret
         val me = Person.Builder().setName(context.getString(R.string.notify_you)).build()
-        val avatar = chatAvatar(chat) ?: letterAvatar(chat.title, chat.id)
+        val avatar = chatAvatar(chat) ?: letterAvatar(chat.title)
         val avatarIcon = IconCompat.createWithBitmap(avatar)
         val chatPerson = Person.Builder().setName(chat.title).setKey(chat.id.toString()).setIcon(avatarIcon).setImportant(true).build()
         val shortcutIntent = Intent(context, MainActivity::class.java).setAction(OpenChatAction).putExtra(ExtraChat, chat.id)
@@ -189,14 +190,13 @@ class Notifier(private val context: Context, private val td: TdClient, private v
         return circle(bitmap)
     }
 
-    private fun letterAvatar(title: String, seed: Long): Bitmap {
+    private fun letterAvatar(title: String): Bitmap {
         val size = 192
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(out)
-        val palette = intArrayOf(0xFFE57373.toInt(), 0xFFF06292.toInt(), 0xFFBA68C8.toInt(), 0xFF7986CB.toInt(), 0xFF4FC3F7.toInt(), 0xFF4DB6AC.toInt(), 0xFF81C784.toInt(), 0xFFFFB74D.toInt())
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = palette[((seed % palette.size + palette.size) % palette.size).toInt()] }
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = NotificationAccent.primary(context) ?: com.pixelgram.android.ui.theme.PixelLightScheme.primary.toArgb() }
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-        paint.color = android.graphics.Color.WHITE
+        paint.color = NotificationAccent.onPrimary(context) ?: com.pixelgram.android.ui.theme.PixelLightScheme.onPrimary.toArgb()
         paint.textSize = size * 0.42f
         paint.textAlign = android.graphics.Paint.Align.CENTER
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -333,15 +333,19 @@ class KeepAliveService : android.app.Service() {
 }
 
 object NotificationAccent {
-    @Volatile private var cached: Int? = null
+    @Volatile private var cachedPrimary: Int? = null
+    @Volatile private var cachedOnPrimary: Int? = null
 
-    fun save(context: Context, color: Int) {
-        if (cached == color) return
-        cached = color
-        context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).edit().putInt("color", color).apply()
+    fun save(context: Context, primary: Int, onPrimary: Int) {
+        if (cachedPrimary == primary && cachedOnPrimary == onPrimary) return
+        cachedPrimary = primary
+        cachedOnPrimary = onPrimary
+        context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).edit().putInt("color", primary).putInt("on_color", onPrimary).apply()
     }
 
-    fun get(context: Context): Int? = cached ?: context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).getInt("color", 0).takeIf { it != 0 }?.also { cached = it }
+    fun primary(context: Context): Int? = cachedPrimary ?: context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).getInt("color", 0).takeIf { it != 0 }?.also { cachedPrimary = it }
+
+    fun onPrimary(context: Context): Int? = cachedOnPrimary ?: context.getSharedPreferences("notify_accent", Context.MODE_PRIVATE).getInt("on_color", 0).takeIf { it != 0 }?.also { cachedOnPrimary = it }
 }
 
 internal fun accentColor(context: Context): Int = 0xFF000000.toInt()

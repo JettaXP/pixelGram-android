@@ -56,14 +56,13 @@ fun Avatar(
     official: Boolean = false,
 ) {
     if (path == null && onNeedFile != null) LaunchedEffect(seed) { onNeedFile() }
-    val color = avatarColor(seed)
     val cookie = androidx.compose.material3.MaterialShapes.Cookie12Sided.toShape()
     val shape = if (official) cookie else kind?.let { com.pixelgram.android.ui.theme.LocalAvatarKindShapes.current[if (it == com.pixelgram.android.td.ChatKind.Secret) com.pixelgram.android.td.ChatKind.Private else it] } ?: LocalAvatarShape.current
     Box(
         modifier
             .size(size)
             .clip(shape)
-            .background(if (icon != null) MaterialTheme.colorScheme.primary else color),
+            .background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -82,7 +81,7 @@ fun Avatar(
             }
             else -> Text(
                 initials(title),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = (size.value * 0.38f).sp,
             )
