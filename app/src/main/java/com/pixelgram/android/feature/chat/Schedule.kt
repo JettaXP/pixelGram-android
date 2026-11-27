@@ -110,6 +110,7 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
         items(items.size) { index ->
             val delta = index - center
             val distance = kotlin.math.abs(delta).toInt()
+            val exit = ((-delta) - 1f).coerceIn(0f, 1f)
             Box(Modifier.height(WheelItem).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     items[index],
@@ -117,8 +118,8 @@ private fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier, o
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
                     maxLines = 1,
                     modifier = Modifier
-                        .graphicsLayer { alpha = 1f - ((-delta) - 1f).coerceIn(0f, 1f).let { it * it } }
-                        .blur(((-delta) - 1f).coerceIn(0f, 1f) * 10.dp),
+                        .graphicsLayer { alpha = 1f - exit * exit }
+                        .blur((exit * 10).dp),
                 )
             }
         }
