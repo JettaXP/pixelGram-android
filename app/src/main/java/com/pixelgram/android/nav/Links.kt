@@ -130,6 +130,11 @@ object LinkConfirm {
 
     fun ask(url: String, shown: String) {
         val bare = { v: String -> v.removePrefix("https://").removePrefix("http://").removePrefix("www.").trimEnd('/') }
+        val host = Uri.parse(url).host?.removePrefix("www.")
+        if (host in setOf("t.me", "telegram.me", "telegram.dog") || url.startsWith("tg:")) {
+            PendingNav.external = url
+            return
+        }
         if (bare(url).equals(bare(shown), ignoreCase = true) || SettingsLinks.matches(url) || com.pixelgram.android.feature.pixel.Credits.handles(url)) PendingNav.external = url else pending = url
     }
 }
