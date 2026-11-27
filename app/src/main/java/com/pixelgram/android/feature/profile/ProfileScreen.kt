@@ -10,8 +10,6 @@ import androidx.compose.material.icons.automirrored.rounded.Forward
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -135,7 +133,6 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     var ratingOpen by remember { mutableStateOf(false) }
     var groupQr by remember { mutableStateOf<String?>(null) }
     var collectible by remember { mutableStateOf<String?>(null) }
-    var editing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(userId) {
         if (userId != 0L) full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull()
@@ -166,69 +163,8 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     } else {
         null
     }
-    val swipeChat = when {
-        self || onOpenDrawer != null -> 0L
-        chatId != 0L -> chatId
-        userId != 0L -> userId
-        else -> 0L
-    }
-    val swipe = remember { androidx.compose.animation.core.Animatable(0f) }
-    val swipeDensity = androidx.compose.ui.platform.LocalDensity.current
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
-    val widthPx = constraints.maxWidth.toFloat()
-    if (swipeChat != 0L && swipe.value < 0f) {
-        val reveal = (-swipe.value / (widthPx * 0.3f)).coerceIn(0f, 1f)
-        androidx.compose.material3.Surface(
-            shape = CircleShape,
-            color = if (reveal >= 1f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 20.dp).graphicsLayer {
-                alpha = reveal
-                scaleX = 0.6f + 0.4f * reveal
-                scaleY = 0.6f + 0.4f * reveal
-            },
-        ) {
-            Icon(
-                Icons.AutoMirrored.Rounded.Chat,
-                null,
-                tint = if (reveal >= 1f) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(14.dp).size(24.dp),
-            )
-        }
-    }
-    val swipeModifier = if (swipeChat == 0L) Modifier else Modifier
-        .graphicsLayer {
-            translationX = swipe.value
-            val f = (-swipe.value / widthPx).coerceIn(0f, 1f)
-            scaleX = 1f - 0.08f * f
-            scaleY = 1f - 0.08f * f
-            shape = RoundedCornerShape(32.dp * (f * 4f).coerceAtMost(1f))
-            clip = f > 0f
-        }
-        .pointerInput(swipeChat) {
-            val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
-            detectHorizontalDragGestures(
-                onDragStart = { tracker.resetTracking() },
-                onDragEnd = {
-                    val velocity = tracker.calculateVelocity().x
-                    val go = swipe.value < -widthPx * 0.3f || velocity < -with(swipeDensity) { 900.dp.toPx() }
-                    scope.launch {
-                        if (go) {
-                            swipe.animateTo(-widthPx, androidx.compose.animation.core.spring(stiffness = 1400f))
-                            navigator.toChat(swipeChat)
-                            swipe.snapTo(0f)
-                        } else {
-                            swipe.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 700f))
-                        }
-                    }
-                },
-                onDragCancel = { scope.launch { swipe.animateTo(0f) } },
-            ) { change, amount ->
-                tracker.addPosition(change.uptimeMillis, change.position)
-                change.consume()
-                scope.launch { swipe.snapTo((swipe.value + amount).coerceIn(-widthPx, 0f)) }
-            }
-        }
-    Box(swipeModifier) {
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
+    Box {
     Scaffold(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
@@ -319,6 +255,12 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                         .filter { it.isPinned }.mapNotNull { (it.gift as? TdApi.SentGiftUpgraded)?.gift }.take(6)
                 }.getOrDefault(emptyList())
             }
+            val openAvatarPhotos: (() -> Unit)? =
+                if (userId != 0L && user != null && user.deleted != true && (user.bigPhotoFileId != 0 || user.minithumb != null || user.localPhoto != null)) {
+                    { navigator.open(ProfilePhotosKey(userId)) }
+                } else if (userId == 0L && chat?.photo != null) {
+                    { navigator.open(ProfilePhotosKey(chatId)) }
+                } else null
             ProfileHeader(
                 graph = graph,
                 userId = if (userId != 0L) userId else chatId,
@@ -333,7 +275,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
                 verified = user?.verified == true || supergroup?.verificationStatus?.isVerified == true,
                 official = chatId != 0L && graph.store.isOfficial(chatId),
                 showCamera = false,
-                onAvatarClick = { if (userId != 0L && user?.deleted != true) navigator.open(ProfilePhotosKey(userId)) else if (userId == 0L && chat?.photo != null) navigator.open(ProfilePhotosKey(chatId)) },
+                onAvatarClick = openAvatarPhotos,
                 icon = if (user?.deleted == true) com.pixelgram.android.ui.icons.GhostIcon else null,
                 localPhoto = user?.localPhoto,
                 expand = { expandedAmount },
@@ -356,7 +298,7 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (self) {
                     ProfileAction(Icons.Rounded.AddAPhoto, stringResource(R.string.profile_set_photo), onClick = pickAvatar)
-                    ProfileAction(Icons.Rounded.Edit, stringResource(R.string.profile_edit)) { editing = true }
+                    ProfileAction(Icons.Rounded.Edit, stringResource(R.string.profile_edit)) { navigator.open(com.pixelgram.android.nav.SettingsSectionKey(com.pixelgram.android.feature.settings.SettingsSection.Account.name)) }
                     if (onOpenSettings != null) ProfileAction(Icons.Rounded.Settings, stringResource(R.string.profile_settings), onClick = onOpenSettings)
                 } else if (userId != 0L) {
                     ProfileAction(Icons.AutoMirrored.Rounded.Chat, stringResource(R.string.profile_message)) {
@@ -561,7 +503,6 @@ fun ProfileScreen(graph: AppGraph, userId: Long, chatId: Long, navigator: Naviga
     }
     }
     MediaSelectionBar(graph, navigator)
-    if (editing) EditProfileSheet(graph, full) { editing = false; scope.launch { full = runCatching { graph.td.send(TdApi.GetUserFullInfo(userId)) }.getOrNull() } }
     collectible?.let { name -> UsernameSheet(graph, name, if (userId != 0L) userId else chatId) { collectible = null } }
     if (showQr && username != null) ProfileQrSheet(username) { showQr = false }
     groupQr?.let { name -> ProfileQrSheet(name) { groupQr = null } }
@@ -1074,75 +1015,6 @@ private fun PersonalChannelCard(graph: AppGraph, chatId: Long, onClick: () -> Un
                     }
                     if (preview.isNotBlank()) Text(preview, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun EditProfileSheet(graph: AppGraph, full: TdApi.UserFullInfo?, onDismiss: () -> Unit) {
-    val snapshot by graph.store.snapshot.collectAsState()
-    val me = snapshot.users[snapshot.meId]
-    var first by remember { mutableStateOf(me?.firstName.orEmpty()) }
-    var last by remember { mutableStateOf(me?.lastName.orEmpty()) }
-    var bio by remember { mutableStateOf(full?.bio?.text.orEmpty()) }
-    var day by remember { mutableStateOf(full?.birthdate?.day?.toString().orEmpty()) }
-    var month by remember { mutableStateOf(full?.birthdate?.month?.toString().orEmpty()) }
-    var year by remember { mutableStateOf(full?.birthdate?.year?.takeIf { it > 0 }?.toString().orEmpty()) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.profile_edit), style = MaterialTheme.typography.titleLargeEmphasized)
-            androidx.compose.material3.OutlinedTextField(first, { first = it.take(64) }, label = { Text(stringResource(R.string.profile_first_name)) }, singleLine = true, shape = shape, modifier = Modifier.fillMaxWidth())
-            androidx.compose.material3.OutlinedTextField(last, { last = it.take(64) }, label = { Text(stringResource(R.string.profile_last_name)) }, singleLine = true, shape = shape, modifier = Modifier.fillMaxWidth())
-            androidx.compose.material3.OutlinedTextField(
-                bio,
-                { bio = it.take(140) },
-                label = { Text(stringResource(R.string.profile_bio)) },
-                supportingText = { Text("${bio.length}/140") },
-                minLines = 2,
-                shape = shape,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(stringResource(R.string.profile_birthday), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val digits = { s: String, n: Int -> s.filter { it.isDigit() }.take(n) }
-                val numeric = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-                androidx.compose.material3.OutlinedTextField(day, { day = digits(it, 2) }, placeholder = { Text("DD") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1f))
-                Text("/")
-                androidx.compose.material3.OutlinedTextField(month, { month = digits(it, 2) }, placeholder = { Text("MM") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1f))
-                Text("/")
-                androidx.compose.material3.OutlinedTextField(year, { year = digits(it, 4) }, placeholder = { Text("YYYY") }, singleLine = true, shape = shape, keyboardOptions = numeric, modifier = Modifier.weight(1.4f))
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            Button(
-                onClick = {
-                    busy = true
-                    error = null
-                    scope.launch {
-                        val result = runCatching {
-                            graph.td.send(TdApi.SetName(first.trim(), last.trim()))
-                            if (bio != full?.bio?.text.orEmpty()) graph.td.send(TdApi.SetBio(bio.trim()))
-                            val d = day.toIntOrNull()
-                            val m = month.toIntOrNull()
-                            val birth = if (d != null && m != null && d in 1..31 && m in 1..12) TdApi.Birthdate(d, m, year.toIntOrNull() ?: 0) else null
-                            val old = full?.birthdate
-                            if (birth?.day != old?.day || birth?.month != old?.month || birth?.year != old?.year) graph.td.send(TdApi.SetBirthdate(birth))
-                        }
-                        busy = false
-                        result.onSuccess { onDismiss() }.onFailure { error = it.message }
-                    }
-                },
-                enabled = !busy && first.isNotBlank(),
-                shapes = ButtonDefaults.shapes(),
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-            ) {
-                if (busy) androidx.compose.material3.LoadingIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                else Text(stringResource(R.string.business_save), style = MaterialTheme.typography.titleMedium)
             }
         }
     }

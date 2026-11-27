@@ -70,7 +70,7 @@ fun ProfileHeader(
     verified: Boolean,
     official: Boolean = false,
     showCamera: Boolean,
-    onAvatarClick: () -> Unit,
+    onAvatarClick: (() -> Unit)?,
     topStart: @Composable RowScope.() -> Unit = {},
     topEnd: @Composable RowScope.() -> Unit = {},
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
@@ -156,7 +156,7 @@ fun ProfileHeader(
                             minithumb = if (icon != null) null else minithumb,
                             size = size,
                             icon = icon,
-                            modifier = Modifier.clickable(onClick = onAvatarClick),
+                            modifier = onAvatarClick?.let { Modifier.clickable(onClick = it) } ?: Modifier,
                             onNeedFile = { graph.store.requestFileAsync(photoFileId) },
                         )
                     }
@@ -177,11 +177,11 @@ fun ProfileHeader(
                     minithumb = if (icon != null) null else minithumb,
                     size = AvatarSize,
                     icon = icon,
-                    modifier = Modifier.clickable(enabled = e < 0.3f, onClick = onAvatarClick),
+                    modifier = onAvatarClick?.let { Modifier.clickable(enabled = e < 0.3f, onClick = it) } ?: Modifier,
                     onNeedFile = { graph.store.requestFileAsync(photoFileId) },
                     official = official,
                 )
-                if (showCamera && e < 0.05f) {
+                if (showCamera && e < 0.05f && onAvatarClick != null) {
                     androidx.compose.material3.FilledIconButton(
                         onClick = onAvatarClick,
                         modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(40.dp),
