@@ -293,35 +293,26 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
         )
     }
     if (editingBirthday) {
-        val state = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = full?.birthdate?.let { java.time.LocalDate.of(if (it.year > 0) it.year else 2000, it.month, it.day).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() },
-        )
-        androidx.compose.material3.DatePickerDialog(
-            onDismissRequest = { editingBirthday = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val millis = state.selectedDateMillis
-                    editingBirthday = false
-                    scope.launch {
-                        val birth = millis?.let {
-                            val date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                            TdApi.Birthdate(date.dayOfMonth, date.monthValue, date.year)
-                        }
-                        runCatching { graph.td.send(TdApi.SetBirthdate(birth)) }
-                        full = runCatching { graph.td.send(TdApi.GetUserFullInfo(snapshot.meId)) }.getOrNull() ?: full
-                    }
-                }) { Text(stringResource(R.string.action_done)) }
+        BirthdaySheet(
+            initial = full?.birthdate,
+            onSave = { birth ->
+                editingBirthday = false
+                scope.launch {
+                    runCatching { graph.td.send(TdApi.SetBirthdate(birth)) }
+                    full = runCatching { graph.td.send(TdApi.GetUserFullInfo(snapshot.meId)) }.getOrNull() ?: full
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
+            onRemove = full?.birthdate?.let {
+                {
                     editingBirthday = false
                     scope.launch {
                         runCatching { graph.td.send(TdApi.SetBirthdate(null)) }
                         full = runCatching { graph.td.send(TdApi.GetUserFullInfo(snapshot.meId)) }.getOrNull() ?: full
                     }
-                }) { Text(stringResource(R.string.action_remove)) }
+                }
             },
-        ) { androidx.compose.material3.DatePicker(state) }
+            onDismiss = { editingBirthday = false },
+        )
     }
     if (nowPlaying) NowPlayingDialog { nowPlaying = false }
     if (personal) {
