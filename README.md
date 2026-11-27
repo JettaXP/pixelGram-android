@@ -41,4 +41,4 @@ CI does all of this automatically and caches the TDLib build.
 
 ## License
 
-GPL-3.0
+GPL-3.0, see [LICENSE](LICENSE)
