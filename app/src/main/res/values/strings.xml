@@ -1450,4 +1450,21 @@
         <item quantity="one">last seen %d minute ago</item>
         <item quantity="other">last seen %d minutes ago</item>
     </plurals>
+    <string name="pixel_other">Other</string>
+    <string name="pixel_other_sub">Version, backup and extras</string>
+    <string name="supporter_banner_title">Thank You for Your Support!</string>
+    <string name="supporter_banner_subtitle">Your badge is #%1$d.</string>
+    <string name="supporter_banner_button">Learn More</string>
+    <string name="supporter_perks_title">Supporter Perks</string>
+    <string name="supporter_perks_you">You are supporter #%1$d. Here is what you have unlocked:</string>
+    <string name="supporter_perk_badge_title">Numbered Badge</string>
+    <string name="supporter_perk_badge_text">Your personal number appears next to your name for every user.</string>
+    <string name="supporter_perk_now_title">Now Playing</string>
+    <string name="supporter_perk_now_text">Show what you are listening to on Last.fm or stats.fm right in your profile.</string>
+    <string name="supporter_other_pill">Pixel Badge #%1$d</string>
+    <string name="supporter_other_title">%1$s supports pixelGram</string>
+    <string name="supporter_other_sub">Supporters get these perks:</string>
+    <string name="supporter_other_badge_text">A numbered badge shown next to their name for every user.</string>
+    <string name="supporter_other_now_text">Their current track from Last.fm or stats.fm shown right in the profile.</string>
+    <string name="supporter_other_got_it">Got it</string>
 </resources>

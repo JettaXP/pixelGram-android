@@ -175,6 +175,7 @@ fun AppNavigation(graph: AppGraph, start: List<NavKey> = listOf(MainKey)) {
     com.pixelgram.android.feature.premium.PaidMessageHost(graph)
     com.pixelgram.android.feature.security.PasscodeLockHost()
     com.pixelgram.android.feature.pixel.SupportSheet()
+    com.pixelgram.android.feature.pixel.SupporterSheetHost(graph, navigator)
     com.pixelgram.android.feature.chat.WebAppHost()
     com.pixelgram.android.feature.chat.EmojiPreviewHost()
     com.pixelgram.android.feature.chat.DocumentViewerHost()

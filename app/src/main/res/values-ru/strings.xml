@@ -1505,4 +1505,21 @@
         <item quantity="many">был(а) %d минут назад</item>
         <item quantity="other">был(а) %d минут назад</item>
     </plurals>
+    <string name="pixel_other">Другое</string>
+    <string name="pixel_other_sub">Версия, резервная копия и разное</string>
+    <string name="supporter_banner_title">Спасибо за поддержку!</string>
+    <string name="supporter_banner_subtitle">Ваш бейдж — #%1$d.</string>
+    <string name="supporter_banner_button">Узнать больше</string>
+    <string name="supporter_perks_title">Возможности саппортера</string>
+    <string name="supporter_perks_you">Вы саппортер #%1$d. Вот что вам открылось:</string>
+    <string name="supporter_perk_badge_title">Номерной бейдж</string>
+    <string name="supporter_perk_badge_text">Ваш личный номер виден рядом с вашим именем для каждого пользователя.</string>
+    <string name="supporter_perk_now_title">Now Playing</string>
+    <string name="supporter_perk_now_text">Показывайте, что вы слушаете на Last.fm или stats.fm, прямо в профиле.</string>
+    <string name="supporter_other_pill">Pixel Badge #%1$d</string>
+    <string name="supporter_other_title">%1$s поддерживает pixelGram</string>
+    <string name="supporter_other_sub">У саппортеров есть эти возможности:</string>
+    <string name="supporter_other_badge_text">Номерной бейдж, который виден рядом с их именем для каждого пользователя.</string>
+    <string name="supporter_other_now_text">Их текущий трек с Last.fm или stats.fm прямо в профиле.</string>
+    <string name="supporter_other_got_it">Понятно</string>
 </resources>

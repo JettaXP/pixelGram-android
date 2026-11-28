@@ -124,7 +124,7 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
         "general" -> stringResource(R.string.pixel_general)
         "appearance" -> stringResource(R.string.pixel_appearance)
         "chats" -> stringResource(R.string.pixel_chats)
-        "about" -> stringResource(R.string.pixel_about)
+        "about" -> stringResource(R.string.pixel_other)
         else -> stringResource(R.string.pixel_settings)
     }
     val collapse = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -144,6 +144,8 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
                 "general" -> GeneralPage(appearance) { change -> graph.appearance.update(change) }
                 "chats" -> ChatsPage(appearance, { navigator.open(it) }) { change -> graph.appearance.update(change) }
                 "about" -> {
+                    val meNumber = graph.remote.supporters.collectAsState().value.numbers[graph.store.snapshot.collectAsState().value.meId]
+                    if (meNumber != null) com.pixelgram.android.feature.pixel.ThankYouBanner(meNumber) { com.pixelgram.android.feature.pixel.SupporterWindows.perks = true }
                     AboutPage()
                     BackupSection()
                 }
@@ -182,7 +184,7 @@ internal fun HomePage(open: (String) -> Unit) {
         SettingsItem(stringResource(R.string.pixel_general), SegmentPosition.Top, stringResource(R.string.pixel_general_sub), Icons.Rounded.Tune, onClick = { open("general") }, link = "pg://pixel/general")
         SettingsItem(stringResource(R.string.pixel_appearance), SegmentPosition.Middle, stringResource(R.string.pixel_appearance_sub), Icons.Rounded.Palette, onClick = { open("appearance") }, link = "pg://pixel/appearance")
         SettingsItem(stringResource(R.string.pixel_chats), SegmentPosition.Middle, stringResource(R.string.pixel_chats_sub), Icons.Rounded.Chat, onClick = { open("chats") }, link = "pg://pixel/chats")
-        SettingsItem(stringResource(R.string.pixel_about), SegmentPosition.Bottom, stringResource(R.string.pixel_about_sub), Icons.Rounded.Info, onClick = { open("about") }, link = "pg://pixel/about")
+        SettingsItem(stringResource(R.string.pixel_other), SegmentPosition.Bottom, stringResource(R.string.pixel_other_sub), painter = androidx.compose.ui.res.painterResource(com.pixelgram.android.R.drawable.ic_other), onClick = { open("about") }, link = "pg://pixel/about")
     }
 }
 

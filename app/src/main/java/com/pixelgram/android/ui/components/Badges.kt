@@ -145,7 +145,13 @@ fun SupporterBadge(userId: Long, name: String, size: Dp = 18.dp, label: Boolean 
             .combinedClickable(
                 interactionSource = null,
                 indication = null,
-                onClick = { Notice.show(notice) },
+                onClick = {
+                    if (custom != null) Notice.show(notice)
+                    else if (number != null) {
+                        if (userId == meId) com.pixelgram.android.feature.pixel.SupporterWindows.perks = true
+                        else com.pixelgram.android.feature.pixel.SupporterWindows.other = userId
+                    }
+                },
                 onLongClick = if (editable) ({
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     editing = true
