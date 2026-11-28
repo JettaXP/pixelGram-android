@@ -111,6 +111,7 @@ private fun PerksSheet(number: Int, navigator: Navigator, onDismiss: () -> Unit)
     val scope = rememberCoroutineScope()
     val close: () -> Unit = { scope.launch { state.hide() }.invokeOnCompletion { onDismiss() } }
     val logo = painterResource(R.drawable.ic_pixelgram)
+    val myId = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.meId
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = MaterialTheme.colorScheme.surfaceContainer, scrimColor = Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(logo, null, tint = logoTint(), modifier = Modifier.size(120.dp))
@@ -122,7 +123,7 @@ private fun PerksSheet(number: Int, navigator: Navigator, onDismiss: () -> Unit)
                     stringResource(R.string.supporter_perk_badge_title),
                     stringResource(R.string.supporter_perk_badge_text),
                     chevron = true,
-                    onClick = { close(); navigator.open(ProfileKey(meId())) },
+                    onClick = { close(); navigator.open(ProfileKey(myId)) },
                 )
                 PerkRow(
                     Icons.Rounded.Headphones,
@@ -135,9 +136,6 @@ private fun PerksSheet(number: Int, navigator: Navigator, onDismiss: () -> Unit)
         }
     }
 }
-
-@Composable
-private fun meId(): Long = com.pixelgram.android.LocalGraph.current.store.snapshot.collectAsState().value.meId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

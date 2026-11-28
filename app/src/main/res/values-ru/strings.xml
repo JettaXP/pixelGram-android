@@ -1522,4 +1522,6 @@
     <string name="supporter_other_badge_text">Номерной бейдж, который виден рядом с их именем для каждого пользователя.</string>
     <string name="supporter_other_now_text">Их текущий трек с Last.fm или stats.fm прямо в профиле.</string>
     <string name="supporter_other_got_it">Понятно</string>
+    <string name="pixel_icons_rounded">Закруглённые</string>
+    <string name="pixel_icons_rounded_sub">Закруглённые Material-иконки</string>
 </resources>

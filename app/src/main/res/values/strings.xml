@@ -1467,4 +1467,6 @@
     <string name="supporter_other_badge_text">A numbered badge shown next to their name for every user.</string>
     <string name="supporter_other_now_text">Their current track from Last.fm or stats.fm shown right in the profile.</string>
     <string name="supporter_other_got_it">Got it</string>
+    <string name="pixel_icons_rounded">Rounded</string>
+    <string name="pixel_icons_rounded_sub">Rounded material icons</string>
 </resources>

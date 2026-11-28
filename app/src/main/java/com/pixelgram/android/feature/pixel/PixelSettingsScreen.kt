@@ -149,7 +149,7 @@ fun PixelSettingsScreen(graph: AppGraph, page: String, navigator: Navigator) {
                     AboutPage()
                     BackupSection()
                 }
-                else -> HomePage { navigator.open(PixelSettingsKey(it)) }
+                else -> HomePage(appearance) { navigator.open(PixelSettingsKey(it)) }
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -173,7 +173,7 @@ private fun PixelLogo(size: androidx.compose.ui.unit.Dp) {
 }
 
 @Composable
-internal fun HomePage(open: (String) -> Unit) {
+internal fun HomePage(settings: com.pixelgram.android.settings.AppearanceSettings, open: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         PixelLogo(104.dp)
         Spacer(Modifier.height(16.dp))
@@ -184,7 +184,8 @@ internal fun HomePage(open: (String) -> Unit) {
         SettingsItem(stringResource(R.string.pixel_general), SegmentPosition.Top, stringResource(R.string.pixel_general_sub), Icons.Rounded.Tune, onClick = { open("general") }, link = "pg://pixel/general")
         SettingsItem(stringResource(R.string.pixel_appearance), SegmentPosition.Middle, stringResource(R.string.pixel_appearance_sub), Icons.Rounded.Palette, onClick = { open("appearance") }, link = "pg://pixel/appearance")
         SettingsItem(stringResource(R.string.pixel_chats), SegmentPosition.Middle, stringResource(R.string.pixel_chats_sub), Icons.Rounded.Chat, onClick = { open("chats") }, link = "pg://pixel/chats")
-        SettingsItem(stringResource(R.string.pixel_other), SegmentPosition.Bottom, stringResource(R.string.pixel_other_sub), painter = androidx.compose.ui.res.painterResource(com.pixelgram.android.R.drawable.ic_other), onClick = { open("about") }, link = "pg://pixel/about")
+        val otherIcon = if (settings.iconPack == com.pixelgram.android.settings.IconPack.Material && settings.materialRounded) com.pixelgram.android.R.drawable.ic_other_rounded else com.pixelgram.android.R.drawable.ic_other
+        SettingsItem(stringResource(R.string.pixel_other), SegmentPosition.Bottom, stringResource(R.string.pixel_other_sub), painter = androidx.compose.ui.res.painterResource(otherIcon), onClick = { open("about") }, link = "pg://pixel/about")
     }
 }
 
@@ -395,6 +396,9 @@ internal fun AppearancePage(settings: AppearanceSettings, update: ((AppearanceSe
                     Text(pack.name, maxLines = 1)
                 }
             }
+        }
+        if (settings.iconPack == com.pixelgram.android.settings.IconPack.Material) {
+            SettingsSwitch(stringResource(R.string.pixel_icons_rounded), settings.materialRounded, { v -> update { it.copy(materialRounded = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_icons_rounded_sub))
         }
     }
     SettingsGroup(stringResource(R.string.pixel_nav_tabs)) {
