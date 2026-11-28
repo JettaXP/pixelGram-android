@@ -172,7 +172,7 @@ private fun NumPadKey(size: Dp, onPress: () -> Unit, action: Boolean = false, co
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
-                        val inBounds = change.position.x in 0f..size.width.toFloat() && change.position.y in 0f..size.height.toFloat()
+                        val inBounds = change.position.x in 0f..this.size.width.toFloat() && change.position.y in 0f..this.size.height.toFloat()
                         if (inside && !inBounds) {
                             inside = false
                             scope.launch { progress.snapTo(0f) }
