@@ -79,8 +79,9 @@ object NowPlayingPrefs {
     fun service(context: android.content.Context): String = context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).getString("service", None) ?: None
     fun username(context: android.content.Context): String = context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).getString("username", "").orEmpty()
     fun apiKey(context: android.content.Context): String = context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).getString("key", "").orEmpty()
-    fun save(context: android.content.Context, service: String, username: String, key: String) {
-        context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).edit().putString("service", service).putString("username", username.trim()).putString("key", key.trim()).apply()
+    fun shares(context: android.content.Context): Boolean = context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).getBoolean("share", false)
+    fun save(context: android.content.Context, service: String, username: String, key: String, share: Boolean = false) {
+        context.getSharedPreferences(Prefs, android.content.Context.MODE_PRIVATE).edit().putString("service", service).putString("username", username.trim()).putString("key", key.trim()).putBoolean("share", share).apply()
     }
 }
 
@@ -394,6 +395,7 @@ fun NowPlayingScreen(navigator: Navigator) {
     var service by remember { mutableStateOf(NowPlayingPrefs.service(context)) }
     var username by remember { mutableStateOf(NowPlayingPrefs.username(context)) }
     var key by remember { mutableStateOf(NowPlayingPrefs.apiKey(context)) }
+    var share by remember { mutableStateOf(NowPlayingPrefs.shares(context)) }
     androidx.compose.material3.Scaffold(
         topBar = {
             androidx.compose.material3.CenterAlignedTopAppBar(
@@ -401,7 +403,7 @@ fun NowPlayingScreen(navigator: Navigator) {
                 navigationIcon = { androidx.compose.material3.IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = {
                     androidx.compose.material3.IconButton(onClick = {
-                        NowPlayingPrefs.save(context, service, username, key)
+                        NowPlayingPrefs.save(context, service, username, key, share)
                         com.pixelgram.android.feature.profile.NowPlayingFeed.reset()
                         navigator.back()
                     }) { Icon(Icons.Rounded.Check, stringResource(R.string.action_done)) }
@@ -425,6 +427,10 @@ fun NowPlayingScreen(navigator: Navigator) {
             Text(stringResource(R.string.now_playing_about), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
             if (service != NowPlayingPrefs.None) {
                 OutlinedTextField(username, { username = it.take(43) }, label = { Text(stringResource(R.string.now_playing_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).combinedClickable(interactionSource = null, indication = null) { share = !share }) {
+                    androidx.compose.material3.Checkbox(checked = share, onCheckedChange = { share = it })
+                    Text(stringResource(R.string.now_playing_share), style = MaterialTheme.typography.bodySmall)
+                }
                 if (service == NowPlayingPrefs.LastFm) {
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(key, { key = it.take(64) }, label = { Text(stringResource(R.string.now_playing_key)) }, singleLine = true, modifier = Modifier.fillMaxWidth())

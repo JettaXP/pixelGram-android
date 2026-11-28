@@ -1,5 +1,7 @@
 package com.pixelgram.android.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,9 +55,10 @@ fun WheelPicker(items: List<String>, initial: Int, modifier: Modifier = Modifier
             val exit = ((kotlin.math.abs(delta) - 0.5f) / 1.5f).coerceIn(0f, 1f)
             Box(Modifier.height(WheelItem).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 var fit by remember(index) { mutableStateOf(1f) }
+                val size by animateFloatAsState(if (distance == 0) 22f else 19f, tween(120), label = "wheel-size")
                 Text(
                     items[index],
-                    fontSize = ((if (distance == 0) 22f else 19f) * fit).sp,
+                    fontSize = (size * fit).sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = when (distance) { 0 -> 1f; 1 -> 0.6f; else -> 0.3f }),
                     maxLines = 1,
                     softWrap = false,

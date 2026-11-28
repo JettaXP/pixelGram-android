@@ -198,6 +198,27 @@ internal fun GeneralPage(settings: AppearanceSettings, update: ((AppearanceSetti
             Icons.Rounded.Phone,
         )
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val passcodeOn = com.pixelgram.android.feature.security.PasscodeLock.enabled(context)
+    var lockOnSwitch by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.pixelgram.android.feature.security.PasscodeLock.lockOnSwitch(context)) }
+    SettingsGroup(stringResource(R.string.pixel_general_extras)) {
+        if (passcodeOn) SettingsSwitch(
+            stringResource(R.string.pixel_lock_on_switch),
+            lockOnSwitch,
+            { v ->
+                lockOnSwitch = v
+                com.pixelgram.android.feature.security.PasscodeLock.setLockOnSwitch(context, v)
+            },
+            SegmentPosition.Top,
+            stringResource(R.string.pixel_lock_on_switch_sub),
+        )
+        SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, if (passcodeOn) SegmentPosition.Middle else SegmentPosition.Top, "12:34 → 12:34:56")
+        SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
+        SettingsSwitch(stringResource(R.string.pixel_exact_numbers), settings.exactNumbers, { v -> update { it.copy(exactNumbers = v) } }, SegmentPosition.Middle, "999+ → 1234")
+        SettingsSwitch(stringResource(R.string.pixel_archive_pull), settings.archivePull, { v -> update { it.copy(archivePull = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_archive_pull_sub))
+        SettingsSwitch(stringResource(R.string.pixel_relative_last_seen), settings.relativeLastSeen, { v -> update { it.copy(relativeLastSeen = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_relative_last_seen_sub))
+        SettingsSwitch(stringResource(R.string.pixel_haptics), settings.haptics, { v -> update { it.copy(haptics = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_haptics_sub))
+    }
 }
 
 @Composable
@@ -221,9 +242,7 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
     ComposerSettings(settings, update)
     CursorSettings(settings, update)
     SettingsGroup(stringResource(R.string.pixel_messages)) {
-        SettingsSwitch(stringResource(R.string.pixel_seconds), settings.messageSeconds, { v -> update { it.copy(messageSeconds = v) } }, SegmentPosition.Top, "12:34 → 12:34:56")
-        SettingsSwitch(stringResource(R.string.pixel_zalgo), settings.zalgoFilter, { v -> update { it.copy(zalgoFilter = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_zalgo_sub))
-        SettingsSwitch(stringResource(R.string.pixel_typing_bubble), settings.typingBubble, { v -> update { it.copy(typingBubble = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_typing_bubble_sub))
+        SettingsSwitch(stringResource(R.string.pixel_typing_bubble), settings.typingBubble, { v -> update { it.copy(typingBubble = v) } }, SegmentPosition.Top, stringResource(R.string.pixel_typing_bubble_sub))
         SettingsSwitch(stringResource(R.string.pixel_inline_math), settings.inlineMath, { v -> update { it.copy(inlineMath = v) } }, SegmentPosition.Middle, stringResource(R.string.pixel_inline_math_sub))
         SettingsItem(stringResource(R.string.pixel_double_tap), SegmentPosition.Bottom, stringResource(R.string.pixel_double_tap_sub), onClick = { open(com.pixelgram.android.nav.QuickReactionKey) }) {
             com.pixelgram.android.feature.chat.ReactionGlyph(settings.doubleTapEmoji, 26.dp)
@@ -231,10 +250,6 @@ internal fun ChatsPage(settings: AppearanceSettings, open: (androidx.navigation3
     }
     SettingsGroup(stringResource(R.string.notify_settings)) {
         SettingsSwitch(stringResource(R.string.notify_keep_alive), settings.keepAlive, { v -> update { it.copy(keepAlive = v) } }, SegmentPosition.Single, stringResource(R.string.notify_keep_alive_sub))
-    }
-    SettingsGroup(stringResource(R.string.pixel_chat_list)) {
-        SettingsSwitch(stringResource(R.string.pixel_exact_numbers), settings.exactNumbers, { v -> update { it.copy(exactNumbers = v) } }, SegmentPosition.Top, "999+ → 1234")
-        SettingsSwitch(stringResource(R.string.pixel_archive_pull), settings.archivePull, { v -> update { it.copy(archivePull = v) } }, SegmentPosition.Bottom, stringResource(R.string.pixel_archive_pull_sub))
     }
     SettingsGroup(stringResource(R.string.pixel_folder_title)) {
         androidx.compose.material3.Card(

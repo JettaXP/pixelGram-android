@@ -96,6 +96,12 @@ object PasscodeLock {
 
     fun setBiometric(context: Context, value: Boolean) = prefs(context).edit().putBoolean("biometric", value).apply()
 
+    fun lockOnSwitch(context: Context) = prefs(context).getBoolean("lockOnSwitch", true)
+
+    fun setLockOnSwitch(context: Context, value: Boolean) = prefs(context).edit().putBoolean("lockOnSwitch", value).apply()
+
+    fun setSkipNext(context: Context, value: Boolean) = prefs(context).edit().putBoolean("skipNext", value).apply()
+
     private fun hash(salt: String, pin: String): String {
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest((salt + pin).toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
@@ -125,6 +131,11 @@ object PasscodeLock {
 
     fun onStart(context: Context) {
         if (!enabled(context)) return
+        if (prefs(context).getBoolean("skipNext", false)) {
+            prefs(context).edit().putBoolean("skipNext", false).apply()
+            locked = false
+            return
+        }
         val auto = autoLock(context)
         if (stoppedAt == 0L || (auto > 0 && System.currentTimeMillis() - stoppedAt > auto * 1000L)) locked = true
     }
@@ -155,14 +166,27 @@ private fun NumPadKey(size: Dp, onPress: () -> Unit, action: Boolean = false, co
             .background(bg)
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown()
-                    haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                    onPress()
+                    val down = awaitFirstDown()
                     scope.launch { progress.animateTo(1f, tween(33, easing = LinearEasing)) }
-                    waitForUpOrCancellation()
-                    scope.launch {
-                        if (progress.value < 1f) progress.animateTo(1f, tween(33, easing = LinearEasing))
-                        progress.animateTo(0f, tween(300, easing = Standard))
+                    var inside = true
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                        val inBounds = change.position.x in 0f..size.width.toFloat() && change.position.y in 0f..size.height.toFloat()
+                        if (inside && !inBounds) {
+                            inside = false
+                            scope.launch { progress.snapTo(0f) }
+                        }
+                        if (inside) change.consume()
+                        if (!change.pressed) {
+                            scope.launch { progress.animateTo(0f, tween(300, easing = Standard)) }
+                            if (inside) {
+                                change.consume()
+                                haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                onPress()
+                            }
+                            return@awaitEachGesture
+                        }
                     }
                 }
             },

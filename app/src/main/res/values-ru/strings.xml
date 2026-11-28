@@ -1491,4 +1491,18 @@
     <string name="viewer_show_in_chat">Показать в чате</string>
     <string name="viewer_today_at">сегодня в %1$s</string>
     <string name="viewer_date_at">%1$s в %2$s</string>
+    <string name="pixel_general_extras">Разное</string>
+    <string name="pixel_lock_on_switch">Запрашивать пароль при смене аккаунта</string>
+    <string name="pixel_lock_on_switch_sub">Экран блокировки появляется после перехода на другой аккаунт</string>
+    <string name="pixel_relative_last_seen">Относительное время визита</string>
+    <string name="pixel_relative_last_seen_sub">был(а) в 19:56 → был(а) 26 минут назад</string>
+    <string name="pixel_haptics">Вибрация в приложении</string>
+    <string name="pixel_haptics_sub">Виброотклик при нажатиях и долгих удержаниях</string>
+    <string name="now_playing_share">Я согласен, что мой ник Last.fm будет отправлен для просмотра моего скробблинга другими пользователями</string>
+    <plurals name="chat_seen_minutes_ago">
+        <item quantity="one">был(а) %d минуту назад</item>
+        <item quantity="few">был(а) %d минуты назад</item>
+        <item quantity="many">был(а) %d минут назад</item>
+        <item quantity="other">был(а) %d минут назад</item>
+    </plurals>
 </resources>

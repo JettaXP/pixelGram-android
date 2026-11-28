@@ -46,6 +46,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appearance by graph.appearance.state.collectAsState()
             val auth by graph.auth.state.collectAsState()
+            val rootView = androidx.compose.ui.platform.LocalView.current
+            androidx.compose.runtime.LaunchedEffect(appearance.haptics) { rootView.isHapticFeedbackEnabled = appearance.haptics }
             PixelTheme(appearance) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalGraph provides graph) {
                     if (auth.step == AuthStep.Ready) AppNavigation(graph) else AuthFlow(graph.auth)

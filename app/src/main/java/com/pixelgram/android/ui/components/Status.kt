@@ -12,7 +12,14 @@ fun statusLine(user: UserInfo): String = when {
     user.support -> stringResource(R.string.chat_support)
     user.bot -> stringResource(R.string.chat_bot)
     user.seen == Seen.Online || user.online -> stringResource(R.string.chat_online)
-    user.seen == Seen.Offline && user.lastSeen > 0 && isToday(user.lastSeen) -> stringResource(R.string.chat_last_seen_today, com.pixelgram.android.util.messageTime(user.lastSeen))
+    user.seen == Seen.Offline && user.lastSeen > 0 && isToday(user.lastSeen) -> {
+        val minutes = (System.currentTimeMillis() / 1000 - user.lastSeen) / 60
+        if (com.pixelgram.android.ui.theme.LocalAppearance.current.relativeLastSeen && minutes in 1..59) {
+            androidx.compose.ui.res.pluralStringResource(R.plurals.chat_seen_minutes_ago, minutes.toInt(), minutes.toInt())
+        } else {
+            stringResource(R.string.chat_last_seen_today, com.pixelgram.android.util.messageTime(user.lastSeen))
+        }
+    }
     user.seen == Seen.Offline && user.lastSeen > 0 -> stringResource(R.string.chat_last_seen, com.pixelgram.android.util.chatListTime(user.lastSeen), com.pixelgram.android.util.messageTime(user.lastSeen))
     user.seen == Seen.Week -> stringResource(R.string.chat_seen_week)
     user.seen == Seen.Month -> stringResource(R.string.chat_seen_month)

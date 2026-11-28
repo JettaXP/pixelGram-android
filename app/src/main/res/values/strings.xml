@@ -1438,4 +1438,16 @@
     <string name="viewer_show_in_chat">Show in chat</string>
     <string name="viewer_today_at">today at %1$s</string>
     <string name="viewer_date_at">%1$s at %2$s</string>
+    <string name="pixel_general_extras">Extras</string>
+    <string name="pixel_lock_on_switch">Ask passcode when switching accounts</string>
+    <string name="pixel_lock_on_switch_sub">The lock screen appears after switching to another account</string>
+    <string name="pixel_relative_last_seen">Relative last seen</string>
+    <string name="pixel_relative_last_seen_sub">last seen at 19:56 → last seen 26 minutes ago</string>
+    <string name="pixel_haptics">In-app vibration</string>
+    <string name="pixel_haptics_sub">Haptic feedback on taps and long presses</string>
+    <string name="now_playing_share">I agree that my Last.fm username will be shared so other users can view my scrobbles</string>
+    <plurals name="chat_seen_minutes_ago">
+        <item quantity="one">last seen %d minute ago</item>
+        <item quantity="other">last seen %d minutes ago</item>
+    </plurals>
 </resources>

@@ -84,6 +84,9 @@ object Accounts {
     }
 
     fun switchTo(context: Context, id: Int) {
+        if (id != active(context) && com.pixelgram.android.feature.security.PasscodeLock.enabled(context)) {
+            com.pixelgram.android.feature.security.PasscodeLock.setSkipNext(context, !com.pixelgram.android.feature.security.PasscodeLock.lockOnSwitch(context))
+        }
         prefs(context).edit().putInt("active", id).commit()
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

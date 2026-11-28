@@ -55,6 +55,8 @@ data class AppearanceSettings(
     val archivePull: Boolean = true,
     val exactNumbers: Boolean = false,
     val zalgoFilter: Boolean = false,
+    val relativeLastSeen: Boolean = false,
+    val haptics: Boolean = true,
     val hideAllChats: Boolean = false,
     val showDrawer: Boolean = true,
     val typingBubble: Boolean = true,
@@ -116,6 +118,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val K_archivePull = booleanPreferencesKey("archive_pull")
         val K_exactNumbers = booleanPreferencesKey("exact_numbers")
         val K_zalgoFilter = booleanPreferencesKey("zalgo_filter")
+        val K_relativeLastSeen = booleanPreferencesKey("relative_last_seen")
+        val K_haptics = booleanPreferencesKey("haptics")
         val K_hideAllChats = booleanPreferencesKey("hide_all_chats")
         val K_drawer = booleanPreferencesKey("show_drawer")
         val K_typingBubble = booleanPreferencesKey("typing_bubble")
@@ -146,7 +150,7 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         val C_cursorWidth = intPreferencesKey("cursor_width")
         val C_blinkCycle = intPreferencesKey("blink_cycle")
         val C_blinkSmoothness = intPreferencesKey("blink_smoothness")
-        val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_largeEmoji, K_inlineMath, K_archivePull, K_exactNumbers, K_zalgoFilter, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
+        val booleans = listOf(C_liquidCursor, C_smoothCursor, C_cursorBlink, C_kittyCursor, Dynamic, DynamicIcon, Mono, HidePhone, PhoneDetails, K_messageSeconds, K_largeEmoji, K_inlineMath, K_archivePull, K_exactNumbers, K_zalgoFilter, K_relativeLastSeen, K_haptics, K_hideAllChats, K_drawer, K_bottomBar, K_typingBubble, K_keepAlive)
         val ints = listOf(C_trailFast, C_trailSlow, C_trailThreshold, C_cursorStretch, C_handleStretch, C_sidePull, C_cursorSpeed, C_cursorWidth, C_blinkCycle, C_blinkSmoothness, Corner, CapsuleInset, CapsuleSpacing, CapsuleHeight, K_bubbleRadius, K_bubbleTailRadius, K_messageFontSize, K_fontStamp)
         val strings = listOf(Theme, Shape, KindShapes, NavBar, Pack, FolderTitleMode, NavTabs, NavOrder, DrawerItems, DrawerOrder, K_doubleTapEmoji, K_composerStyle, K_appFont, K_emojiStyle, K_composerLeft, K_composerRight, K_composerExtra)
     }
@@ -205,6 +209,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
         archivePull = p[Keys.K_archivePull] ?: true,
         exactNumbers = p[Keys.K_exactNumbers] ?: false,
         zalgoFilter = p[Keys.K_zalgoFilter] ?: false,
+        relativeLastSeen = p[Keys.K_relativeLastSeen] ?: false,
+        haptics = p[Keys.K_haptics] ?: true,
         hideAllChats = p[Keys.K_hideAllChats] ?: false,
         showDrawer = p[Keys.K_drawer] ?: true,
         typingBubble = p[Keys.K_typingBubble] ?: true,
@@ -266,6 +272,8 @@ class AppearanceStore(private val context: Context, private val scope: Coroutine
                 p[Keys.K_archivePull] = next.archivePull
                 p[Keys.K_exactNumbers] = next.exactNumbers
                 p[Keys.K_zalgoFilter] = next.zalgoFilter
+                p[Keys.K_relativeLastSeen] = next.relativeLastSeen
+                p[Keys.K_haptics] = next.haptics
                 p[Keys.K_hideAllChats] = next.hideAllChats
                 p[Keys.K_drawer] = next.showDrawer
                 p[Keys.K_typingBubble] = next.typingBubble
