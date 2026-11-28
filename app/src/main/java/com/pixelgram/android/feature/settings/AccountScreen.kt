@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.AlternateEmail
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -186,7 +188,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
     }
     var editingUsername by remember { mutableStateOf(false) }
     var editingBirthday by remember { mutableStateOf(false) }
-    var nowPlaying by remember { mutableStateOf(false) }
     var personal by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
 
@@ -214,11 +215,11 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
 
     Spacer(Modifier.height(8.dp))
     SettingsGroup {
-        val service = remember(nowPlaying) { NowPlayingPrefs.service(context) }
+        val service = remember { NowPlayingPrefs.service(context) }
         SettingsItem(
             stringResource(R.string.account_scrobbling),
             SegmentPosition.Top,
-            onClick = { nowPlaying = true },
+            onClick = { navigator.open(com.pixelgram.android.nav.NowPlayingKey) },
             trailing = { Text(serviceLabel(service), color = MaterialTheme.colorScheme.primary) },
         )
         val personalId = full?.personalChatId ?: 0L
@@ -314,7 +315,6 @@ fun AccountEditorScreen(graph: AppGraph, navigator: Navigator) {
             onDismiss = { editingBirthday = false },
         )
     }
-    if (nowPlaying) NowPlayingDialog { nowPlaying = false }
     if (personal) {
         val chats by produceState(emptyList<TdApi.Chat>()) {
             value = runCatching { graph.td.send(TdApi.GetSuitablePersonalChats()).chatIds.toList() }.getOrDefault(emptyList()).mapNotNull { id -> runCatching { graph.td.send(TdApi.GetChat(id)) }.getOrNull() }
@@ -387,49 +387,58 @@ private fun serviceLabel(service: String): String = when (service) {
     else -> stringResource(R.string.privacy_off)
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun NowPlayingDialog(onDismiss: () -> Unit) {
+fun NowPlayingScreen(navigator: Navigator) {
     val context = LocalContext.current
     var service by remember { mutableStateOf(NowPlayingPrefs.service(context)) }
     var username by remember { mutableStateOf(NowPlayingPrefs.username(context)) }
     var key by remember { mutableStateOf(NowPlayingPrefs.apiKey(context)) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.now_playing_title)) },
-        text = {
-            Column {
-                listOf(NowPlayingPrefs.None, NowPlayingPrefs.LastFm, NowPlayingPrefs.StatsFm).forEach { option ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().combinedClickable(interactionSource = null, indication = null) { service = option }) {
-                        RadioButton(service == option, { service = option })
-                        Text(serviceLabel(option))
-                    }
-                }
-                Text(stringResource(R.string.now_playing_about), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
-                if (service != NowPlayingPrefs.None) {
-                    OutlinedTextField(username, { username = it.take(43) }, label = { Text(stringResource(R.string.now_playing_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    if (service == NowPlayingPrefs.LastFm) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(key, { key = it.take(64) }, label = { Text(stringResource(R.string.now_playing_key)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        Text(
-                            buildAnnotatedString {
-                                append(stringResource(R.string.now_playing_key_note) + " ")
-                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append("last.fm/api/account/create") }
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp).combinedClickable(interactionSource = null, indication = null) { com.pixelgram.android.nav.PendingNav.external = "https://www.last.fm/api/account/create" },
-                        )
-                    }
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            androidx.compose.material3.CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.now_playing_title)) },
+                navigationIcon = { androidx.compose.material3.IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) } },
+                actions = {
+                    androidx.compose.material3.IconButton(onClick = {
+                        NowPlayingPrefs.save(context, service, username, key)
+                        com.pixelgram.android.feature.profile.NowPlayingFeed.reset()
+                        navigator.back()
+                    }) { Icon(Icons.Rounded.Check, stringResource(R.string.action_done)) }
+                },
+            )
+        },
+    ) { padding ->
+        Column(Modifier.padding(padding).padding(horizontal = 16.dp)) {
+            Text(
+                stringResource(R.string.now_playing_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 10.dp),
+            )
+            listOf(NowPlayingPrefs.None, NowPlayingPrefs.LastFm, NowPlayingPrefs.StatsFm).forEach { option ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().combinedClickable(interactionSource = null, indication = null) { service = option }) {
+                    RadioButton(service == option, { service = option })
+                    Text(serviceLabel(option))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                NowPlayingPrefs.save(context, service, username, key)
-                com.pixelgram.android.feature.profile.NowPlayingFeed.reset()
-                onDismiss()
-            }) { Text(stringResource(R.string.action_done)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
+            Text(stringResource(R.string.now_playing_about), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+            if (service != NowPlayingPrefs.None) {
+                OutlinedTextField(username, { username = it.take(43) }, label = { Text(stringResource(R.string.now_playing_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                if (service == NowPlayingPrefs.LastFm) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(key, { key = it.take(64) }, label = { Text(stringResource(R.string.now_playing_key)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        buildAnnotatedString {
+                            append(stringResource(R.string.now_playing_key_note) + " ")
+                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append("last.fm/api/account/create") }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp).combinedClickable(interactionSource = null, indication = null) { com.pixelgram.android.nav.PendingNav.external = "https://www.last.fm/api/account/create" },
+                    )
+                }
+            }
+        }
+    }
 }

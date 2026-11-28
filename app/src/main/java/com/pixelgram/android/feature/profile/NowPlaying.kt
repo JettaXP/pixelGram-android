@@ -32,7 +32,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 
-data class NowPlayingTrack(val title: String, val artist: String, val cover: String?, val playing: Boolean, val service: String, val profileUrl: String)
+data class NowPlayingTrack(val title: String, val artist: String, val cover: String?, val playing: Boolean, val service: String, val profileUrl: String, val trackUrl: String? = null)
 
 object NowPlayingFeed {
     private var cached: Pair<Long, NowPlayingTrack?>? = null
@@ -76,7 +76,9 @@ object NowPlayingFeed {
         val playing = track.optJSONObject("@attr")?.optString("nowplaying") == "true"
         val images = track.optJSONArray("image")
         val cover = images?.let { arr -> (arr.length() - 1 downTo 0).asSequence().map { arr.getJSONObject(it).optString("#text") }.firstOrNull { it.isNotBlank() } }
-        return NowPlayingTrack(track.optString("name"), track.optJSONObject("artist")?.optString("#text").orEmpty(), cover, playing, "Last.fm", "https://www.last.fm/user/$name/library")
+        val artist = track.optJSONObject("artist")?.optString("#text").orEmpty()
+        val trackUrl = "https://www.last.fm/music/${URLEncoder.encode(artist, "UTF-8")}/_/${URLEncoder.encode(track.optString("name"), "UTF-8")}"
+        return NowPlayingTrack(track.optString("name"), artist, cover, playing, "Last.fm", "https://www.last.fm/user/$name/library", trackUrl)
     }
 
     private fun statsFm(user: String): NowPlayingTrack? {
@@ -87,7 +89,8 @@ object NowPlayingFeed {
         val artists = track.optJSONArray("artists")
         val artist = artists?.let { arr -> (0 until arr.length()).joinToString(", ") { arr.getJSONObject(it).optString("name") } }.orEmpty()
         val cover = track.optJSONArray("albums")?.optJSONObject(0)?.optString("image")
-        return NowPlayingTrack(track.optString("name"), artist, cover, item.optBoolean("isPlaying", true), "Stats.fm", "https://stats.fm/$name")
+        val trackId = track.optString("id").takeIf { it.isNotBlank() }
+        return NowPlayingTrack(track.optString("name"), artist, cover, item.optBoolean("isPlaying", true), "Stats.fm", "https://stats.fm/$name", trackId?.let { "https://stats.fm/track/$it" })
     }
 
     private const val CacheMs = 30_000L
